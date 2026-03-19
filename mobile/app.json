@@ -6,6 +6,7 @@
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./assets/Logo.png",
     "assetBundlePatterns": [
       "**/*"
     ],
