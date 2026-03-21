@@ -11,7 +11,7 @@ import {
   View
 } from "react-native";
 
-export default function WelcomeScreen() {
+export default function WelcomeScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.screen}>
@@ -49,8 +49,11 @@ export default function WelcomeScreen() {
             <Text style={styles.subheadline}>
               Connect with people from your hometown, wherever you go.
             </Text>
-            <Pressable style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>Get Started</Text>
+            <Pressable 
+              style={styles.primaryButton}
+              onPress={() => navigation.navigate("Onboarding")}
+            >
+              <Text style={styles.primaryButtonText}>Welcome to CityYaari</Text>
               <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" />
             </Pressable>
           </View>
