@@ -46,12 +46,12 @@ export default function OnboardingScreen({ navigation }) {
     if (currentStep < ONBOARDING_DATA.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      navigation.navigate("MainAppDummy");
+      navigation.navigate("AccessAccount");
     }
   };
 
   const handleSkip = () => {
-    navigation.navigate("MainAppDummy");
+    navigation.navigate("AccessAccount");
   };
 
   const data = ONBOARDING_DATA[currentStep];
