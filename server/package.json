@@ -2,6 +2,7 @@
   "name": "cityyaari-server",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
