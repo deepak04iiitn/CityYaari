@@ -68,6 +68,7 @@ const runTests = async () => {
         country: 'India',
         state: 'Delhi',
         city: 'New Delhi',
+        profileImageUri: 'file:///tmp/test-profile.jpg',
       }),
     });
     const updateProfileData = await updateProfileRes.json();
@@ -75,6 +76,7 @@ const runTests = async () => {
     console.log('Profile Updated:', updateProfileData.user.username);
     console.log('Updated Occupation:', updateProfileData.user.occupationType);
     console.log('Updated Location:', `${updateProfileData.user.city}, ${updateProfileData.user.state}, ${updateProfileData.user.country}`);
+    console.log('Updated Profile Image:', updateProfileData.user.profileImageUri);
 
     // 5. Test RBAC (Admin) - expect failure
     console.log('\nTesting RBAC (Admin-only route with Normal User)...');

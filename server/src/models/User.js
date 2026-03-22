@@ -43,6 +43,11 @@ const userSchema = new mongoose.Schema(
       required: [true, 'Please add a city'],
       trim: true,
     },
+    profileImageUri: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     password: {
       type: String,
       required: [true, 'Please add a password'],

@@ -1,12 +1,15 @@
 import User from '../models/User.js';
 import generateToken from '../utils/tokenGenerator.js';
 import bcrypt from 'bcryptjs';
+import fs from 'fs';
+import path from 'path';
 import {
   deleteAccountById,
   isUserSoftDeleted,
   purgeDeletedUserIfExpired,
 } from '../services/accountDeletionService.js';
 import jwt from 'jsonwebtoken';
+import { profileImageUploadDir } from '../middleware/uploadMiddleware.js';
 
 const normalizeSecurityAnswer = (answer = '') => answer.trim().toLowerCase();
 
@@ -27,6 +30,9 @@ const buildAuthUserPayload = (user) => ({
   country: user.country,
   state: user.state,
   city: user.city,
+  profileImageUri: user.profileImageUri,
+  securityQuestion: user.securityQuestion,
+  hasSecurityAnswer: Boolean(user.securityAnswerHash || user.securityQuestion),
   role: user.role,
 });
 
@@ -160,7 +166,8 @@ export const getUserProfile = async (req, res) => {
 // @route   PUT /api/auth/profile
 // @access  Private
 export const updateUserProfile = async (req, res) => {
-  const { fullName, username, email, occupationType, country, state, city } = req.body;
+  const { fullName, username, email, occupationType, country, state, city, profileImageUri } =
+    req.body;
 
   try {
     const user = await User.findById(req.user._id);
@@ -177,6 +184,8 @@ export const updateUserProfile = async (req, res) => {
     const normalizedCountry = typeof country === 'string' ? country.trim() : undefined;
     const normalizedState = typeof state === 'string' ? state.trim() : undefined;
     const normalizedCity = typeof city === 'string' ? city.trim() : undefined;
+    const normalizedProfileImageUri =
+      typeof profileImageUri === 'string' ? profileImageUri.trim() : undefined;
 
     if (
       normalizedFullName === undefined &&
@@ -185,7 +194,8 @@ export const updateUserProfile = async (req, res) => {
       normalizedOccupationType === undefined &&
       normalizedCountry === undefined &&
       normalizedState === undefined &&
-      normalizedCity === undefined
+      normalizedCity === undefined &&
+      normalizedProfileImageUri === undefined
     ) {
       return res.status(400).json({ message: 'Provide at least one field to update' });
     }
@@ -220,6 +230,9 @@ export const updateUserProfile = async (req, res) => {
     }
     if (normalizedCity !== undefined && !normalizedCity) {
       return res.status(400).json({ message: 'City cannot be empty' });
+    }
+    if (normalizedProfileImageUri !== undefined && !normalizedProfileImageUri) {
+      return res.status(400).json({ message: 'Profile image cannot be empty' });
     }
 
     const conflictChecks = [];
@@ -262,11 +275,108 @@ export const updateUserProfile = async (req, res) => {
     if (normalizedCity !== undefined) {
       user.city = normalizedCity;
     }
+    if (normalizedProfileImageUri !== undefined) {
+      user.profileImageUri = normalizedProfileImageUri;
+    }
 
     const updatedUser = await user.save();
 
     return res.status(200).json({
       message: 'Profile updated successfully',
+      user: buildAuthUserPayload(updatedUser),
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Change authenticated user password
+// @route   PUT /api/auth/password
+// @access  Private
+export const changeUserPassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  try {
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+    }
+
+    const user = await User.findById(req.user._id).select('+password +securityAnswerHash');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const passwordMatches = await bcrypt.compare(currentPassword, user.password);
+
+    if (!passwordMatches) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    return res.status(200).json({ message: 'Password changed successfully' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const removeStoredProfileImage = (profileImageUri) => {
+  if (!profileImageUri || typeof profileImageUri !== 'string') {
+    return;
+  }
+
+  try {
+    const parsedUrl = new URL(profileImageUri);
+    const pathname = decodeURIComponent(parsedUrl.pathname);
+
+    if (!pathname.startsWith('/uploads/profile-images/')) {
+      return;
+    }
+
+    const filename = path.basename(pathname);
+    const filePath = path.join(profileImageUploadDir, filename);
+
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  } catch {
+    // Ignore invalid or external URLs.
+  }
+};
+
+// @desc    Upload authenticated user profile image
+// @route   POST /api/auth/profile-image
+// @access  Private
+export const uploadUserProfileImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Profile image file is required' });
+    }
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const nextProfileImageUri = `${baseUrl}/uploads/profile-images/${req.file.filename}`;
+    const previousProfileImageUri = user.profileImageUri;
+
+    user.profileImageUri = nextProfileImageUri;
+    const updatedUser = await user.save();
+
+    removeStoredProfileImage(previousProfileImageUri);
+
+    return res.status(200).json({
+      message: 'Profile image uploaded successfully',
       user: buildAuthUserPayload(updatedUser),
     });
   } catch (error) {

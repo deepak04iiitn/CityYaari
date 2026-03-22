@@ -35,6 +35,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const persistAuthUser = async (nextToken, nextUser) => {
+    if (nextToken) {
+      await AsyncStorage.setItem('userToken', nextToken);
+    }
+
+    await AsyncStorage.setItem('userData', JSON.stringify(nextUser));
+    setUser(nextUser);
+    if (nextToken) {
+      setToken(nextToken);
+    }
+  };
+
   const login = async (identifier, password) => {
     try {
       const response = await axios.post(`${API_BASE_URL}/auth/login`, {
@@ -44,11 +56,7 @@ export const AuthProvider = ({ children }) => {
 
       const { token, ...userData } = response.data;
 
-      await AsyncStorage.setItem('userToken', token);
-      await AsyncStorage.setItem('userData', JSON.stringify(userData));
-
-      setToken(token);
-      setUser(userData);
+      await persistAuthUser(token, userData);
       return { success: true };
     } catch (error) {
       return {
@@ -86,11 +94,7 @@ export const AuthProvider = ({ children }) => {
 
       const { token, ...userData } = response.data;
 
-      await AsyncStorage.setItem('userToken', token);
-      await AsyncStorage.setItem('userData', JSON.stringify(userData));
-
-      setToken(token);
-      setUser(userData);
+      await persistAuthUser(token, userData);
       return { success: true };
     } catch (error) {
       return {
@@ -153,6 +157,111 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateProfile = async (profileUpdates) => {
+    try {
+      const response = await axios.put(`${API_BASE_URL}/auth/profile`, profileUpdates, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const nextUser = {
+        ...user,
+        ...response.data.user,
+      };
+
+      await persistAuthUser(null, nextUser);
+      return { success: true, user: nextUser };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Could not update profile',
+      };
+    }
+  };
+
+  const changePassword = async (currentPassword, newPassword) => {
+    try {
+      await axios.put(
+        `${API_BASE_URL}/auth/password`,
+        { currentPassword, newPassword },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Could not change password',
+      };
+    }
+  };
+
+  const updateProfileImage = async (asset) => {
+    try {
+      const uri = asset?.uri;
+
+      if (!uri) {
+        return {
+          success: false,
+          message: 'No image selected',
+        };
+      }
+
+      const fileName = asset.fileName || uri.split('/').pop() || `profile-${Date.now()}.jpg`;
+      const fileType = asset.mimeType || 'image/jpeg';
+      const formData = new FormData();
+
+      formData.append('profileImage', {
+        uri,
+        name: fileName,
+        type: fileType,
+      });
+
+      const response = await axios.post(`${API_BASE_URL}/auth/profile-image`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      const nextUser = {
+        ...user,
+        ...response.data.user,
+      };
+
+      await persistAuthUser(null, nextUser);
+      return { success: true, user: nextUser };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Could not update profile photo',
+      };
+    }
+  };
+
+  const deleteAccount = async (password) => {
+    try {
+      const response = await axios.delete(`${API_BASE_URL}/auth/account`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { password },
+      });
+
+      if (response.data?.clearAuth) {
+        await logout();
+      }
+
+      return {
+        success: true,
+        message: response.data?.message,
+        permanentDeletionAt: response.data?.permanentDeletionAt,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Could not delete account',
+      };
+    }
+  };
+
   const logout = async () => {
     try {
       await AsyncStorage.removeItem('userToken');
@@ -173,6 +282,10 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated: !!token,
         login,
         register,
+        updateProfile,
+        updateProfileImage,
+        changePassword,
+        deleteAccount,
         getForgotPasswordQuestion,
         verifySecurityAnswer,
         resetForgottenPassword,
