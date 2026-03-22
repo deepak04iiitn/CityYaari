@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { isUserSoftDeleted, purgeDeletedUserIfExpired } from '../services/accountDeletionService.js';
 
 // Protect routes
 export const protect = async (req, res, next) => {
@@ -18,9 +19,14 @@ export const protect = async (req, res, next) => {
 
       // Get user from the token
       req.user = await User.findById(decoded.id).select('-password');
+      req.user = await purgeDeletedUserIfExpired(req.user);
 
       if (!req.user) {
         return res.status(401).json({ message: 'User not found' });
+      }
+
+      if (isUserSoftDeleted(req.user)) {
+        return res.status(401).json({ message: 'Account is scheduled for permanent deletion' });
       }
 
       next();

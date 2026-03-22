@@ -49,9 +49,30 @@ const userSchema = new mongoose.Schema(
       enum: ['user', 'admin'],
       default: 'user',
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    purgeAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
+  }
+);
+
+userSchema.index(
+  { purgeAt: 1 },
+  {
+    expireAfterSeconds: 0,
+    partialFilterExpression: { isDeleted: true },
   }
 );
 

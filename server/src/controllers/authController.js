@@ -1,7 +1,11 @@
 import User from '../models/User.js';
 import generateToken from '../utils/tokenGenerator.js';
 import bcrypt from 'bcryptjs';
-import { deleteAccountById } from '../services/accountDeletionService.js';
+import {
+  deleteAccountById,
+  isUserSoftDeleted,
+  purgeDeletedUserIfExpired,
+} from '../services/accountDeletionService.js';
 import jwt from 'jsonwebtoken';
 
 const normalizeSecurityAnswer = (answer = '') => answer.trim().toLowerCase();
@@ -96,16 +100,23 @@ export const loginUser = async (req, res) => {
         { username: normalizedIdentifier },
       ],
     }).select('+password');
+    const activeUser = await purgeDeletedUserIfExpired(user);
 
-    if (user && (await bcrypt.compare(password, user.password))) {
+    if (isUserSoftDeleted(activeUser)) {
+      return res.status(403).json({
+        message: 'This account is scheduled for permanent deletion and cannot be used to log in',
+      });
+    }
+
+    if (activeUser && (await bcrypt.compare(password, activeUser.password))) {
       res.json({
-        _id: user._id,
-        fullName: user.fullName,
-        username: user.username,
-        email: user.email,
-        occupationType: user.occupationType,
-        role: user.role,
-        token: generateToken(user._id),
+        _id: activeUser._id,
+        fullName: activeUser.fullName,
+        username: activeUser.username,
+        email: activeUser.email,
+        occupationType: activeUser.occupationType,
+        role: activeUser.role,
+        token: generateToken(activeUser._id),
       });
     } else {
       res.status(401).json({ message: 'Invalid email or password' });
@@ -170,8 +181,10 @@ export const deleteOwnAccount = async (req, res) => {
     const deletionResult = await deleteAccountById(user._id);
 
     return res.status(200).json({
-      message: 'Account deleted successfully',
+      message: 'Account soft-deleted successfully',
       deletedUserId: deletionResult.deletedUserId,
+      deletedAt: deletionResult.deletedAt,
+      permanentDeletionAt: deletionResult.purgeAt,
       clearAuth: true,
     });
   } catch (error) {
@@ -195,14 +208,19 @@ export const getForgotPasswordQuestion = async (req, res) => {
     const user = await User.findOne({
       $or: [{ email: normalizedIdentifier.toLowerCase() }, { username: normalizedIdentifier }],
     }).select('securityQuestion');
+    const activeUser = await purgeDeletedUserIfExpired(user);
 
-    if (!user) {
+    if (!activeUser) {
       return res.status(404).json({ message: 'Account not found' });
+    }
+
+    if (isUserSoftDeleted(activeUser)) {
+      return res.status(403).json({ message: 'Account is scheduled for permanent deletion' });
     }
 
     return res.status(200).json({
       identifier: normalizedIdentifier,
-      securityQuestion: user.securityQuestion,
+      securityQuestion: activeUser.securityQuestion,
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -225,14 +243,19 @@ export const verifyForgotPasswordAnswer = async (req, res) => {
     const user = await User.findOne({
       $or: [{ email: normalizedIdentifier.toLowerCase() }, { username: normalizedIdentifier }],
     }).select('+securityAnswerHash');
+    const activeUser = await purgeDeletedUserIfExpired(user);
 
-    if (!user) {
+    if (!activeUser) {
       return res.status(404).json({ message: 'Account not found' });
+    }
+
+    if (isUserSoftDeleted(activeUser)) {
+      return res.status(403).json({ message: 'Account is scheduled for permanent deletion' });
     }
 
     const answerMatches = await bcrypt.compare(
       normalizeSecurityAnswer(securityAnswer),
-      user.securityAnswerHash
+      activeUser.securityAnswerHash
     );
 
     if (!answerMatches) {
@@ -241,7 +264,7 @@ export const verifyForgotPasswordAnswer = async (req, res) => {
 
     return res.status(200).json({
       message: 'Security answer verified',
-      resetToken: generatePasswordResetToken(user._id),
+      resetToken: generatePasswordResetToken(activeUser._id),
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -270,14 +293,19 @@ export const resetForgottenPassword = async (req, res) => {
     }
 
     const user = await User.findById(decoded.id).select('+password');
+    const activeUser = await purgeDeletedUserIfExpired(user);
 
-    if (!user) {
+    if (!activeUser) {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    if (isUserSoftDeleted(activeUser)) {
+      return res.status(403).json({ message: 'Account is scheduled for permanent deletion' });
+    }
+
     const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(newPassword, salt);
-    await user.save();
+    activeUser.password = await bcrypt.hash(newPassword, salt);
+    await activeUser.save();
 
     return res.status(200).json({ message: 'Password updated successfully' });
   } catch (error) {

@@ -152,7 +152,8 @@ const runTests = async () => {
     });
     const deleteData = await deleteRes.json();
     if (!deleteRes.ok) throw new Error(deleteData.message);
-    console.log('Account Deleted:', deleteData.deletedUserId);
+    console.log('Account Soft Deleted:', deleteData.deletedUserId);
+    console.log('Permanent Deletion Scheduled For:', deleteData.permanentDeletionAt);
 
     // 9. Verify deleted account can no longer access profile
     console.log('\nVerifying Deleted Account Access is Blocked...');
@@ -163,6 +164,22 @@ const runTests = async () => {
       console.log('Success: Deleted account token no longer resolves to a user');
     } else {
       console.log('ERROR: Deleted account token unexpectedly retained access:', deletedProfileRes.status);
+    }
+
+    console.log('\nVerifying Soft Deleted Account Cannot Log In...');
+    const deletedLoginRes = await fetch(`${API_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        identifier: registerData.username,
+        password: 'updatedPass123',
+      }),
+    });
+    const deletedLoginData = await deletedLoginRes.json();
+    if (deletedLoginRes.status === 403) {
+      console.log('Success:', deletedLoginData.message);
+    } else {
+      console.log('ERROR: Soft deleted account unexpectedly logged in:', deletedLoginRes.status);
     }
 
     console.log('\n--- All Tests Passed Successfully! ---');
