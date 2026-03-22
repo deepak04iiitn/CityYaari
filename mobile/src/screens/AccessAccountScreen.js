@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { ArrowRight } from 'lucide-react-native';
 import {
   StyleSheet,
   View,
@@ -177,6 +178,7 @@ const AccessAccountScreen = () => {
         >
           <Text style={styles.btnPrimaryText}>Log In</Text>
           <View style={styles.btnArrow}>
+            <ArrowRight size={13} color={T.white} />
             <Text style={styles.btnArrowIcon}>→</Text>
           </View>
         </TouchableOpacity>
@@ -353,9 +355,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   btnArrowIcon: {
-    color: T.white,
-    fontSize: 12,
-    fontWeight: '700',
+    display: 'none',
   },
   btnSecondary: {
     width: '100%',

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MaterialIcons } from '@expo/vector-icons';
+import { ArrowLeft, X } from 'lucide-react-native';
 import {
   StyleSheet,
   View,
@@ -12,10 +13,16 @@ import {
   Platform,
   TouchableWithoutFeedback,
   ActivityIndicator,
+  Modal,
+  FlatList,
 } from 'react-native';
+import { GetCity, GetCountries, GetState } from 'react-country-state-city';
+import LoginFlow from './AuthBottomSheet/LoginFlow';
+import SignupFlow from './AuthBottomSheet/SignupFlow';
 import { useAuth } from '../store/AuthContext';
 
 const { height } = Dimensions.get('window');
+const OTHER_OPTION = { id: -1, name: 'Other', isOther: true };
 
 const T = {
   blueDeep: '#0a1628',
@@ -119,6 +126,103 @@ const OptionCard = ({ label, active, onPress }) => (
   </TouchableOpacity>
 );
 
+const SelectionField = ({ label, value, placeholder, disabled, onPress, loading }) => (
+  <View style={styles.inputGroup}>
+    <Text style={styles.inputLabel}>{label}</Text>
+    <TouchableOpacity
+      style={[styles.selectField, disabled && styles.selectFieldDisabled]}
+      onPress={onPress}
+      disabled={disabled}
+      activeOpacity={0.85}
+    >
+      <Text style={[styles.selectText, !value && styles.selectPlaceholder]}>
+        {value || placeholder}
+      </Text>
+      {loading ? (
+        <ActivityIndicator size="small" color={T.blueMain} />
+      ) : (
+        <MaterialIcons
+          name="keyboard-arrow-down"
+          size={22}
+          color={disabled ? '#94a3b8' : T.ink3}
+        />
+      )}
+    </TouchableOpacity>
+  </View>
+);
+
+const SelectionModal = ({ visible, title, options, loading, onClose, onSelect }) => {
+  const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    if (!visible) {
+      setQuery('');
+    }
+  }, [visible]);
+
+  const filteredOptions = options.filter((option) =>
+    option.name.toLowerCase().includes(query.trim().toLowerCase())
+  );
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.modalBackdrop}>
+          <TouchableWithoutFeedback>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{title}</Text>
+                <TouchableOpacity onPress={onClose} style={styles.modalClose}>
+                  <MaterialIcons name="close" size={20} color={T.ink3} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.modalSearchWrap}>
+                <MaterialIcons name="search" size={18} color={T.ink3} />
+                <TextInput
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder={`Search ${title.toLowerCase()}`}
+                  placeholderTextColor={T.ink3}
+                  style={styles.modalSearchInput}
+                />
+              </View>
+
+              {loading ? (
+                <View style={styles.modalLoaderWrap}>
+                  <ActivityIndicator color={T.blueMain} />
+                </View>
+              ) : (
+                <FlatList
+                  data={filteredOptions}
+                  keyExtractor={(item, index) => `${item.id}-${index}`}
+                  keyboardShouldPersistTaps="handled"
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.modalOption}
+                      onPress={() => onSelect(item)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.modalOptionText, item.isOther && styles.modalOtherText]}>
+                        {item.name}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  ListEmptyComponent={
+                    <View style={styles.modalEmptyWrap}>
+                      <Text style={styles.modalEmptyText}>No matches found.</Text>
+                    </View>
+                  }
+                />
+              )}
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+};
+
 const createInitialFormData = () => ({
   fullName: '',
   username: '',
@@ -146,6 +250,20 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pickerType, setPickerType] = useState('country');
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [countries, setCountries] = useState([]);
+  const [states, setStates] = useState([]);
+  const [cities, setCities] = useState([]);
+  const [selectedCountryId, setSelectedCountryId] = useState(null);
+  const [selectedStateId, setSelectedStateId] = useState(null);
+  const [selectedCountryLabel, setSelectedCountryLabel] = useState('');
+  const [selectedStateLabel, setSelectedStateLabel] = useState('');
+  const [selectedCityLabel, setSelectedCityLabel] = useState('');
+  const [countryIsOther, setCountryIsOther] = useState(false);
+  const [stateIsOther, setStateIsOther] = useState(false);
+  const [cityIsOther, setCityIsOther] = useState(false);
 
   const {
     login,
@@ -161,6 +279,20 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
   useEffect(() => {
     resetFlow(initialForm);
   }, [initialForm]);
+
+  useEffect(() => {
+    if (!isVisible) {
+      return;
+    }
+
+    GetCountries()
+      .then((data) => {
+        setCountries(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        setCountries([]);
+      });
+  }, [isVisible]);
 
   useEffect(() => {
     if (isVisible) {
@@ -193,6 +325,19 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
     }
   }, [isVisible, opacity, translateY]);
 
+  const resetLocationSelection = () => {
+    setSelectedCountryId(null);
+    setSelectedStateId(null);
+    setSelectedCountryLabel('');
+    setSelectedStateLabel('');
+    setSelectedCityLabel('');
+    setCountryIsOther(false);
+    setStateIsOther(false);
+    setCityIsOther(false);
+    setStates([]);
+    setCities([]);
+  };
+
   const resetFlow = (nextFlow) => {
     setFlowType(nextFlow);
     setSignupStep(1);
@@ -203,11 +348,115 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
     setShowNewPassword(false);
     setError('');
     setIsSubmitting(false);
+    setPickerVisible(false);
+    setPickerType('country');
+    setPickerLoading(false);
+    resetLocationSelection();
   };
 
   const handleChange = (key, value) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
     if (error) setError('');
+  };
+
+  const openPicker = async (type) => {
+    setError('');
+    setPickerType(type);
+    setPickerVisible(true);
+
+    if (type === 'state' && selectedCountryId && !countryIsOther) {
+      setPickerLoading(true);
+      try {
+        const data = await GetState(selectedCountryId);
+        setStates(Array.isArray(data) ? data : []);
+      } finally {
+        setPickerLoading(false);
+      }
+      return;
+    }
+
+    if (type === 'city' && selectedCountryId && selectedStateId && !countryIsOther && !stateIsOther) {
+      setPickerLoading(true);
+      try {
+        const data = await GetCity(selectedCountryId, selectedStateId);
+        setCities(Array.isArray(data) ? data : []);
+      } finally {
+        setPickerLoading(false);
+      }
+      return;
+    }
+
+    setPickerLoading(false);
+  };
+
+  const handleCountrySelect = (item) => {
+    setPickerVisible(false);
+    setSelectedCountryId(item.isOther ? null : item.id);
+    setSelectedCountryLabel(item.name);
+    setCountryIsOther(Boolean(item.isOther));
+    setSelectedStateId(null);
+    setSelectedStateLabel('');
+    setSelectedCityLabel('');
+    setStateIsOther(false);
+    setCityIsOther(false);
+    setStates([]);
+    setCities([]);
+    setFormData((prev) => ({
+      ...prev,
+      country: item.isOther ? '' : item.name,
+      state: '',
+      city: '',
+    }));
+  };
+
+  const handleStateSelect = (item) => {
+    setPickerVisible(false);
+    setSelectedStateId(item.isOther ? null : item.id);
+    setSelectedStateLabel(item.name);
+    setStateIsOther(Boolean(item.isOther));
+    setSelectedCityLabel('');
+    setCityIsOther(false);
+    setCities([]);
+    setFormData((prev) => ({
+      ...prev,
+      state: item.isOther ? '' : item.name,
+      city: '',
+    }));
+  };
+
+  const handleCitySelect = (item) => {
+    setPickerVisible(false);
+    setSelectedCityLabel(item.name);
+    setCityIsOther(Boolean(item.isOther));
+    setFormData((prev) => ({
+      ...prev,
+      city: item.isOther ? '' : item.name,
+    }));
+  };
+
+  const getPickerTitle = () => {
+    if (pickerType === 'country') return 'Country';
+    if (pickerType === 'state') return 'State';
+    return 'City';
+  };
+
+  const getPickerOptions = () => {
+    if (pickerType === 'country') {
+      return [...countries, OTHER_OPTION];
+    }
+
+    if (pickerType === 'state') {
+      if (countryIsOther || !selectedCountryId) {
+        return [OTHER_OPTION];
+      }
+      return [...states, OTHER_OPTION];
+    }
+
+    if (stateIsOther || countryIsOther || !selectedStateId) {
+      return [OTHER_OPTION];
+    }
+
+    return [...cities, OTHER_OPTION];
   };
 
   const validateCurrentStep = () => {
@@ -242,6 +491,11 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
       }
 
       if (signupStep === 4) {
+        if (!selectedCountryLabel || !selectedStateLabel || !selectedCityLabel) {
+          setError('Please choose your country, state, and city.');
+          return false;
+        }
+
         if (!formData.country.trim() || !formData.state.trim() || !formData.city.trim()) {
           setError('Please fill in your country, state, and city.');
           return false;
@@ -416,6 +670,9 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
     onClose();
   };
 
+  const showBackIcon = (isSignup && signupStep > 1) || (isForgot && forgotStep > 1);
+  const showCloseIcon = isSignup || isForgot;
+
   if (!isVisible && translateY._value === height) return null;
 
   const isLogin = flowType === 'login';
@@ -450,6 +707,21 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
         <Animated.View style={[styles.backdrop, { opacity }]} />
       </TouchableWithoutFeedback>
 
+      <SelectionModal
+        visible={pickerVisible}
+        title={getPickerTitle()}
+        options={getPickerOptions()}
+        loading={pickerLoading}
+        onClose={() => setPickerVisible(false)}
+        onSelect={
+          pickerType === 'country'
+            ? handleCountrySelect
+            : pickerType === 'state'
+              ? handleStateSelect
+              : handleCitySelect
+        }
+      />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.sheetWrapper}
@@ -463,16 +735,25 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
               style={styles.headerBtn}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <Text style={styles.headerBtnText}>
-                {(isSignup && signupStep > 1) || (isForgot && forgotStep > 1) ? '<-' : 'x'}
-              </Text>
+              {showBackIcon ? (
+                <ArrowLeft size={18} color={T.ink3} />
+              ) : (
+                <X size={18} color={T.ink3} />
+              )}
             </TouchableOpacity>
 
             {isSignup && <StepBar current={signupStep} total={5} />}
             {isForgot && <StepBar current={forgotStep} total={3} />}
             {isLogin && <View style={styles.stepSpacer} />}
 
-            <View style={styles.headerBtn} />
+            <TouchableOpacity
+              onPress={onClose}
+              style={[styles.headerBtn, !showCloseIcon && styles.headerBtnHidden]}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              disabled={!showCloseIcon}
+            >
+              {showCloseIcon ? <X size={18} color={T.ink3} /> : null}
+            </TouchableOpacity>
           </View>
 
           {(isSignup || isForgot) && (
@@ -496,227 +777,52 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
           ) : null}
 
           <View style={styles.form}>
-            {isLogin && (
-              <>
-                <LabelledInput
-                  label="EMAIL OR USERNAME"
-                  placeholder="e.g. rahul_yaari"
-                  value={formData.identifier}
-                  onChangeText={(v) => handleChange('identifier', v)}
-                  autoCapitalize="none"
-                  returnKeyType="next"
-                />
-                <LabelledInput
-                  label="PASSWORD"
-                  rightLabel="Forgot Password?"
-                  onRightLabelPress={switchToForgot}
-                  placeholder="********"
-                  value={formData.password}
-                  onChangeText={(v) => handleChange('password', v)}
-                  secureTextEntry
-                  showToggle
-                  showingPassword={showPassword}
-                  onToggle={() => setShowPassword((prev) => !prev)}
-                  returnKeyType="done"
-                  onSubmitEditing={handleSubmit}
-                />
-              </>
-            )}
-
-            {isSignup && signupStep === 1 && (
-              <>
-                <LabelledInput
-                  label="FULL NAME"
-                  placeholder="e.g. Rahul Sharma"
-                  value={formData.fullName}
-                  onChangeText={(v) => handleChange('fullName', v)}
-                />
-                <LabelledInput
-                  label="USERNAME"
-                  placeholder="rahul_yaari"
-                  value={formData.username}
-                  onChangeText={(v) => handleChange('username', v)}
-                  autoCapitalize="none"
-                  returnKeyType="done"
-                  onSubmitEditing={handleSubmit}
-                />
-              </>
-            )}
-
-            {isSignup && signupStep === 2 && (
-              <>
-                <LabelledInput
-                  label="EMAIL ADDRESS"
-                  placeholder="rahul@example.com"
-                  value={formData.email}
-                  onChangeText={(v) => handleChange('email', v)}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-                <LabelledInput
-                  label="PASSWORD"
-                  placeholder="Min. 6 characters"
-                  value={formData.password}
-                  onChangeText={(v) => handleChange('password', v)}
-                  secureTextEntry
-                  showToggle
-                  showingPassword={showPassword}
-                  onToggle={() => setShowPassword((prev) => !prev)}
-                  returnKeyType="done"
-                  onSubmitEditing={handleSubmit}
-                />
-              </>
-            )}
-
-            {isSignup && signupStep === 3 && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>CURRENT STAGE</Text>
-                <OptionCard
-                  label="I am a student"
-                  active={formData.occupationType === 'student'}
-                  onPress={() => handleChange('occupationType', 'student')}
-                />
-                <OptionCard
-                  label="I am a working professional"
-                  active={formData.occupationType === 'working_professional'}
-                  onPress={() => handleChange('occupationType', 'working_professional')}
-                />
-              </View>
-            )}
-
-            {isSignup && signupStep === 4 && (
-              <>
-                <LabelledInput
-                  label="COUNTRY"
-                  placeholder="e.g. India"
-                  value={formData.country}
-                  onChangeText={(v) => handleChange('country', v)}
-                />
-                <LabelledInput
-                  label="STATE"
-                  placeholder="e.g. Karnataka"
-                  value={formData.state}
-                  onChangeText={(v) => handleChange('state', v)}
-                />
-                <LabelledInput
-                  label="CITY"
-                  placeholder="e.g. Bengaluru"
-                  value={formData.city}
-                  onChangeText={(v) => handleChange('city', v)}
-                  returnKeyType="done"
-                  onSubmitEditing={handleSubmit}
-                />
-              </>
-            )}
-
-            {isSignup && signupStep === 5 && (
-              <>
-                <LabelledInput
-                  label="SECURITY QUESTION"
-                  placeholder="e.g. What was the name of my first school?"
-                  value={formData.securityQuestion}
-                  onChangeText={(v) => handleChange('securityQuestion', v)}
-                  multiline
-                />
-                <LabelledInput
-                  label="SECURITY ANSWER"
-                  placeholder="Only you should know this"
-                  value={formData.securityAnswer}
-                  onChangeText={(v) => handleChange('securityAnswer', v)}
-                  returnKeyType="done"
-                  onSubmitEditing={handleSubmit}
-                />
-              </>
-            )}
-
-            {isForgot && forgotStep === 1 && (
-              <LabelledInput
-                label="EMAIL OR USERNAME"
-                placeholder="Enter your username or email"
-                value={formData.identifier}
-                onChangeText={(v) => handleChange('identifier', v)}
-                autoCapitalize="none"
-                returnKeyType="done"
-                onSubmitEditing={handleSubmit}
-              />
-            )}
-
-            {isForgot && forgotStep === 2 && (
-              <>
-                <View style={styles.questionCard}>
-                  <Text style={styles.questionLabel}>SECURITY QUESTION</Text>
-                  <Text style={styles.questionText}>{forgotQuestion}</Text>
-                </View>
-                <LabelledInput
-                  label="YOUR ANSWER"
-                  placeholder="Enter your answer"
-                  value={formData.forgotAnswer}
-                  onChangeText={(v) => handleChange('forgotAnswer', v)}
-                  returnKeyType="done"
-                  onSubmitEditing={handleSubmit}
-                />
-              </>
-            )}
-
-            {isForgot && forgotStep === 3 && (
-              <LabelledInput
-                label="NEW PASSWORD"
-                placeholder="Enter a new password"
-                value={formData.newPassword}
-                onChangeText={(v) => handleChange('newPassword', v)}
-                secureTextEntry
-                showToggle
-                showingPassword={showNewPassword}
-                onToggle={() => setShowNewPassword((prev) => !prev)}
-                returnKeyType="done"
-                onSubmitEditing={handleSubmit}
-              />
-            )}
-
-            <TouchableOpacity
-              style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
-              onPress={handleSubmit}
-              disabled={isSubmitting}
-              activeOpacity={0.85}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color={T.white} />
-              ) : (
-                <>
-                  <Text style={styles.submitText}>{btnLabel}</Text>
-                  <View style={styles.submitIcon}>
-                    <Text style={styles.submitArrow}>{'->'}</Text>
-                  </View>
-                </>
-              )}
-            </TouchableOpacity>
-
-            {isLogin && (
-              <TouchableOpacity style={styles.toggleBtn} onPress={switchToSignup}>
-                <Text style={styles.toggleText}>
-                  {"Don't have an account? "}
-                  <Text style={styles.toggleLink}>Register</Text>
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {isSignup && (
-              <TouchableOpacity style={styles.toggleBtn} onPress={switchToLogin}>
-                <Text style={styles.toggleText}>
-                  {'Already a member? '}
-                  <Text style={styles.toggleLink}>Log in</Text>
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {isForgot && (
-              <TouchableOpacity style={styles.toggleBtn} onPress={switchToLogin}>
-                <Text style={styles.toggleText}>
-                  {'Remembered it? '}
-                  <Text style={styles.toggleLink}>Back to login</Text>
-                </Text>
-              </TouchableOpacity>
-            )}
+            <LoginFlow
+              isLogin={isLogin}
+              isForgot={isForgot}
+              forgotStep={forgotStep}
+              forgotQuestion={forgotQuestion}
+              formData={formData}
+              error={error}
+              isSubmitting={isSubmitting}
+              showPassword={showPassword}
+              showNewPassword={showNewPassword}
+              handleChange={handleChange}
+              handleSubmit={handleSubmit}
+              switchToForgot={switchToForgot}
+              switchToSignup={switchToSignup}
+              switchToLogin={switchToLogin}
+              LabelledInput={LabelledInput}
+              styles={styles}
+              T={T}
+              setShowPassword={setShowPassword}
+              setShowNewPassword={setShowNewPassword}
+            />
+            <SignupFlow
+              isSignup={isSignup}
+              signupStep={signupStep}
+              formData={formData}
+              isSubmitting={isSubmitting}
+              handleChange={handleChange}
+              handleSubmit={handleSubmit}
+              switchToLogin={switchToLogin}
+              LabelledInput={LabelledInput}
+              OptionCard={OptionCard}
+              SelectionField={SelectionField}
+              styles={styles}
+              T={T}
+              showPassword={showPassword}
+              setShowPassword={setShowPassword}
+              selectedCountryLabel={selectedCountryLabel}
+              selectedStateLabel={selectedStateLabel}
+              selectedCityLabel={selectedCityLabel}
+              countryIsOther={countryIsOther}
+              stateIsOther={stateIsOther}
+              cityIsOther={cityIsOther}
+              pickerLoading={pickerLoading}
+              pickerType={pickerType}
+              openPicker={openPicker}
+            />
           </View>
         </Animated.View>
       </KeyboardAvoidingView>
@@ -728,6 +834,79 @@ const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(10,22,40,0.55)',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(10,22,40,0.55)',
+    justifyContent: 'center',
+    paddingHorizontal: 22,
+  },
+  modalCard: {
+    maxHeight: '72%',
+    backgroundColor: T.white,
+    borderRadius: 24,
+    padding: 18,
+    gap: 14,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: T.ink,
+  },
+  modalClose: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: T.surface,
+  },
+  modalSearchWrap: {
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: T.surface,
+    borderWidth: 1,
+    borderColor: T.surface2,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  modalSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: T.ink,
+  },
+  modalLoaderWrap: {
+    paddingVertical: 36,
+    alignItems: 'center',
+  },
+  modalOption: {
+    paddingHorizontal: 8,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eef2ff',
+  },
+  modalOptionText: {
+    fontSize: 15,
+    color: T.ink,
+  },
+  modalOtherText: {
+    color: T.blueMain,
+    fontWeight: '700',
+  },
+  modalEmptyWrap: {
+    paddingVertical: 24,
+    alignItems: 'center',
+  },
+  modalEmptyText: {
+    fontSize: 13,
+    color: T.ink3,
   },
   sheetWrapper: {
     flex: 1,
@@ -770,6 +949,9 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: T.ink3,
     lineHeight: 22,
+  },
+  headerBtnHidden: {
+    opacity: 0,
   },
   stepSpacer: {
     flex: 1,
@@ -899,6 +1081,29 @@ const styles = StyleSheet.create({
   inputWrapFocused: {
     backgroundColor: T.white,
     borderColor: T.blueMain,
+  },
+  selectField: {
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: T.surface,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectFieldDisabled: {
+    opacity: 0.55,
+  },
+  selectText: {
+    flex: 1,
+    fontSize: 15,
+    color: T.ink,
+    marginRight: 10,
+  },
+  selectPlaceholder: {
+    color: T.ink3,
   },
   inputField: {
     flex: 1,
