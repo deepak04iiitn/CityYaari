@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { MaterialIcons } from '@expo/vector-icons';
 import {
   StyleSheet,
   View,
@@ -95,7 +96,11 @@ const LabelledInput = ({
         />
         {showToggle && (
           <TouchableOpacity style={styles.eyeBtn} onPress={onToggle}>
-            <Text style={styles.eyeIcon}>{showingPassword ? 'hide' : 'show'}</Text>
+            <MaterialIcons
+              name={showingPassword ? 'visibility-off' : 'visibility'}
+              size={18}
+              color={T.ink3}
+            />
           </TouchableOpacity>
         )}
       </View>
@@ -869,10 +874,8 @@ const styles = StyleSheet.create({
   eyeBtn: {
     paddingLeft: 10,
     paddingVertical: 4,
-  },
-  eyeIcon: {
-    fontSize: 11,
-    color: T.ink3,
+    minWidth: 28,
+    alignItems: 'center',
   },
   optionCard: {
     flexDirection: 'row',
