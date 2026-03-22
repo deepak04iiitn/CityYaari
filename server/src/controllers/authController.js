@@ -18,6 +18,15 @@ const generatePasswordResetToken = (id) => {
   );
 };
 
+const buildAuthUserPayload = (user) => ({
+  _id: user._id,
+  fullName: user.fullName,
+  username: user.username,
+  email: user.email,
+  occupationType: user.occupationType,
+  role: user.role,
+});
+
 // @desc    Register a new user
 // @route   POST /api/auth/register
 // @access  Public
@@ -69,12 +78,7 @@ export const registerUser = async (req, res) => {
 
     if (user) {
       res.status(201).json({
-        _id: user._id,
-        fullName: user.fullName,
-        username: user.username,
-        email: user.email,
-        occupationType: user.occupationType,
-        role: user.role,
+        ...buildAuthUserPayload(user),
         token: generateToken(user._id),
       });
     } else {
@@ -110,12 +114,7 @@ export const loginUser = async (req, res) => {
 
     if (activeUser && (await bcrypt.compare(password, activeUser.password))) {
       res.json({
-        _id: activeUser._id,
-        fullName: activeUser.fullName,
-        username: activeUser.username,
-        email: activeUser.email,
-        occupationType: activeUser.occupationType,
-        role: activeUser.role,
+        ...buildAuthUserPayload(activeUser),
         token: generateToken(activeUser._id),
       });
     } else {
@@ -142,16 +141,86 @@ export const getUserProfile = async (req, res) => {
   const user = await User.findById(req.user._id);
 
   if (user) {
-    res.json({
-      _id: user._id,
-      fullName: user.fullName,
-      username: user.username,
-      email: user.email,
-      occupationType: user.occupationType,
-      role: user.role,
-    });
+    res.json(buildAuthUserPayload(user));
   } else {
     res.status(404).json({ message: 'User not found' });
+  }
+};
+
+// @desc    Update authenticated user profile
+// @route   PUT /api/auth/profile
+// @access  Private
+export const updateUserProfile = async (req, res) => {
+  const { fullName, username, email } = req.body;
+
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const normalizedFullName = typeof fullName === 'string' ? fullName.trim() : undefined;
+    const normalizedUsername = typeof username === 'string' ? username.trim() : undefined;
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : undefined;
+
+    if (
+      normalizedFullName === undefined &&
+      normalizedUsername === undefined &&
+      normalizedEmail === undefined
+    ) {
+      return res.status(400).json({ message: 'Provide at least one field to update' });
+    }
+
+    if (normalizedFullName !== undefined && !normalizedFullName) {
+      return res.status(400).json({ message: 'Full name cannot be empty' });
+    }
+
+    if (normalizedUsername !== undefined && !normalizedUsername) {
+      return res.status(400).json({ message: 'Username cannot be empty' });
+    }
+
+    if (normalizedEmail !== undefined && !normalizedEmail) {
+      return res.status(400).json({ message: 'Email cannot be empty' });
+    }
+
+    const conflictChecks = [];
+    if (normalizedUsername && normalizedUsername !== user.username) {
+      conflictChecks.push({ username: normalizedUsername });
+    }
+    if (normalizedEmail && normalizedEmail !== user.email) {
+      conflictChecks.push({ email: normalizedEmail });
+    }
+
+    if (conflictChecks.length > 0) {
+      const conflictingUser = await User.findOne({
+        _id: { $ne: user._id },
+        $or: conflictChecks,
+      });
+
+      if (conflictingUser) {
+        return res.status(400).json({ message: 'Username or email is already in use' });
+      }
+    }
+
+    if (normalizedFullName !== undefined) {
+      user.fullName = normalizedFullName;
+    }
+    if (normalizedUsername !== undefined) {
+      user.username = normalizedUsername;
+    }
+    if (normalizedEmail !== undefined) {
+      user.email = normalizedEmail;
+    }
+
+    const updatedUser = await user.save();
+
+    return res.status(200).json({
+      message: 'Profile updated successfully',
+      user: buildAuthUserPayload(updatedUser),
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 };
 

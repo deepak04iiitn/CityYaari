@@ -47,7 +47,27 @@ const runTests = async () => {
     if (!profileRes.ok) throw new Error(profileData.message);
     console.log('Profile Retreived:', profileData.fullName);
 
-    // 4. Test RBAC (Admin) - expect failure
+    // 4. Update profile
+    console.log('\nTesting Profile Update...');
+    const updatedUsername = 'updateduser_' + Date.now();
+    const updatedEmail = 'updated_' + Date.now() + '@example.com';
+    const updateProfileRes = await fetch(`${API_URL}/auth/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        fullName: 'Updated Test User',
+        username: updatedUsername,
+        email: updatedEmail,
+      }),
+    });
+    const updateProfileData = await updateProfileRes.json();
+    if (!updateProfileRes.ok) throw new Error(updateProfileData.message);
+    console.log('Profile Updated:', updateProfileData.user.username);
+
+    // 5. Test RBAC (Admin) - expect failure
     console.log('\nTesting RBAC (Admin-only route with Normal User)...');
     const adminVerifyFailRes = await fetch(`${API_URL}/admin/verify`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -58,7 +78,21 @@ const runTests = async () => {
       console.log('ERROR: Normal user accessed/errored admin route unexpected response code:', adminVerifyFailRes.status);
     }
 
-    // 5. Register Admin
+    // 6. Verify login with updated username
+    console.log('\nTesting Login With Updated Username...');
+    const updatedLoginRes = await fetch(`${API_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        identifier: updatedUsername,
+        password: 'password123',
+      }),
+    });
+    const updatedLoginData = await updatedLoginRes.json();
+    if (!updatedLoginRes.ok) throw new Error(updatedLoginData.message);
+    console.log('Updated Username Login Successful:', updatedLoginData.username);
+
+    // 7. Register Admin
     console.log('\nTesting Admin Signup...');
     const adminRegisterRes = await fetch(`${API_URL}/auth/register`, {
       method: 'POST',
@@ -79,7 +113,7 @@ const runTests = async () => {
     const adminToken = adminRegisterData.token;
     console.log('Admin Signup Successful:', adminRegisterData.username);
 
-    // 6. Test RBAC (Admin-only route with Admin User)
+    // 8. Test RBAC (Admin-only route with Admin User)
     console.log('\nTesting RBAC (Admin-only route with Admin User)...');
     const adminVerifyRes = await fetch(`${API_URL}/admin/verify`, {
       headers: { Authorization: `Bearer ${adminToken}` },
@@ -88,12 +122,12 @@ const runTests = async () => {
     if (!adminVerifyRes.ok) throw new Error(adminVerifyData.message);
     console.log('Success:', adminVerifyData.message);
 
-    // 7. Forgot password flow
+    // 9. Forgot password flow
     console.log('\nTesting Forgot Password Question...');
     const forgotQuestionRes = await fetch(`${API_URL}/auth/forgot-password/question`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier: registerData.username }),
+      body: JSON.stringify({ identifier: updatedUsername }),
     });
     const forgotQuestionData = await forgotQuestionRes.json();
     if (!forgotQuestionRes.ok) throw new Error(forgotQuestionData.message);
@@ -104,7 +138,7 @@ const runTests = async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        identifier: registerData.username,
+        identifier: updatedUsername,
         securityAnswer: 'Maths',
       }),
     });
@@ -130,7 +164,7 @@ const runTests = async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        identifier: registerData.username,
+        identifier: updatedUsername,
         password: 'updatedPass123',
       }),
     });
@@ -138,7 +172,7 @@ const runTests = async () => {
     if (!reloginRes.ok) throw new Error(reloginData.message);
     console.log('Login With Updated Password Successful:', reloginData.username);
 
-    // 8. Delete user account with password confirmation
+    // 10. Delete user account with password confirmation
     console.log('\nTesting Account Deletion...');
     const deleteRes = await fetch(`${API_URL}/auth/account`, {
       method: 'DELETE',
@@ -155,7 +189,7 @@ const runTests = async () => {
     console.log('Account Soft Deleted:', deleteData.deletedUserId);
     console.log('Permanent Deletion Scheduled For:', deleteData.permanentDeletionAt);
 
-    // 9. Verify deleted account can no longer access profile
+    // 11. Verify deleted account can no longer access profile
     console.log('\nVerifying Deleted Account Access is Blocked...');
     const deletedProfileRes = await fetch(`${API_URL}/auth/profile`, {
       headers: { Authorization: `Bearer ${reloginData.token}` },
@@ -171,7 +205,7 @@ const runTests = async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        identifier: registerData.username,
+        identifier: updatedUsername,
         password: 'updatedPass123',
       }),
     });
