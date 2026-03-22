@@ -28,6 +28,21 @@ const userSchema = new mongoose.Schema(
       enum: ['student', 'working_professional'],
       required: [true, 'Please select whether you are a student or working professional'],
     },
+    country: {
+      type: String,
+      required: [true, 'Please add a country'],
+      trim: true,
+    },
+    state: {
+      type: String,
+      required: [true, 'Please add a state'],
+      trim: true,
+    },
+    city: {
+      type: String,
+      required: [true, 'Please add a city'],
+      trim: true,
+    },
     password: {
       type: String,
       required: [true, 'Please add a password'],

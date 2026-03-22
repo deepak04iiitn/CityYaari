@@ -15,6 +15,9 @@ const runTests = async () => {
         email: 'test_' + Date.now() + '@example.com',
         password: 'password123',
         occupationType: 'student',
+        country: 'India',
+        state: 'Karnataka',
+        city: 'Bengaluru',
         securityQuestion: 'What is my favorite school subject?',
         securityAnswer: 'maths',
       }),
@@ -61,11 +64,17 @@ const runTests = async () => {
         fullName: 'Updated Test User',
         username: updatedUsername,
         email: updatedEmail,
+        occupationType: 'working_professional',
+        country: 'India',
+        state: 'Delhi',
+        city: 'New Delhi',
       }),
     });
     const updateProfileData = await updateProfileRes.json();
     if (!updateProfileRes.ok) throw new Error(updateProfileData.message);
     console.log('Profile Updated:', updateProfileData.user.username);
+    console.log('Updated Occupation:', updateProfileData.user.occupationType);
+    console.log('Updated Location:', `${updateProfileData.user.city}, ${updateProfileData.user.state}, ${updateProfileData.user.country}`);
 
     // 5. Test RBAC (Admin) - expect failure
     console.log('\nTesting RBAC (Admin-only route with Normal User)...');
@@ -103,6 +112,9 @@ const runTests = async () => {
         email: 'admin_' + Date.now() + '@example.com',
         password: 'adminpassword',
         occupationType: 'working_professional',
+        country: 'India',
+        state: 'Maharashtra',
+        city: 'Pune',
         securityQuestion: 'Which city did I start my first job in?',
         securityAnswer: 'Bangalore',
         role: 'admin',

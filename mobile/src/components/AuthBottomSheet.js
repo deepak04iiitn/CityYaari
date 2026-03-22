@@ -125,6 +125,9 @@ const createInitialFormData = () => ({
   email: '',
   password: '',
   occupationType: '',
+  country: '',
+  state: '',
+  city: '',
   securityQuestion: '',
   securityAnswer: '',
   identifier: '',
@@ -239,6 +242,13 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
       }
 
       if (signupStep === 4) {
+        if (!formData.country.trim() || !formData.state.trim() || !formData.city.trim()) {
+          setError('Please fill in your country, state, and city.');
+          return false;
+        }
+      }
+
+      if (signupStep === 5) {
         if (!formData.securityQuestion.trim() || !formData.securityAnswer.trim()) {
           setError('Please add a security question and answer.');
           return false;
@@ -275,7 +285,7 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
   const handleSubmit = async () => {
     if (!validateCurrentStep()) return;
 
-    if (flowType === 'signup' && signupStep < 4) {
+    if (flowType === 'signup' && signupStep < 5) {
       setSignupStep((prev) => prev + 1);
       setError('');
       return;
@@ -303,6 +313,9 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
         email: formData.email.trim(),
         password: formData.password,
         occupationType: formData.occupationType,
+        country: formData.country.trim(),
+        state: formData.state.trim(),
+        city: formData.city.trim(),
         securityQuestion: formData.securityQuestion.trim(),
         securityAnswer: formData.securityAnswer.trim(),
       });
@@ -413,6 +426,7 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
     { eyebrow: 'New to CityYaari', title: 'Create your\nprofile', button: 'Continue' },
     { eyebrow: 'Set your login', title: 'Add your\ncredentials', button: 'Continue' },
     { eyebrow: 'A bit more', title: 'Choose your\ncurrent stage', button: 'Continue' },
+    { eyebrow: 'Local context', title: 'Tell us where\nyou are', button: 'Continue' },
     { eyebrow: 'Keep it secure', title: 'Set recovery\nquestion', button: 'Create Account' },
   ][signupStep - 1];
 
@@ -454,7 +468,7 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
               </Text>
             </TouchableOpacity>
 
-            {isSignup && <StepBar current={signupStep} total={4} />}
+            {isSignup && <StepBar current={signupStep} total={5} />}
             {isForgot && <StepBar current={forgotStep} total={3} />}
             {isLogin && <View style={styles.stepSpacer} />}
 
@@ -465,7 +479,7 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
             <View style={styles.blueTag}>
               <View style={styles.blueTagDot} />
               <Text style={styles.blueTagText}>
-                {isSignup ? `Step ${signupStep} of 4` : `Step ${forgotStep} of 3`}
+                {isSignup ? `Step ${signupStep} of 5` : `Step ${forgotStep} of 3`}
               </Text>
             </View>
           )}
@@ -571,6 +585,31 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
             )}
 
             {isSignup && signupStep === 4 && (
+              <>
+                <LabelledInput
+                  label="COUNTRY"
+                  placeholder="e.g. India"
+                  value={formData.country}
+                  onChangeText={(v) => handleChange('country', v)}
+                />
+                <LabelledInput
+                  label="STATE"
+                  placeholder="e.g. Karnataka"
+                  value={formData.state}
+                  onChangeText={(v) => handleChange('state', v)}
+                />
+                <LabelledInput
+                  label="CITY"
+                  placeholder="e.g. Bengaluru"
+                  value={formData.city}
+                  onChangeText={(v) => handleChange('city', v)}
+                  returnKeyType="done"
+                  onSubmitEditing={handleSubmit}
+                />
+              </>
+            )}
+
+            {isSignup && signupStep === 5 && (
               <>
                 <LabelledInput
                   label="SECURITY QUESTION"

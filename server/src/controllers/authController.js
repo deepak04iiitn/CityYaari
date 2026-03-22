@@ -24,6 +24,9 @@ const buildAuthUserPayload = (user) => ({
   username: user.username,
   email: user.email,
   occupationType: user.occupationType,
+  country: user.country,
+  state: user.state,
+  city: user.city,
   role: user.role,
 });
 
@@ -38,6 +41,9 @@ export const registerUser = async (req, res) => {
     password,
     role,
     occupationType,
+    country,
+    state,
+    city,
     securityQuestion,
     securityAnswer,
   } = req.body;
@@ -46,9 +52,9 @@ export const registerUser = async (req, res) => {
     const normalizedEmail = email?.trim().toLowerCase();
     const normalizedUsername = username?.trim();
 
-    if (!occupationType || !securityQuestion || !securityAnswer) {
+    if (!occupationType || !country || !state || !city || !securityQuestion || !securityAnswer) {
       return res.status(400).json({
-        message: 'Occupation type, security question, and security answer are required',
+        message: 'Occupation type, country, state, city, security question, and security answer are required',
       });
     }
 
@@ -70,6 +76,9 @@ export const registerUser = async (req, res) => {
       username: normalizedUsername,
       email: normalizedEmail,
       occupationType,
+      country: country.trim(),
+      state: state.trim(),
+      city: city.trim(),
       password: hashedPassword,
       securityQuestion: securityQuestion.trim(),
       securityAnswerHash: hashedSecurityAnswer,
@@ -151,7 +160,7 @@ export const getUserProfile = async (req, res) => {
 // @route   PUT /api/auth/profile
 // @access  Private
 export const updateUserProfile = async (req, res) => {
-  const { fullName, username, email } = req.body;
+  const { fullName, username, email, occupationType, country, state, city } = req.body;
 
   try {
     const user = await User.findById(req.user._id);
@@ -163,11 +172,20 @@ export const updateUserProfile = async (req, res) => {
     const normalizedFullName = typeof fullName === 'string' ? fullName.trim() : undefined;
     const normalizedUsername = typeof username === 'string' ? username.trim() : undefined;
     const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : undefined;
+    const normalizedOccupationType =
+      typeof occupationType === 'string' ? occupationType.trim() : undefined;
+    const normalizedCountry = typeof country === 'string' ? country.trim() : undefined;
+    const normalizedState = typeof state === 'string' ? state.trim() : undefined;
+    const normalizedCity = typeof city === 'string' ? city.trim() : undefined;
 
     if (
       normalizedFullName === undefined &&
       normalizedUsername === undefined &&
-      normalizedEmail === undefined
+      normalizedEmail === undefined &&
+      normalizedOccupationType === undefined &&
+      normalizedCountry === undefined &&
+      normalizedState === undefined &&
+      normalizedCity === undefined
     ) {
       return res.status(400).json({ message: 'Provide at least one field to update' });
     }
@@ -182,6 +200,26 @@ export const updateUserProfile = async (req, res) => {
 
     if (normalizedEmail !== undefined && !normalizedEmail) {
       return res.status(400).json({ message: 'Email cannot be empty' });
+    }
+    if (normalizedOccupationType !== undefined && !normalizedOccupationType) {
+      return res.status(400).json({ message: 'Occupation type cannot be empty' });
+    }
+    if (
+      normalizedOccupationType !== undefined &&
+      !['student', 'working_professional'].includes(normalizedOccupationType)
+    ) {
+      return res.status(400).json({
+        message: 'Occupation type must be either student or working_professional',
+      });
+    }
+    if (normalizedCountry !== undefined && !normalizedCountry) {
+      return res.status(400).json({ message: 'Country cannot be empty' });
+    }
+    if (normalizedState !== undefined && !normalizedState) {
+      return res.status(400).json({ message: 'State cannot be empty' });
+    }
+    if (normalizedCity !== undefined && !normalizedCity) {
+      return res.status(400).json({ message: 'City cannot be empty' });
     }
 
     const conflictChecks = [];
@@ -211,6 +249,18 @@ export const updateUserProfile = async (req, res) => {
     }
     if (normalizedEmail !== undefined) {
       user.email = normalizedEmail;
+    }
+    if (normalizedOccupationType !== undefined) {
+      user.occupationType = normalizedOccupationType;
+    }
+    if (normalizedCountry !== undefined) {
+      user.country = normalizedCountry;
+    }
+    if (normalizedState !== undefined) {
+      user.state = normalizedState;
+    }
+    if (normalizedCity !== undefined) {
+      user.city = normalizedCity;
     }
 
     const updatedUser = await user.save();
