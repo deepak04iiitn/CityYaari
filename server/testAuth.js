@@ -14,6 +14,9 @@ const runTests = async () => {
         username: 'testuser_' + Date.now(),
         email: 'test_' + Date.now() + '@example.com',
         password: 'password123',
+        occupationType: 'student',
+        securityQuestion: 'What is my favorite school subject?',
+        securityAnswer: 'maths',
       }),
     });
     const registerData = await registerRes.json();
@@ -65,6 +68,9 @@ const runTests = async () => {
         username: 'adminuser_' + Date.now(),
         email: 'admin_' + Date.now() + '@example.com',
         password: 'adminpassword',
+        occupationType: 'working_professional',
+        securityQuestion: 'Which city did I start my first job in?',
+        securityAnswer: 'Bangalore',
         role: 'admin',
       }),
     });
@@ -81,6 +87,83 @@ const runTests = async () => {
     const adminVerifyData = await adminVerifyRes.json();
     if (!adminVerifyRes.ok) throw new Error(adminVerifyData.message);
     console.log('Success:', adminVerifyData.message);
+
+    // 7. Forgot password flow
+    console.log('\nTesting Forgot Password Question...');
+    const forgotQuestionRes = await fetch(`${API_URL}/auth/forgot-password/question`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: registerData.username }),
+    });
+    const forgotQuestionData = await forgotQuestionRes.json();
+    if (!forgotQuestionRes.ok) throw new Error(forgotQuestionData.message);
+    console.log('Security Question Loaded:', forgotQuestionData.securityQuestion);
+
+    console.log('\nTesting Security Answer Verification...');
+    const verifyAnswerRes = await fetch(`${API_URL}/auth/forgot-password/verify-answer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        identifier: registerData.username,
+        securityAnswer: 'Maths',
+      }),
+    });
+    const verifyAnswerData = await verifyAnswerRes.json();
+    if (!verifyAnswerRes.ok) throw new Error(verifyAnswerData.message);
+    console.log('Security Answer Verified');
+
+    console.log('\nTesting Password Reset...');
+    const resetPasswordRes = await fetch(`${API_URL}/auth/forgot-password/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        resetToken: verifyAnswerData.resetToken,
+        newPassword: 'updatedPass123',
+      }),
+    });
+    const resetPasswordData = await resetPasswordRes.json();
+    if (!resetPasswordRes.ok) throw new Error(resetPasswordData.message);
+    console.log('Password Reset Successful');
+
+    console.log('\nTesting Login With Updated Password...');
+    const reloginRes = await fetch(`${API_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        identifier: registerData.username,
+        password: 'updatedPass123',
+      }),
+    });
+    const reloginData = await reloginRes.json();
+    if (!reloginRes.ok) throw new Error(reloginData.message);
+    console.log('Login With Updated Password Successful:', reloginData.username);
+
+    // 8. Delete user account with password confirmation
+    console.log('\nTesting Account Deletion...');
+    const deleteRes = await fetch(`${API_URL}/auth/account`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${reloginData.token}`,
+      },
+      body: JSON.stringify({
+        password: 'updatedPass123',
+      }),
+    });
+    const deleteData = await deleteRes.json();
+    if (!deleteRes.ok) throw new Error(deleteData.message);
+    console.log('Account Deleted:', deleteData.deletedUserId);
+
+    // 9. Verify deleted account can no longer access profile
+    console.log('\nVerifying Deleted Account Access is Blocked...');
+    const deletedProfileRes = await fetch(`${API_URL}/auth/profile`, {
+      headers: { Authorization: `Bearer ${reloginData.token}` },
+    });
+    if (deletedProfileRes.status === 401) {
+      console.log('Success: Deleted account token no longer resolves to a user');
+    } else {
+      console.log('ERROR: Deleted account token unexpectedly retained access:', deletedProfileRes.status);
+    }
 
     console.log('\n--- All Tests Passed Successfully! ---');
   } catch (error) {

@@ -58,13 +58,24 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (fullName, username, email, password) => {
+  const register = async ({
+    fullName,
+    username,
+    email,
+    password,
+    occupationType,
+    securityQuestion,
+    securityAnswer,
+  }) => {
     try {
       const response = await axios.post(`${API_BASE_URL}/auth/register`, {
         fullName,
         username,
         email,
         password,
+        occupationType,
+        securityQuestion,
+        securityAnswer,
       });
 
       const { token, ...userData } = response.data;
@@ -79,6 +90,59 @@ export const AuthProvider = ({ children }) => {
       return {
         success: false,
         message: error.response?.data?.message || 'Registration failed',
+      };
+    }
+  };
+
+  const getForgotPasswordQuestion = async (identifier) => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/auth/forgot-password/question`, {
+        identifier,
+      });
+
+      return {
+        success: true,
+        securityQuestion: response.data.securityQuestion,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Could not find that account',
+      };
+    }
+  };
+
+  const verifySecurityAnswer = async (identifier, securityAnswer) => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/auth/forgot-password/verify-answer`, {
+        identifier,
+        securityAnswer,
+      });
+
+      return {
+        success: true,
+        resetToken: response.data.resetToken,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Security answer did not match',
+      };
+    }
+  };
+
+  const resetForgottenPassword = async (resetToken, newPassword) => {
+    try {
+      await axios.post(`${API_BASE_URL}/auth/forgot-password/reset`, {
+        resetToken,
+        newPassword,
+      });
+
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Could not reset password',
       };
     }
   };
@@ -103,6 +167,9 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated: !!token,
         login,
         register,
+        getForgotPasswordQuestion,
+        verifySecurityAnswer,
+        resetForgottenPassword,
         logout,
       }}
     >

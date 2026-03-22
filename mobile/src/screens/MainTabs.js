@@ -1,38 +1,26 @@
 import React, { useEffect, useRef } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
 import {
   Animated,
   Dimensions,
   Pressable,
-  SafeAreaView,
-  ScrollView,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
-import AppTopHeader from "../components/AppTopHeader";
+import AccountTab from "../components/tabs/AccountTab";
+import HomeTab from "../components/tabs/HomeTab";
+import MessagesTab from "../components/tabs/MessagesTab";
+import NotificationsTab from "../components/tabs/NotificationsTab";
+import PostTab from "../components/tabs/PostTab";
+import SearchTab from "../components/tabs/SearchTab";
+import { TAB_COLORS as C } from "../components/tabs/TabShared";
 
 const { width } = Dimensions.get("window");
 const Tab = createBottomTabNavigator();
-
-const C = {
-  blue: "#2563EB",
-  blueXLight: "#EFF6FF",
-  orange: "#F97316",
-  orangeDark: "#C2520F",
-  ink: "#0F172A",
-  inkFaint: "#94A3B8",
-  white: "#FFFFFF",
-  bg: "#F1F5F9",
-  border: "#E2E8F0",
-  surface: "#FFFFFF",
-  cardBorder: "#DCE8F8",
-};
 
 const TAB_CONFIG = {
   Home: { icon: "home" },
@@ -179,220 +167,6 @@ function CustomTabBar({ state, navigation }) {
   );
 }
 
-function ScreenShell({ navigation, routeName, title, subtitle, children }) {
-  const canGoBack = navigation.canGoBack();
-
-  const handleBack = () => {
-    if (canGoBack) {
-      navigation.goBack();
-      return;
-    }
-
-    if (routeName !== "Home") {
-      navigation.navigate("Home");
-    }
-  };
-
-  return (
-    <SafeAreaView style={ss.screen}>
-      <StatusBar style="dark" />
-      <AppTopHeader
-        onBackPress={handleBack}
-        onNotificationPress={() => navigation.navigate("Notifications")}
-        backDisabled={!canGoBack && routeName === "Home"}
-        notificationCount={3}
-      />
-      <ScrollView
-        contentContainerStyle={ss.screenContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <LinearGradient colors={["#EEF5FF", "#FFFFFF"]} style={ss.heroCard}>
-          <Text style={ss.heroTitle}>{title}</Text>
-          <Text style={ss.heroSubtitle}>{subtitle}</Text>
-        </LinearGradient>
-        {children}
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-function InfoCard({ title, meta, body }) {
-  return (
-    <View style={ss.infoCard}>
-      <Text style={ss.infoTitle}>{title}</Text>
-      {meta ? <Text style={ss.infoMeta}>{meta}</Text> : null}
-      <Text style={ss.infoBody}>{body}</Text>
-    </View>
-  );
-}
-
-function HomeScreen({ navigation }) {
-  return (
-    <ScreenShell
-      navigation={navigation}
-      routeName="Home"
-      title="Your people are already active."
-      subtitle="Meetups, useful conversations, and familiar faces across the city."
-    >
-      <View style={ss.metricRow}>
-        <View style={[ss.metricCard, ss.metricBlue]}>
-          <Text style={ss.metricValue}>18</Text>
-          <Text style={ss.metricLabel}>Meetups this week</Text>
-        </View>
-        <View style={[ss.metricCard, ss.metricOrange]}>
-          <Text style={ss.metricValue}>24</Text>
-          <Text style={ss.metricLabel}>Unread messages</Text>
-        </View>
-      </View>
-      <InfoCard
-        title="Bangalore Yaaris"
-        meta="Tonight, 8:30 PM"
-        body="A rooftop chai meetup in Indiranagar is filling up fast. New members from Lucknow and Jaipur joined this afternoon."
-      />
-      <InfoCard
-        title="Community Highlights"
-        meta="Recommended for you"
-        body="Flat leads, job referrals, and weekend sports meetups are trending near your area."
-      />
-    </ScreenShell>
-  );
-}
-
-function MessagesScreen({ navigation }) {
-  return (
-    <ScreenShell
-      navigation={navigation}
-      routeName="Messages"
-      title="Keep your city conversations warm."
-      subtitle="Recent chats and group threads stay easy to reach."
-    >
-      <InfoCard
-        title="Ananya Sharma"
-        meta="Seen 2 min ago"
-        body="Breakfast meetup in Koramangala on Sunday. A few new members are joining too."
-      />
-      <InfoCard
-        title="Delhi to Pune Group"
-        meta="18 unread messages"
-        body="Members are sharing rental leads, intern openings, and a Holi dinner plan."
-      />
-    </ScreenShell>
-  );
-}
-
-function PostScreen({ navigation }) {
-  return (
-    <ScreenShell
-      navigation={navigation}
-      routeName="Post"
-      title="Share something worth showing up for."
-      subtitle="Create a meetup, ask a question, or post a trusted lead."
-    >
-      <View style={ss.composerCard}>
-        <View style={ss.composerPill}>
-          <MaterialIcons name="event-available" size={18} color={C.blue} />
-          <Text style={ss.composerPillText}>Event</Text>
-        </View>
-        <View style={ss.composerPill}>
-          <MaterialIcons name="home-work" size={18} color={C.blue} />
-          <Text style={ss.composerPillText}>Room</Text>
-        </View>
-        <View style={ss.composerPill}>
-          <MaterialIcons name="help-outline" size={18} color={C.blue} />
-          <Text style={ss.composerPillText}>Question</Text>
-        </View>
-        <Pressable style={ss.primaryButton}>
-          <Text style={ss.primaryButtonText}>Start Posting</Text>
-        </Pressable>
-      </View>
-    </ScreenShell>
-  );
-}
-
-function SearchScreen({ navigation }) {
-  return (
-    <ScreenShell
-      navigation={navigation}
-      routeName="Search"
-      title="Search by city, language, or vibe."
-      subtitle="Find communities, people, and events without digging."
-    >
-      <View style={ss.searchCard}>
-        <View style={ss.searchInputMock}>
-          <MaterialIcons name="search" size={18} color={C.inkFaint} />
-          <Text style={ss.searchPlaceholder}>Search Bangalore, Tamil, cricket...</Text>
-        </View>
-      </View>
-      <InfoCard
-        title="Hyderabad in Mumbai"
-        meta="3.4K members"
-        body="Active hometown group with weekend events, city tips, and useful roommate threads."
-      />
-    </ScreenShell>
-  );
-}
-
-function AccountScreen({ navigation }) {
-  return (
-    <ScreenShell
-      navigation={navigation}
-      routeName="Account"
-      title="Your identity, trust, and settings."
-      subtitle="Keep your profile polished and community-ready."
-    >
-      <View style={ss.accountCard}>
-        <View style={ss.accountAvatar}>
-          <Text style={ss.accountAvatarText}>CY</Text>
-        </View>
-        <Text style={ss.accountName}>CityYaari Member</Text>
-        <Text style={ss.accountMeta}>Verified hometown profile</Text>
-      </View>
-    </ScreenShell>
-  );
-}
-
-function NotificationsScreen({ navigation }) {
-  const canGoBack = navigation.canGoBack();
-
-  return (
-    <SafeAreaView style={ss.screen}>
-      <StatusBar style="dark" />
-      <AppTopHeader
-        onBackPress={() => {
-          if (canGoBack) {
-            navigation.goBack();
-            return;
-          }
-          navigation.navigate("Home");
-        }}
-        onNotificationPress={() => {}}
-        notificationCount={3}
-      />
-      <ScrollView contentContainerStyle={ss.screenContent} showsVerticalScrollIndicator={false}>
-        <LinearGradient colors={["#FFF3EA", "#FFFFFF"]} style={ss.heroCard}>
-          <Text style={ss.heroTitle}>Notifications</Text>
-          <Text style={ss.heroSubtitle}>Important updates from your city circle, all in one place.</Text>
-        </LinearGradient>
-        <InfoCard
-          title="Meetup Reminder"
-          meta="5 min ago"
-          body="Your Bangalore chai meetup starts in 40 minutes. 12 people confirmed."
-        />
-        <InfoCard
-          title="New Message Request"
-          meta="18 min ago"
-          body="A member from Lucknow wants to connect about a flat near HSR Layout."
-        />
-        <InfoCard
-          title="Community Update"
-          meta="Today"
-          body="Pune food walk registrations just opened for this Saturday evening."
-        />
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
 export default function MainTabs() {
   return (
     <Tab.Navigator
@@ -401,187 +175,17 @@ export default function MainTabs() {
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{ headerShown: false }}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Messages" component={MessagesScreen} />
-      <Tab.Screen name="Post" component={PostScreen} />
-      <Tab.Screen name="Search" component={SearchScreen} />
-      <Tab.Screen name="Account" component={AccountScreen} />
-      <Tab.Screen name="Notifications" component={NotificationsScreen} />
+      <Tab.Screen name="Home" component={HomeTab} />
+      <Tab.Screen name="Messages" component={MessagesTab} />
+      <Tab.Screen name="Post" component={PostTab} />
+      <Tab.Screen name="Search" component={SearchTab} />
+      <Tab.Screen name="Account" component={AccountTab} />
+      <Tab.Screen name="Notifications" component={NotificationsTab} />
     </Tab.Navigator>
   );
 }
 
 const ss = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: C.bg,
-  },
-  screenContent: {
-    paddingHorizontal: 18,
-    paddingBottom: 150,
-    gap: 16,
-  },
-  heroCard: {
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    padding: 22,
-  },
-  heroTitle: {
-    fontSize: 30,
-    lineHeight: 35,
-    fontWeight: "800",
-    color: C.ink,
-    marginBottom: 8,
-    letterSpacing: -0.8,
-  },
-  heroSubtitle: {
-    fontSize: 14,
-    lineHeight: 22,
-    color: "#5B6475",
-  },
-  metricRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  metricCard: {
-    flex: 1,
-    borderRadius: 24,
-    padding: 18,
-    borderWidth: 1,
-  },
-  metricBlue: {
-    backgroundColor: "#EAF2FF",
-    borderColor: "#D3E3FF",
-  },
-  metricOrange: {
-    backgroundColor: "#FFF0E7",
-    borderColor: "#F7D9C8",
-  },
-  metricValue: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: C.ink,
-  },
-  metricLabel: {
-    marginTop: 6,
-    fontSize: 12,
-    color: "#5B6475",
-  },
-  infoCard: {
-    backgroundColor: C.white,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    padding: 18,
-  },
-  infoTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: C.ink,
-  },
-  infoMeta: {
-    marginTop: 4,
-    fontSize: 12,
-    color: "#738199",
-  },
-  infoBody: {
-    marginTop: 10,
-    fontSize: 14,
-    lineHeight: 21,
-    color: "#5B6475",
-  },
-  composerCard: {
-    backgroundColor: C.white,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    padding: 18,
-    gap: 12,
-  },
-  composerPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#F7FAFF",
-    borderWidth: 1,
-    borderColor: "#DEE8F8",
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  composerPillText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: C.ink,
-  },
-  primaryButton: {
-    marginTop: 6,
-    height: 54,
-    borderRadius: 18,
-    backgroundColor: C.blue,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primaryButtonText: {
-    color: C.white,
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  searchCard: {
-    backgroundColor: C.white,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    padding: 18,
-  },
-  searchInputMock: {
-    height: 54,
-    borderRadius: 18,
-    backgroundColor: "#F7FAFF",
-    borderWidth: 1,
-    borderColor: "#DEE8F8",
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  searchPlaceholder: {
-    fontSize: 14,
-    color: C.inkFaint,
-  },
-  accountCard: {
-    alignItems: "center",
-    backgroundColor: C.white,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    padding: 24,
-  },
-  accountAvatar: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: C.blue,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  accountAvatarText: {
-    color: C.white,
-    fontSize: 28,
-    fontWeight: "800",
-  },
-  accountName: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: C.ink,
-  },
-  accountMeta: {
-    marginTop: 6,
-    fontSize: 14,
-    color: "#738199",
-  },
   outerWrap: {
     position: "absolute",
     bottom: 0,

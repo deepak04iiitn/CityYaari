@@ -16,41 +16,35 @@ import { useAuth } from '../store/AuthContext';
 
 const { height } = Dimensions.get('window');
 
-// ─── Design Tokens ─────────────────────────────────────────────────────────
 const T = {
-  blueDeep:   '#0a1628',
-  blueDark:   '#0f2044',
-  blueMid:    '#1a3a6e',
-  blueMain:   '#1e4fc2',
+  blueDeep: '#0a1628',
+  blueDark: '#0f2044',
+  blueMid: '#1a3a6e',
+  blueMain: '#1e4fc2',
   blueBright: '#2563eb',
-  blueSoft:   '#3b82f6',
-  bluePale:   '#dbeafe',
-  blueIce:    '#eff6ff',
-  accent:     '#60a5fa',
-  white:      '#ffffff',
-  ink:        '#0a1628',
-  ink2:       '#334155',
-  ink3:       '#64748b',
-  surface:    '#f0f5ff',
-  surface2:   '#e2ecff',
-  error:      '#b91c1c',
-  errorBg:    '#fef2f2',
-  errorBorder:'#fecaca',
+  blueSoft: '#3b82f6',
+  bluePale: '#dbeafe',
+  blueIce: '#eff6ff',
+  accent: '#60a5fa',
+  white: '#ffffff',
+  ink: '#0a1628',
+  ink2: '#334155',
+  ink3: '#64748b',
+  surface: '#f0f5ff',
+  surface2: '#e2ecff',
+  error: '#b91c1c',
+  errorBg: '#fef2f2',
+  errorBorder: '#fecaca',
 };
 
-// ─── Step Progress Bar ──────────────────────────────────────────────────────
 const StepBar = ({ current, total }) => (
   <View style={styles.stepRow}>
     {Array.from({ length: total }).map((_, i) => (
-      <View
-        key={i}
-        style={[styles.stepSeg, i < current && styles.stepSegActive]}
-      />
+      <View key={i} style={[styles.stepSeg, i < current && styles.stepSegActive]} />
     ))}
   </View>
 );
 
-// ─── Labelled Input ─────────────────────────────────────────────────────────
 const LabelledInput = ({
   label,
   rightLabel,
@@ -66,6 +60,7 @@ const LabelledInput = ({
   onToggle,
   returnKeyType,
   onSubmitEditing,
+  multiline,
 }) => {
   const [focused, setFocused] = useState(false);
 
@@ -80,9 +75,9 @@ const LabelledInput = ({
         ) : null}
       </View>
 
-      <View style={[styles.inputWrap, focused && styles.inputWrapFocused]}>
+      <View style={[styles.inputWrap, focused && styles.inputWrapFocused, multiline && styles.inputWrapTall]}>
         <TextInput
-          style={styles.inputField}
+          style={[styles.inputField, multiline && styles.inputFieldMultiline]}
           placeholder={placeholder}
           placeholderTextColor={T.ink3}
           value={value}
@@ -95,10 +90,12 @@ const LabelledInput = ({
           onBlur={() => setFocused(false)}
           returnKeyType={returnKeyType || 'next'}
           onSubmitEditing={onSubmitEditing}
+          multiline={multiline}
+          textAlignVertical={multiline ? 'top' : 'center'}
         />
         {showToggle && (
           <TouchableOpacity style={styles.eyeBtn} onPress={onToggle}>
-            <Text style={styles.eyeIcon}>{showingPassword ? '○' : '●'}</Text>
+            <Text style={styles.eyeIcon}>{showingPassword ? 'hide' : 'show'}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -106,26 +103,55 @@ const LabelledInput = ({
   );
 };
 
-// ─── Main Component ─────────────────────────────────────────────────────────
+const OptionCard = ({ label, active, onPress }) => (
+  <TouchableOpacity
+    style={[styles.optionCard, active && styles.optionCardActive]}
+    onPress={onPress}
+    activeOpacity={0.85}
+  >
+    <View style={[styles.optionIndicator, active && styles.optionIndicatorActive]} />
+    <Text style={[styles.optionText, active && styles.optionTextActive]}>{label}</Text>
+  </TouchableOpacity>
+);
+
+const createInitialFormData = () => ({
+  fullName: '',
+  username: '',
+  email: '',
+  password: '',
+  occupationType: '',
+  securityQuestion: '',
+  securityAnswer: '',
+  identifier: '',
+  forgotAnswer: '',
+  newPassword: '',
+  resetToken: '',
+});
+
 const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
-  const [formType,    setFormType]    = useState(initialForm);
-  const [signupStep,  setSignupStep]  = useState(1);
-  const [formData,    setFormData]    = useState({
-    fullName: '', username: '', email: '', password: '',
-  });
+  const [flowType, setFlowType] = useState(initialForm);
+  const [signupStep, setSignupStep] = useState(1);
+  const [forgotStep, setForgotStep] = useState(1);
+  const [forgotQuestion, setForgotQuestion] = useState('');
+  const [formData, setFormData] = useState(createInitialFormData);
   const [showPassword, setShowPassword] = useState(false);
-  const [error,        setError]        = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { login, register } = useAuth();
+  const {
+    login,
+    register,
+    getForgotPasswordQuestion,
+    verifySecurityAnswer,
+    resetForgottenPassword,
+  } = useAuth();
 
   const translateY = useRef(new Animated.Value(height)).current;
-  const opacity    = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    setFormType(initialForm);
-    setSignupStep(1);
-    setError('');
+    resetFlow(initialForm);
   }, [initialForm]);
 
   useEffect(() => {
@@ -157,35 +183,95 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
         }),
       ]).start();
     }
-  }, [isVisible]);
+  }, [isVisible, opacity, translateY]);
+
+  const resetFlow = (nextFlow) => {
+    setFlowType(nextFlow);
+    setSignupStep(1);
+    setForgotStep(1);
+    setForgotQuestion('');
+    setFormData(createInitialFormData());
+    setShowPassword(false);
+    setShowNewPassword(false);
+    setError('');
+    setIsSubmitting(false);
+  };
 
   const handleChange = (key, value) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
     if (error) setError('');
   };
 
-  const validate = () => {
-    if (formType === 'login') {
-      if (!formData.username.trim() || !formData.password) {
-        setError('Please enter your credentials.'); return false;
+  const validateCurrentStep = () => {
+    if (flowType === 'login') {
+      if (!formData.identifier.trim() || !formData.password) {
+        setError('Please enter your username or email and password.');
+        return false;
       }
-    } else if (signupStep === 1) {
-      if (!formData.fullName.trim() || !formData.username.trim()) {
-        setError('Please fill in all fields.'); return false;
+      return true;
+    }
+
+    if (flowType === 'signup') {
+      if (signupStep === 1) {
+        if (!formData.fullName.trim() || !formData.username.trim()) {
+          setError('Please fill in your full name and username.');
+          return false;
+        }
       }
-    } else {
-      if (!formData.email.trim() || !formData.password) {
-        setError('Please fill in all fields.'); return false;
+
+      if (signupStep === 2) {
+        if (!formData.email.trim() || !formData.password) {
+          setError('Please fill in your email and password.');
+          return false;
+        }
+      }
+
+      if (signupStep === 3) {
+        if (!formData.occupationType) {
+          setError('Please choose whether you are a student or working professional.');
+          return false;
+        }
+      }
+
+      if (signupStep === 4) {
+        if (!formData.securityQuestion.trim() || !formData.securityAnswer.trim()) {
+          setError('Please add a security question and answer.');
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    if (forgotStep === 1) {
+      if (!formData.identifier.trim()) {
+        setError('Please enter your username or email.');
+        return false;
       }
     }
+
+    if (forgotStep === 2) {
+      if (!formData.forgotAnswer.trim()) {
+        setError('Please answer your security question.');
+        return false;
+      }
+    }
+
+    if (forgotStep === 3) {
+      if (!formData.newPassword) {
+        setError('Please enter your new password.');
+        return false;
+      }
+    }
+
     return true;
   };
 
   const handleSubmit = async () => {
-    if (!validate()) return;
+    if (!validateCurrentStep()) return;
 
-    if (formType === 'signup' && signupStep === 1) {
-      setSignupStep(2);
+    if (flowType === 'signup' && signupStep < 4) {
+      setSignupStep((prev) => prev + 1);
       setError('');
       return;
     }
@@ -193,76 +279,165 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
     setIsSubmitting(true);
     setError('');
 
-    let result;
-    if (formType === 'login') {
-      result = await login(
-        formData.username.trim() || formData.email.trim(),
-        formData.password,
-      );
-    } else {
-      result = await register(
-        formData.fullName,
-        formData.username,
-        formData.email,
-        formData.password,
-      );
+    if (flowType === 'login') {
+      const result = await login(formData.identifier.trim(), formData.password);
+      setIsSubmitting(false);
+
+      if (result.success) {
+        onClose();
+      } else {
+        setError(result.message || 'Something went wrong. Please try again.');
+      }
+      return;
     }
+
+    if (flowType === 'signup') {
+      const result = await register({
+        fullName: formData.fullName.trim(),
+        username: formData.username.trim(),
+        email: formData.email.trim(),
+        password: formData.password,
+        occupationType: formData.occupationType,
+        securityQuestion: formData.securityQuestion.trim(),
+        securityAnswer: formData.securityAnswer.trim(),
+      });
+
+      setIsSubmitting(false);
+
+      if (result.success) {
+        onClose();
+      } else {
+        setError(result.message || 'Something went wrong. Please try again.');
+      }
+      return;
+    }
+
+    if (forgotStep === 1) {
+      const result = await getForgotPasswordQuestion(formData.identifier.trim());
+      setIsSubmitting(false);
+
+      if (result.success) {
+        setForgotQuestion(result.securityQuestion);
+        setForgotStep(2);
+      } else {
+        setError(result.message || 'Could not find that account.');
+      }
+      return;
+    }
+
+    if (forgotStep === 2) {
+      const result = await verifySecurityAnswer(formData.identifier.trim(), formData.forgotAnswer.trim());
+      setIsSubmitting(false);
+
+      if (result.success) {
+        setFormData((prev) => ({ ...prev, resetToken: result.resetToken }));
+        setForgotStep(3);
+      } else {
+        setError(result.message || 'That answer did not match.');
+      }
+      return;
+    }
+
+    const result = await resetForgottenPassword(formData.resetToken, formData.newPassword);
+    setIsSubmitting(false);
 
     if (result.success) {
-      onClose();
+      const updatedIdentifier = formData.identifier.trim();
+      setFlowType('login');
+      setSignupStep(1);
+      setForgotStep(1);
+      setForgotQuestion('');
+      setFormData({ ...createInitialFormData(), identifier: updatedIdentifier });
+      setShowPassword(false);
+      setShowNewPassword(false);
+      setError('Password updated. You can log in now.');
     } else {
-      setError(result.message || 'Something went wrong. Please try again.');
+      setError(result.message || 'Could not reset password.');
     }
-    setIsSubmitting(false);
   };
 
-  const toggleForm = () => {
-    setFormType((p) => (p === 'login' ? 'signup' : 'login'));
-    setSignupStep(1);
+  const switchToSignup = () => resetFlow('signup');
+  const switchToLogin = () => resetFlow('login');
+  const switchToForgot = () => {
+    setFlowType('forgot');
+    setForgotStep(1);
+    setForgotQuestion('');
+    setFormData((prev) => ({
+      ...createInitialFormData(),
+      identifier: prev.identifier,
+    }));
+    setShowPassword(false);
+    setShowNewPassword(false);
     setError('');
-    setFormData({ fullName: '', username: '', email: '', password: '' });
   };
 
   const handleBack = () => {
-    if (formType === 'signup' && signupStep === 2) {
-      setSignupStep(1);
+    if (flowType === 'signup' && signupStep > 1) {
+      setSignupStep((prev) => prev - 1);
       setError('');
-    } else {
-      onClose();
+      return;
     }
+
+    if (flowType === 'forgot' && forgotStep > 1) {
+      if (forgotStep === 2) {
+        setForgotQuestion('');
+      }
+      if (forgotStep === 3) {
+        setFormData((prev) => ({ ...prev, resetToken: '', newPassword: '' }));
+      }
+      setForgotStep((prev) => prev - 1);
+      setError('');
+      return;
+    }
+
+    if (flowType === 'forgot') {
+      switchToLogin();
+      return;
+    }
+
+    onClose();
   };
 
   if (!isVisible && translateY._value === height) return null;
 
-  const isLogin   = formType === 'login';
-  const isSignup1 = formType === 'signup' && signupStep === 1;
-  const isSignup2 = formType === 'signup' && signupStep === 2;
+  const isLogin = flowType === 'login';
+  const isSignup = flowType === 'signup';
+  const isForgot = flowType === 'forgot';
 
-  const eyebrow  = isLogin ? 'Welcome back' : isSignup1 ? 'New to CityYaari' : 'Almost there';
-  const title    = isLogin ? `Log in to\nCityYaari` : isSignup1 ? `Create your\nprofile` : `Set your\ncredentials`;
-  const btnLabel = isLogin ? 'Continue to CityYaari' : isSignup1 ? 'Continue' : 'Create Account';
+  const signupMeta = [
+    { eyebrow: 'New to CityYaari', title: 'Create your\nprofile', button: 'Continue' },
+    { eyebrow: 'Set your login', title: 'Add your\ncredentials', button: 'Continue' },
+    { eyebrow: 'A bit more', title: 'Choose your\ncurrent stage', button: 'Continue' },
+    { eyebrow: 'Keep it secure', title: 'Set recovery\nquestion', button: 'Create Account' },
+  ][signupStep - 1];
+
+  const forgotMeta = [
+    { eyebrow: 'Recover access', title: 'Find your\naccount', button: 'Continue' },
+    { eyebrow: 'Security check', title: 'Answer your\nquestion', button: 'Verify Answer' },
+    { eyebrow: 'Set new password', title: 'Create a new\npassword', button: 'Update Password' },
+  ][forgotStep - 1];
+
+  const eyebrow = isLogin ? 'Welcome back' : isSignup ? signupMeta.eyebrow : forgotMeta.eyebrow;
+  const title = isLogin ? 'Log in to\nCityYaari' : isSignup ? signupMeta.title : forgotMeta.title;
+  const btnLabel = isLogin
+    ? 'Continue to CityYaari'
+    : isSignup
+      ? signupMeta.button
+      : forgotMeta.button;
 
   return (
-    <View
-      style={StyleSheet.absoluteFill}
-      pointerEvents={isVisible ? 'auto' : 'none'}
-    >
-      {/* Backdrop */}
+    <View style={StyleSheet.absoluteFill} pointerEvents={isVisible ? 'auto' : 'none'}>
       <TouchableWithoutFeedback onPress={onClose}>
         <Animated.View style={[styles.backdrop, { opacity }]} />
       </TouchableWithoutFeedback>
 
-      {/* Sheet */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.sheetWrapper}
       >
         <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
-
-          {/* Drag pill */}
           <View style={styles.dragPill} />
 
-          {/* Header row */}
           <View style={styles.headerRow}>
             <TouchableOpacity
               onPress={handleBack}
@@ -270,73 +445,72 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <Text style={styles.headerBtnText}>
-                {isSignup2 ? '←' : '✕'}
+                {(isSignup && signupStep > 1) || (isForgot && forgotStep > 1) ? '<-' : 'x'}
               </Text>
             </TouchableOpacity>
 
-            {formType === 'signup' && <StepBar current={signupStep} total={2} />}
+            {isSignup && <StepBar current={signupStep} total={4} />}
+            {isForgot && <StepBar current={forgotStep} total={3} />}
+            {isLogin && <View style={styles.stepSpacer} />}
 
             <View style={styles.headerBtn} />
           </View>
 
-          {/* Blue step tag — signup only */}
-          {formType === 'signup' && (
+          {(isSignup || isForgot) && (
             <View style={styles.blueTag}>
               <View style={styles.blueTagDot} />
               <Text style={styles.blueTagText}>
-                Step {signupStep} of 2
+                {isSignup ? `Step ${signupStep} of 4` : `Step ${forgotStep} of 3`}
               </Text>
             </View>
           )}
 
-          {/* Eyebrow + title */}
           <Text style={styles.eyebrow}>{eyebrow}</Text>
           <Text style={styles.sheetTitle}>{title}</Text>
 
-          {/* Error */}
           {error ? (
-            <View style={styles.errorWrap}>
-              <Text style={styles.errorText}>{error}</Text>
+            <View style={[styles.errorWrap, error === 'Password updated. You can log in now.' && styles.successWrap]}>
+              <Text style={[styles.errorText, error === 'Password updated. You can log in now.' && styles.successText]}>
+                {error}
+              </Text>
             </View>
           ) : null}
 
-          {/* ── Fields ── */}
           <View style={styles.form}>
-
             {isLogin && (
               <>
                 <LabelledInput
                   label="EMAIL OR USERNAME"
                   placeholder="e.g. rahul_yaari"
-                  value={formData.username}
-                  onChangeText={(v) => handleChange('username', v)}
+                  value={formData.identifier}
+                  onChangeText={(v) => handleChange('identifier', v)}
                   autoCapitalize="none"
                   returnKeyType="next"
                 />
                 <LabelledInput
                   label="PASSWORD"
-                  rightLabel="Forgot?"
-                  placeholder="••••••••"
+                  rightLabel="Forgot Password?"
+                  onRightLabelPress={switchToForgot}
+                  placeholder="********"
                   value={formData.password}
                   onChangeText={(v) => handleChange('password', v)}
                   secureTextEntry
                   showToggle
                   showingPassword={showPassword}
-                  onToggle={() => setShowPassword((p) => !p)}
+                  onToggle={() => setShowPassword((prev) => !prev)}
                   returnKeyType="done"
                   onSubmitEditing={handleSubmit}
                 />
               </>
             )}
 
-            {isSignup1 && (
+            {isSignup && signupStep === 1 && (
               <>
                 <LabelledInput
                   label="FULL NAME"
                   placeholder="e.g. Rahul Sharma"
                   value={formData.fullName}
                   onChangeText={(v) => handleChange('fullName', v)}
-                  returnKeyType="next"
                 />
                 <LabelledInput
                   label="USERNAME"
@@ -350,7 +524,7 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
               </>
             )}
 
-            {isSignup2 && (
+            {isSignup && signupStep === 2 && (
               <>
                 <LabelledInput
                   label="EMAIL ADDRESS"
@@ -359,24 +533,102 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
                   onChangeText={(v) => handleChange('email', v)}
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  returnKeyType="next"
                 />
                 <LabelledInput
                   label="PASSWORD"
-                  placeholder="Min. 8 characters"
+                  placeholder="Min. 6 characters"
                   value={formData.password}
                   onChangeText={(v) => handleChange('password', v)}
                   secureTextEntry
                   showToggle
                   showingPassword={showPassword}
-                  onToggle={() => setShowPassword((p) => !p)}
+                  onToggle={() => setShowPassword((prev) => !prev)}
                   returnKeyType="done"
                   onSubmitEditing={handleSubmit}
                 />
               </>
             )}
 
-            {/* Submit */}
+            {isSignup && signupStep === 3 && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>CURRENT STAGE</Text>
+                <OptionCard
+                  label="I am a student"
+                  active={formData.occupationType === 'student'}
+                  onPress={() => handleChange('occupationType', 'student')}
+                />
+                <OptionCard
+                  label="I am a working professional"
+                  active={formData.occupationType === 'working_professional'}
+                  onPress={() => handleChange('occupationType', 'working_professional')}
+                />
+              </View>
+            )}
+
+            {isSignup && signupStep === 4 && (
+              <>
+                <LabelledInput
+                  label="SECURITY QUESTION"
+                  placeholder="e.g. What was the name of my first school?"
+                  value={formData.securityQuestion}
+                  onChangeText={(v) => handleChange('securityQuestion', v)}
+                  multiline
+                />
+                <LabelledInput
+                  label="SECURITY ANSWER"
+                  placeholder="Only you should know this"
+                  value={formData.securityAnswer}
+                  onChangeText={(v) => handleChange('securityAnswer', v)}
+                  returnKeyType="done"
+                  onSubmitEditing={handleSubmit}
+                />
+              </>
+            )}
+
+            {isForgot && forgotStep === 1 && (
+              <LabelledInput
+                label="EMAIL OR USERNAME"
+                placeholder="Enter your username or email"
+                value={formData.identifier}
+                onChangeText={(v) => handleChange('identifier', v)}
+                autoCapitalize="none"
+                returnKeyType="done"
+                onSubmitEditing={handleSubmit}
+              />
+            )}
+
+            {isForgot && forgotStep === 2 && (
+              <>
+                <View style={styles.questionCard}>
+                  <Text style={styles.questionLabel}>SECURITY QUESTION</Text>
+                  <Text style={styles.questionText}>{forgotQuestion}</Text>
+                </View>
+                <LabelledInput
+                  label="YOUR ANSWER"
+                  placeholder="Enter your answer"
+                  value={formData.forgotAnswer}
+                  onChangeText={(v) => handleChange('forgotAnswer', v)}
+                  returnKeyType="done"
+                  onSubmitEditing={handleSubmit}
+                />
+              </>
+            )}
+
+            {isForgot && forgotStep === 3 && (
+              <LabelledInput
+                label="NEW PASSWORD"
+                placeholder="Enter a new password"
+                value={formData.newPassword}
+                onChangeText={(v) => handleChange('newPassword', v)}
+                secureTextEntry
+                showToggle
+                showingPassword={showNewPassword}
+                onToggle={() => setShowNewPassword((prev) => !prev)}
+                returnKeyType="done"
+                onSubmitEditing={handleSubmit}
+              />
+            )}
+
             <TouchableOpacity
               style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
               onPress={handleSubmit}
@@ -389,22 +641,38 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
                 <>
                   <Text style={styles.submitText}>{btnLabel}</Text>
                   <View style={styles.submitIcon}>
-                    <Text style={styles.submitArrow}>→</Text>
+                    <Text style={styles.submitArrow}>{'->'}</Text>
                   </View>
                 </>
               )}
             </TouchableOpacity>
 
-            {/* Toggle */}
-            <TouchableOpacity style={styles.toggleBtn} onPress={toggleForm}>
-              <Text style={styles.toggleText}>
-                {isLogin ? "Don't have an account? " : 'Already a member? '}
-                <Text style={styles.toggleLink}>
-                  {isLogin ? 'Register' : 'Log in'}
+            {isLogin && (
+              <TouchableOpacity style={styles.toggleBtn} onPress={switchToSignup}>
+                <Text style={styles.toggleText}>
+                  {"Don't have an account? "}
+                  <Text style={styles.toggleLink}>Register</Text>
                 </Text>
-              </Text>
-            </TouchableOpacity>
+              </TouchableOpacity>
+            )}
 
+            {isSignup && (
+              <TouchableOpacity style={styles.toggleBtn} onPress={switchToLogin}>
+                <Text style={styles.toggleText}>
+                  {'Already a member? '}
+                  <Text style={styles.toggleLink}>Log in</Text>
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {isForgot && (
+              <TouchableOpacity style={styles.toggleBtn} onPress={switchToLogin}>
+                <Text style={styles.toggleText}>
+                  {'Remembered it? '}
+                  <Text style={styles.toggleLink}>Back to login</Text>
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </Animated.View>
       </KeyboardAvoidingView>
@@ -412,7 +680,6 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
   );
 };
 
-// ─── Styles ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -435,8 +702,6 @@ const styles = StyleSheet.create({
     shadowRadius: 28,
     elevation: 30,
   },
-
-  /* Drag pill */
   dragPill: {
     width: 36,
     height: 4,
@@ -445,8 +710,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 20,
   },
-
-  /* Header */
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -464,8 +727,9 @@ const styles = StyleSheet.create({
     color: T.ink3,
     lineHeight: 22,
   },
-
-  /* Step bar */
+  stepSpacer: {
+    flex: 1,
+  },
   stepRow: {
     flex: 1,
     flexDirection: 'row',
@@ -481,8 +745,6 @@ const styles = StyleSheet.create({
   stepSegActive: {
     backgroundColor: T.blueMain,
   },
-
-  /* Blue tag */
   blueTag: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -507,8 +769,6 @@ const styles = StyleSheet.create({
     color: '#1e40af',
     letterSpacing: 0.2,
   },
-
-  /* Copy */
   eyebrow: {
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif-medium',
     fontSize: 10,
@@ -527,8 +787,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.6,
     marginBottom: 18,
   },
-
-  /* Error */
   errorWrap: {
     backgroundColor: T.errorBg,
     borderRadius: 12,
@@ -538,14 +796,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: T.errorBorder,
   },
+  successWrap: {
+    backgroundColor: '#effdf4',
+    borderColor: '#bbf7d0',
+  },
   errorText: {
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif',
     fontSize: 13,
     color: T.error,
     textAlign: 'center',
   },
-
-  /* Form */
+  successText: {
+    color: '#166534',
+  },
   form: {
     gap: 13,
   },
@@ -563,7 +826,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: T.ink3,
-    letterSpacing: 1.0,
+    letterSpacing: 1,
     textTransform: 'uppercase',
   },
   rightLabel: {
@@ -582,6 +845,13 @@ const styles = StyleSheet.create({
     height: 50,
     paddingHorizontal: 16,
   },
+  inputWrapTall: {
+    minHeight: 84,
+    height: 'auto',
+    paddingTop: 14,
+    paddingBottom: 14,
+    alignItems: 'flex-start',
+  },
   inputWrapFocused: {
     backgroundColor: T.white,
     borderColor: T.blueMain,
@@ -593,6 +863,9 @@ const styles = StyleSheet.create({
     color: T.ink,
     height: '100%',
   },
+  inputFieldMultiline: {
+    minHeight: 56,
+  },
   eyeBtn: {
     paddingLeft: 10,
     paddingVertical: 4,
@@ -601,8 +874,64 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: T.ink3,
   },
-
-  /* Submit */
+  optionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: T.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+  },
+  optionCardActive: {
+    backgroundColor: '#eef4ff',
+    borderColor: T.blueMain,
+  },
+  optionIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: T.ink3,
+  },
+  optionIndicatorActive: {
+    backgroundColor: T.blueMain,
+    borderColor: T.blueMain,
+  },
+  optionText: {
+    flex: 1,
+    fontSize: 14,
+    color: T.ink2,
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif',
+  },
+  optionTextActive: {
+    color: T.ink,
+    fontWeight: '700',
+  },
+  questionCard: {
+    backgroundColor: T.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: T.surface2,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 6,
+  },
+  questionLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: T.ink3,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  questionText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: T.ink,
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif',
+  },
   submitBtn: {
     width: '100%',
     height: 52,
@@ -642,8 +971,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-
-  /* Toggle */
   toggleBtn: {
     alignItems: 'center',
     paddingVertical: 4,
