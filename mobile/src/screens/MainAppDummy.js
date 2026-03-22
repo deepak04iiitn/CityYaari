@@ -2,8 +2,11 @@ import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { useAuth } from "../store/AuthContext";
 
-export default function MainAppDummy({ navigation }) {
+export default function MainAppDummy() {
+  const { logout } = useAuth();
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
@@ -12,9 +15,9 @@ export default function MainAppDummy({ navigation }) {
         <Text style={styles.subtitle}>You have successfully completed the onboarding!</Text>
         <Pressable 
           style={styles.button}
-          onPress={() => navigation.navigate("Welcome")}
+          onPress={logout}
         >
-          <Text style={styles.buttonText}>Go Back to Welcome</Text>
+          <Text style={styles.buttonText}>Log Out</Text>
         </Pressable>
       </View>
     </SafeAreaView>

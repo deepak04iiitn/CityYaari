@@ -6,7 +6,7 @@ import {
   WelcomeScreen, 
   OnboardingScreen, 
   AccessAccountScreen,
-  MainAppDummy 
+  MainTabs
 } from "./src/screens";
 import { AuthProvider, useAuth } from './src/store/AuthContext';
 import { ActivityIndicator, View } from 'react-native';
@@ -26,7 +26,7 @@ const Navigation = () => {
 
   return (
     <Stack.Navigator
-      initialRouteName={isAuthenticated ? "MainAppDummy" : "Welcome"}
+      initialRouteName={isAuthenticated ? "MainTabs" : "Welcome"}
       screenOptions={{ headerShown: false }}
     >
       {!isAuthenticated ? (
@@ -36,7 +36,7 @@ const Navigation = () => {
           <Stack.Screen name="AccessAccount" component={AccessAccountScreen} />
         </>
       ) : (
-        <Stack.Screen name="MainAppDummy" component={MainAppDummy} />
+        <Stack.Screen name="MainTabs" component={MainTabs} />
       )}
     </Stack.Navigator>
   );
