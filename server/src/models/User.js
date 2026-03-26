@@ -28,19 +28,41 @@ const userSchema = new mongoose.Schema(
       enum: ['student', 'working_professional'],
       required: [true, 'Please select whether you are a student or working professional'],
     },
+    gender: {
+      type: String,
+      enum: ['Male', 'Female', 'Other'],
+      required: [true, 'Please select your gender'],
+    },
+    hometownCountry: {
+      type: String,
+      trim: true,
+    },
+    hometownState: {
+      type: String,
+      trim: true,
+    },
+    hometownCity: {
+      type: String,
+      trim: true,
+    },
+    organization: {
+      type: String,
+      trim: true,
+    },
+    studyOrPost: {
+      type: String,
+      trim: true,
+    },
     country: {
       type: String,
-      required: [true, 'Please add a country'],
       trim: true,
     },
     state: {
       type: String,
-      required: [true, 'Please add a state'],
       trim: true,
     },
     city: {
       type: String,
-      required: [true, 'Please add a city'],
       trim: true,
     },
     profileImageUri: {

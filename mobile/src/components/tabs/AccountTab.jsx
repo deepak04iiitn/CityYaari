@@ -277,6 +277,7 @@ export default function AccountTab({ navigation }) {
     useAuth();
 
   const [editOpen, setEditOpen] = useState(false);
+  const [sheetMode, setSheetMode] = useState("edit"); // "edit" or "complete"
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerType, setPickerType] = useState("country");
@@ -289,11 +290,26 @@ export default function AccountTab({ navigation }) {
   const [countryOther, setCountryOther] = useState(false);
   const [stateOther, setStateOther] = useState(false);
   const [cityOther, setCityOther] = useState(false);
+
+  const [hStates, setHStates] = useState([]);
+  const [hCities, setHCities] = useState([]);
+  const [hCountryId, setHCountryId] = useState(null);
+  const [hStateId, setHStateId] = useState(null);
+  const [hCountryOther, setHCountryOther] = useState(false);
+  const [hStateOther, setHStateOther] = useState(false);
+  const [hCityOther, setHCityOther] = useState(false);
+
   const [busy, setBusy] = useState("");
   const [edit, setEdit] = useState({
     fullName: "",
     email: "",
     occupationType: "student",
+    gender: "Other",
+    hometownCountry: "",
+    hometownState: "",
+    hometownCity: "",
+    organization: "",
+    studyOrPost: "",
     country: "",
     state: "",
     city: "",
@@ -319,21 +335,36 @@ export default function AccountTab({ navigation }) {
   );
 
   const pickerOptions =
-    pickerType === "country"
+    pickerType === "country" || pickerType === "hcountry"
       ? [...countries, OTHER]
       : pickerType === "state"
       ? countryOther || !countryId
         ? [OTHER]
         : [...states, OTHER]
-      : stateOther || countryOther || !stateId
+      : pickerType === "city"
+      ? stateOther || countryOther || !stateId
+        ? [OTHER]
+        : [...cities, OTHER]
+      : pickerType === "hstate"
+      ? hCountryOther || !hCountryId
+        ? [OTHER]
+        : [...hStates, OTHER]
+      : hStateOther || hCountryOther || !hStateId
       ? [OTHER]
-      : [...cities, OTHER];
+      : [...hCities, OTHER];
 
-  const openEdit = async () => {
+  const openEdit = async (mode = "edit") => {
+    setSheetMode(mode);
     setEdit({
       fullName: user?.fullName || "",
       email: user?.email || "",
       occupationType: user?.occupationType || "student",
+      gender: user?.gender || "Other",
+      hometownCountry: user?.hometownCountry || "",
+      hometownState: user?.hometownState || "",
+      hometownCity: user?.hometownCity || "",
+      organization: user?.organization || "",
+      studyOrPost: user?.studyOrPost || "",
       country: user?.country || "",
       state: user?.state || "",
       city: user?.city || "",
@@ -343,6 +374,13 @@ export default function AccountTab({ navigation }) {
     setCountryOther(false);
     setStateOther(false);
     setCityOther(false);
+    
+    setHCountryId(null);
+    setHStateId(null);
+    setHCountryOther(false);
+    setHStateOther(false);
+    setHCityOther(false);
+
     const matchedCountry = countries.find((c) => c.name === user?.country);
     if (matchedCountry?.id) {
       setCountryId(matchedCountry.id);
@@ -364,6 +402,29 @@ export default function AccountTab({ navigation }) {
       if (user?.state) setStateOther(true);
       if (user?.city) setCityOther(true);
     }
+
+    const matchedHCountry = countries.find((c) => c.name === user?.hometownCountry);
+    if (matchedHCountry?.id) {
+      setHCountryId(matchedHCountry.id);
+      try {
+        const hns = await GetState(matchedHCountry.id);
+        setHStates(Array.isArray(hns) ? hns : []);
+        const matchedHState = hns?.find((s) => s.name === user?.hometownState);
+        if (matchedHState?.id) {
+          setHStateId(matchedHState.id);
+          const hnc = await GetCity(matchedHCountry.id, matchedHState.id);
+          setHCities(Array.isArray(hnc) ? hnc : []);
+        }
+      } catch {
+        setHStates([]);
+        setHCities([]);
+      }
+    } else if (user?.hometownCountry) {
+      setHCountryOther(true);
+      if (user?.hometownState) setHStateOther(true);
+      if (user?.hometownCity) setHCityOther(true);
+    }
+
     setEditOpen(true);
   };
 
@@ -393,6 +454,10 @@ export default function AccountTab({ navigation }) {
       setStates(await GetState(countryId));
     if (type === "city" && countryId && stateId && !countryOther && !stateOther)
       setCities(await GetCity(countryId, stateId));
+    if (type === "hstate" && hCountryId && !hCountryOther)
+      setHStates(await GetState(hCountryId));
+    if (type === "hcity" && hCountryId && hStateId && !hCountryOther && !hStateOther)
+      setHCities(await GetCity(hCountryId, hStateId));
   };
 
   const onPick = (item) => {
@@ -416,24 +481,56 @@ export default function AccountTab({ navigation }) {
       setEdit((p) => ({ ...p, state: item.isOther ? "" : item.name, city: "" }));
       return;
     }
-    setCityOther(!!item.isOther);
-    setEdit((p) => ({ ...p, city: item.isOther ? "" : item.name }));
+    if (pickerType === "city") {
+      setCityOther(!!item.isOther);
+      setEdit((p) => ({ ...p, city: item.isOther ? "" : item.name }));
+      return;
+    }
+    if (pickerType === "hcountry") {
+      setHCountryId(item.isOther ? null : item.id);
+      setHStateId(null);
+      setHCountryOther(!!item.isOther);
+      setHStateOther(false);
+      setHCityOther(false);
+      setHStates([]);
+      setHCities([]);
+      setEdit((p) => ({ ...p, hometownCountry: item.isOther ? "" : item.name, hometownState: "", hometownCity: "" }));
+      return;
+    }
+    if (pickerType === "hstate") {
+      setHStateId(item.isOther ? null : item.id);
+      setHStateOther(!!item.isOther);
+      setHCityOther(false);
+      setHCities([]);
+      setEdit((p) => ({ ...p, hometownState: item.isOther ? "" : item.name, hometownCity: "" }));
+      return;
+    }
+    if (pickerType === "hcity") {
+      setHCityOther(!!item.isOther);
+      setEdit((p) => ({ ...p, hometownCity: item.isOther ? "" : item.name }));
+      return;
+    }
   };
 
   const saveProfile = async () => {
     if (
       !edit.fullName.trim() ||
       !edit.email.trim() ||
-      !edit.country.trim() ||
-      !edit.state.trim() ||
-      !edit.city.trim()
+      !edit.gender
     )
-      return Alert.alert("Missing fields", "Please complete all required fields.");
+      return Alert.alert("Missing fields", "Please complete Full Name, Email, and Gender.");
+      
     setBusy("profile");
     const res = await updateProfile({
       fullName: edit.fullName.trim(),
       email: edit.email.trim(),
       occupationType: edit.occupationType,
+      gender: edit.gender,
+      hometownCountry: edit.hometownCountry.trim(),
+      hometownState: edit.hometownState.trim(),
+      hometownCity: edit.hometownCity.trim(),
+      organization: edit.organization.trim(),
+      studyOrPost: edit.studyOrPost.trim(),
       country: edit.country.trim(),
       state: edit.state.trim(),
       city: edit.city.trim(),
@@ -466,9 +563,9 @@ export default function AccountTab({ navigation }) {
       ? "Working Professional"
       : "Student";
 
-  const locationStr =
-    [user?.city, user?.state, user?.country].filter(Boolean).join(", ") ||
-    "Not set";
+  const isProfileComplete = user?.hometownCountry && user?.country && user?.organization;
+  const hometownStr = [user?.hometownCity, user?.hometownState, user?.hometownCountry].filter(Boolean).join(", ") || "Not set";
+  const locationStr = [user?.city, user?.state, user?.country].filter(Boolean).join(", ") || "Not set";
 
   return (
     <ScreenShell
@@ -495,9 +592,9 @@ export default function AccountTab({ navigation }) {
               <MaterialIcons name="verified" size={13} color={T.amber} />
               <Text style={st.verifiedText}>Member</Text>
             </View>
-            <Pressable onPress={openEdit} style={st.heroEditBtn}>
-              <MaterialIcons name="edit" size={14} color={T.white} />
-              <Text style={st.heroEditText}>Edit</Text>
+            <Pressable onPress={() => openEdit(isProfileComplete ? "edit" : "complete")} style={st.heroEditBtn}>
+              <MaterialIcons name={isProfileComplete ? "edit" : "check-circle"} size={14} color={T.white} />
+              <Text style={st.heroEditText}>{isProfileComplete ? "Edit" : "Complete Profile"}</Text>
             </Pressable>
           </View>
 
@@ -560,8 +657,10 @@ export default function AccountTab({ navigation }) {
         <InfoRow icon="person" label="Full Name" value={user?.fullName} />
         <InfoRow icon="alternate-email" label="Username" value={user?.username ? `@${user.username}` : null} />
         <InfoRow icon="mail-outline" label="Email" value={user?.email} />
-        <InfoRow icon="work-outline" label="Occupation" value={occupationLabel} />
-        <InfoRow icon="location-on" label="Location" value={locationStr} last />
+        <InfoRow icon="people-outline" label="Gender" value={user?.gender} />
+        <InfoRow icon="business" label={occupationLabel} value={user?.organization ? `${user?.studyOrPost} at ${user?.organization}` : "Not set"} />
+        <InfoRow icon="home" label="Hometown" value={hometownStr} />
+        <InfoRow icon="location-on" label="Current Location" value={locationStr} last />
       </SectionCard>
 
       {/* ── Security ─────────────────────────────────────────────────────── */}
@@ -594,9 +693,17 @@ export default function AccountTab({ navigation }) {
         <ActionRow
           icon="edit"
           label="Edit Profile Details"
-          sublabel="Name, email, location…"
-          onPress={openEdit}
+          sublabel="Update your existing information"
+          onPress={() => openEdit("edit")}
         />
+        {!isProfileComplete && (
+          <ActionRow
+            icon="playlist-add-check"
+            label="Complete Profile"
+            sublabel="Fill missing fields like Hometown"
+            onPress={() => openEdit("complete")}
+          />
+        )}
         <ActionRow
           icon="logout"
           label="Sign Out"
@@ -646,25 +753,48 @@ export default function AccountTab({ navigation }) {
       <Sheet
         visible={editOpen}
         onClose={() => setEditOpen(false)}
-        title="Edit Profile"
-        subtitle="Updates are visible to your connections."
+        title={sheetMode === "edit" ? "Edit Profile" : "Complete Profile"}
+        subtitle={sheetMode === "edit" ? "Updates are visible to your connections." : "Fill in your missing details."}
       >
-        <Field
-          label="Full Name"
-          value={edit.fullName}
-          onChangeText={(v) => setEdit((p) => ({ ...p, fullName: v }))}
-          placeholder="Your full name"
-        />
-        <Field
-          label="Email Address"
-          value={edit.email}
-          onChangeText={(v) => setEdit((p) => ({ ...p, email: v }))}
-          placeholder="you@example.com"
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
+        {sheetMode === "edit" && (
+          <>
+            <Field
+              label="Full Name"
+              value={edit.fullName}
+              onChangeText={(v) => setEdit((p) => ({ ...p, fullName: v }))}
+              placeholder="Your full name"
+            />
+            <Field
+              label="Email Address"
+              value={edit.email}
+              onChangeText={(v) => setEdit((p) => ({ ...p, email: v }))}
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </>
+        )}
 
-        {/* Occupation toggle */}
+        {((sheetMode === "complete" && !user?.gender) || (sheetMode === "edit" && user?.gender)) && (
+          <View style={st.fieldWrap}>
+            <Text style={st.fieldLabel}>Gender</Text>
+            <View style={st.toggleRow}>
+              {["Male", "Female", "Other"].map((opt) => {
+                const active = edit.gender === opt;
+                return (
+                  <Pressable
+                    key={opt}
+                    onPress={() => setEdit((p) => ({ ...p, gender: opt }))}
+                    style={[st.toggleBtn, active && st.toggleBtnActive]}
+                  >
+                    <Text style={[st.toggleText, active && st.toggleTextActive]}>{opt}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
         <View style={st.fieldWrap}>
           <Text style={st.fieldLabel}>Occupation Type</Text>
           <View style={st.toggleRow}>
@@ -676,11 +806,7 @@ export default function AccountTab({ navigation }) {
                   onPress={() => setEdit((p) => ({ ...p, occupationType: opt }))}
                   style={[st.toggleBtn, active && st.toggleBtnActive]}
                 >
-                  <MaterialIcons
-                    name={opt === "student" ? "school" : "work"}
-                    size={14}
-                    color={active ? T.white : T.soft}
-                  />
+                  <MaterialIcons name={opt === "student" ? "school" : "work"} size={14} color={active ? T.white : T.soft} />
                   <Text style={[st.toggleText, active && st.toggleTextActive]}>
                     {opt === "student" ? "Student" : "Professional"}
                   </Text>
@@ -690,49 +816,126 @@ export default function AccountTab({ navigation }) {
           </View>
         </View>
 
-        <SelectField
-          label="Country"
-          value={countryOther ? "Other" : edit.country}
-          placeholder="Select country"
-          onPress={() => openPicker("country")}
-        />
-        {countryOther && (
+        {((sheetMode === "complete" && !user?.organization) || (sheetMode === "edit" && user?.organization)) && (
           <Field
-            label="Enter Country"
-            value={edit.country}
-            onChangeText={(v) => setEdit((p) => ({ ...p, country: v }))}
-            placeholder="Country name"
+            label={edit.occupationType === "student" ? "School / College Name" : "Company / Organization"}
+            value={edit.organization}
+            onChangeText={(v) => setEdit((p) => ({ ...p, organization: v }))}
+            placeholder="Organization"
           />
         )}
-        <SelectField
-          label="State / Province"
-          value={stateOther ? "Other" : edit.state}
-          placeholder="Select state"
-          onPress={() => openPicker("state")}
-          disabled={!edit.country}
-        />
-        {stateOther && (
+
+        {((sheetMode === "complete" && !user?.studyOrPost) || (sheetMode === "edit" && user?.studyOrPost)) && (
           <Field
-            label="Enter State"
-            value={edit.state}
-            onChangeText={(v) => setEdit((p) => ({ ...p, state: v }))}
-            placeholder="State name"
+            label={edit.occupationType === "student" ? "Course / Studying For" : "Post / Role Name"}
+            value={edit.studyOrPost}
+            onChangeText={(v) => setEdit((p) => ({ ...p, studyOrPost: v }))}
+            placeholder={edit.occupationType === "student" ? "e.g. B.Tech Computer Science" : "e.g. Software Engineer"}
           />
         )}
-        <SelectField
-          label="City"
-          value={cityOther ? "Other" : edit.city}
-          placeholder="Select city"
-          onPress={() => openPicker("city")}
-          disabled={!edit.state}
-        />
-        {cityOther && (
-          <Field
-            label="Enter City"
-            value={edit.city}
-            onChangeText={(v) => setEdit((p) => ({ ...p, city: v }))}
-            placeholder="City name"
-          />
+
+        {/* Hometown section */}
+        {((sheetMode === "complete" && !user?.hometownCountry) || (sheetMode === "edit" && user?.hometownCountry)) && (
+          <>
+            <Text style={[st.sectionTitle, { marginBottom: 16, marginTop: 8 }]}>Hometown</Text>
+
+            <SelectField
+              label="Country"
+              value={hCountryOther ? "Other" : edit.hometownCountry}
+              placeholder="Select country"
+              onPress={() => openPicker("hcountry")}
+            />
+            {hCountryOther && (
+              <Field
+                label="Enter Country"
+                value={edit.hometownCountry}
+                onChangeText={(v) => setEdit((p) => ({ ...p, hometownCountry: v }))}
+                placeholder="Country name"
+              />
+            )}
+            <SelectField
+              label="State / Province"
+              value={hStateOther ? "Other" : edit.hometownState}
+              placeholder="Select state"
+              onPress={() => openPicker("hstate")}
+              disabled={!edit.hometownCountry}
+            />
+            {hStateOther && (
+              <Field
+                label="Enter State"
+                value={edit.hometownState}
+                onChangeText={(v) => setEdit((p) => ({ ...p, hometownState: v }))}
+                placeholder="State name"
+              />
+            )}
+            <SelectField
+              label="City"
+              value={hCityOther ? "Other" : edit.hometownCity}
+              placeholder="Select city"
+              onPress={() => openPicker("hcity")}
+              disabled={!edit.hometownState}
+            />
+            {hCityOther && (
+              <Field
+                label="Enter City"
+                value={edit.hometownCity}
+                onChangeText={(v) => setEdit((p) => ({ ...p, hometownCity: v }))}
+                placeholder="City name"
+              />
+            )}
+          </>
+        )}
+
+        {/* Current Location section */}
+        {((sheetMode === "complete" && !user?.country) || (sheetMode === "edit" && user?.country)) && (
+          <>
+            <Text style={[st.sectionTitle, { marginBottom: 16, marginTop: 8 }]}>Current Location</Text>
+
+            <SelectField
+              label="Country"
+              value={countryOther ? "Other" : edit.country}
+              placeholder="Select country"
+              onPress={() => openPicker("country")}
+            />
+            {countryOther && (
+              <Field
+                label="Enter Country"
+                value={edit.country}
+                onChangeText={(v) => setEdit((p) => ({ ...p, country: v }))}
+                placeholder="Country name"
+              />
+            )}
+            <SelectField
+              label="State / Province"
+              value={stateOther ? "Other" : edit.state}
+              placeholder="Select state"
+              onPress={() => openPicker("state")}
+              disabled={!edit.country}
+            />
+            {stateOther && (
+              <Field
+                label="Enter State"
+                value={edit.state}
+                onChangeText={(v) => setEdit((p) => ({ ...p, state: v }))}
+                placeholder="State name"
+              />
+            )}
+            <SelectField
+              label="City"
+              value={cityOther ? "Other" : edit.city}
+              placeholder="Select city"
+              onPress={() => openPicker("city")}
+              disabled={!edit.state}
+            />
+            {cityOther && (
+              <Field
+                label="Enter City"
+                value={edit.city}
+                onChangeText={(v) => setEdit((p) => ({ ...p, city: v }))}
+                placeholder="City name"
+              />
+            )}
+          </>
         )}
 
         <Pressable

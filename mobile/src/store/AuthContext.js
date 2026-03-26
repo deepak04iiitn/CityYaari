@@ -72,9 +72,7 @@ export const AuthProvider = ({ children }) => {
     email,
     password,
     occupationType,
-    country,
-    state,
-    city,
+    gender,
     securityQuestion,
     securityAnswer,
   }) => {
@@ -85,9 +83,7 @@ export const AuthProvider = ({ children }) => {
         email,
         password,
         occupationType,
-        country,
-        state,
-        city,
+        gender,
         securityQuestion,
         securityAnswer,
       });

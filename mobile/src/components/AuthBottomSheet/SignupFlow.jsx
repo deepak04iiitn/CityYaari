@@ -16,14 +16,6 @@ export default function SignupFlow({
   styles,
   T,
   showPassword,
-  setShowPassword,
-  selectedCountryLabel,
-  selectedStateLabel,
-  selectedCityLabel,
-  countryIsOther,
-  stateIsOther,
-  cityIsOther,
-  pickerLoading,
   pickerType,
   openPicker,
 }) {
@@ -95,59 +87,24 @@ export default function SignupFlow({
       )}
 
       {signupStep === 4 && (
-        <>
-          <SelectionField
-            label="COUNTRY"
-            value={selectedCountryLabel}
-            placeholder="Select your country"
-            onPress={() => openPicker('country')}
-            loading={pickerLoading && pickerType === 'country'}
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>GENDER</Text>
+          <OptionCard
+            label="Male"
+            active={formData.gender === 'Male'}
+            onPress={() => handleChange('gender', 'Male')}
           />
-          {countryIsOther && (
-            <LabelledInput
-              label="ENTER COUNTRY"
-              placeholder="Type your country"
-              value={formData.country}
-              onChangeText={(v) => handleChange('country', v)}
-            />
-          )}
-
-          <SelectionField
-            label="STATE"
-            value={selectedStateLabel}
-            placeholder={!selectedCountryLabel ? 'Select country first' : 'Select your state'}
-            onPress={() => openPicker('state')}
-            disabled={!selectedCountryLabel}
-            loading={pickerLoading && pickerType === 'state'}
+          <OptionCard
+            label="Female"
+            active={formData.gender === 'Female'}
+            onPress={() => handleChange('gender', 'Female')}
           />
-          {stateIsOther && (
-            <LabelledInput
-              label="ENTER STATE"
-              placeholder="Type your state"
-              value={formData.state}
-              onChangeText={(v) => handleChange('state', v)}
-            />
-          )}
-
-          <SelectionField
-            label="CITY"
-            value={selectedCityLabel}
-            placeholder={!selectedStateLabel ? 'Select state first' : 'Select your city'}
-            onPress={() => openPicker('city')}
-            disabled={!selectedStateLabel}
-            loading={pickerLoading && pickerType === 'city'}
+          <OptionCard
+            label="Other"
+            active={formData.gender === 'Other'}
+            onPress={() => handleChange('gender', 'Other')}
           />
-          {cityIsOther && (
-            <LabelledInput
-              label="ENTER CITY"
-              placeholder="Type your city"
-              value={formData.city}
-              onChangeText={(v) => handleChange('city', v)}
-              returnKeyType="done"
-              onSubmitEditing={handleSubmit}
-            />
-          )}
-        </>
+        </View>
       )}
 
       {signupStep === 5 && (

@@ -229,9 +229,7 @@ const createInitialFormData = () => ({
   email: '',
   password: '',
   occupationType: '',
-  country: '',
-  state: '',
-  city: '',
+  gender: '',
   securityQuestion: '',
   securityAnswer: '',
   identifier: '',
@@ -250,20 +248,6 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [pickerVisible, setPickerVisible] = useState(false);
-  const [pickerType, setPickerType] = useState('country');
-  const [pickerLoading, setPickerLoading] = useState(false);
-  const [countries, setCountries] = useState([]);
-  const [states, setStates] = useState([]);
-  const [cities, setCities] = useState([]);
-  const [selectedCountryId, setSelectedCountryId] = useState(null);
-  const [selectedStateId, setSelectedStateId] = useState(null);
-  const [selectedCountryLabel, setSelectedCountryLabel] = useState('');
-  const [selectedStateLabel, setSelectedStateLabel] = useState('');
-  const [selectedCityLabel, setSelectedCityLabel] = useState('');
-  const [countryIsOther, setCountryIsOther] = useState(false);
-  const [stateIsOther, setStateIsOther] = useState(false);
-  const [cityIsOther, setCityIsOther] = useState(false);
 
   const {
     login,
@@ -279,20 +263,6 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
   useEffect(() => {
     resetFlow(initialForm);
   }, [initialForm]);
-
-  useEffect(() => {
-    if (!isVisible) {
-      return;
-    }
-
-    GetCountries()
-      .then((data) => {
-        setCountries(Array.isArray(data) ? data : []);
-      })
-      .catch(() => {
-        setCountries([]);
-      });
-  }, [isVisible]);
 
   useEffect(() => {
     if (isVisible) {
@@ -325,18 +295,7 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
     }
   }, [isVisible, opacity, translateY]);
 
-  const resetLocationSelection = () => {
-    setSelectedCountryId(null);
-    setSelectedStateId(null);
-    setSelectedCountryLabel('');
-    setSelectedStateLabel('');
-    setSelectedCityLabel('');
-    setCountryIsOther(false);
-    setStateIsOther(false);
-    setCityIsOther(false);
-    setStates([]);
-    setCities([]);
-  };
+  const resetLocationSelection = () => {};
 
   const resetFlow = (nextFlow) => {
     setFlowType(nextFlow);
@@ -348,10 +307,6 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
     setShowNewPassword(false);
     setError('');
     setIsSubmitting(false);
-    setPickerVisible(false);
-    setPickerType('country');
-    setPickerLoading(false);
-    resetLocationSelection();
   };
 
   const handleChange = (key, value) => {
@@ -359,105 +314,8 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
     if (error) setError('');
   };
 
-  const openPicker = async (type) => {
-    setError('');
-    setPickerType(type);
-    setPickerVisible(true);
-
-    if (type === 'state' && selectedCountryId && !countryIsOther) {
-      setPickerLoading(true);
-      try {
-        const data = await GetState(selectedCountryId);
-        setStates(Array.isArray(data) ? data : []);
-      } finally {
-        setPickerLoading(false);
-      }
-      return;
-    }
-
-    if (type === 'city' && selectedCountryId && selectedStateId && !countryIsOther && !stateIsOther) {
-      setPickerLoading(true);
-      try {
-        const data = await GetCity(selectedCountryId, selectedStateId);
-        setCities(Array.isArray(data) ? data : []);
-      } finally {
-        setPickerLoading(false);
-      }
-      return;
-    }
-
-    setPickerLoading(false);
-  };
-
-  const handleCountrySelect = (item) => {
-    setPickerVisible(false);
-    setSelectedCountryId(item.isOther ? null : item.id);
-    setSelectedCountryLabel(item.name);
-    setCountryIsOther(Boolean(item.isOther));
-    setSelectedStateId(null);
-    setSelectedStateLabel('');
-    setSelectedCityLabel('');
-    setStateIsOther(false);
-    setCityIsOther(false);
-    setStates([]);
-    setCities([]);
-    setFormData((prev) => ({
-      ...prev,
-      country: item.isOther ? '' : item.name,
-      state: '',
-      city: '',
-    }));
-  };
-
-  const handleStateSelect = (item) => {
-    setPickerVisible(false);
-    setSelectedStateId(item.isOther ? null : item.id);
-    setSelectedStateLabel(item.name);
-    setStateIsOther(Boolean(item.isOther));
-    setSelectedCityLabel('');
-    setCityIsOther(false);
-    setCities([]);
-    setFormData((prev) => ({
-      ...prev,
-      state: item.isOther ? '' : item.name,
-      city: '',
-    }));
-  };
-
-  const handleCitySelect = (item) => {
-    setPickerVisible(false);
-    setSelectedCityLabel(item.name);
-    setCityIsOther(Boolean(item.isOther));
-    setFormData((prev) => ({
-      ...prev,
-      city: item.isOther ? '' : item.name,
-    }));
-  };
-
-  const getPickerTitle = () => {
-    if (pickerType === 'country') return 'Country';
-    if (pickerType === 'state') return 'State';
-    return 'City';
-  };
-
-  const getPickerOptions = () => {
-    if (pickerType === 'country') {
-      return [...countries, OTHER_OPTION];
-    }
-
-    if (pickerType === 'state') {
-      if (countryIsOther || !selectedCountryId) {
-        return [OTHER_OPTION];
-      }
-      return [...states, OTHER_OPTION];
-    }
-
-    if (stateIsOther || countryIsOther || !selectedStateId) {
-      return [OTHER_OPTION];
-    }
-
-    return [...cities, OTHER_OPTION];
-  };
+  const getPickerTitle = () => '';
+  const getPickerOptions = () => [];
 
   const validateCurrentStep = () => {
     if (flowType === 'login') {
@@ -491,13 +349,8 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
       }
 
       if (signupStep === 4) {
-        if (!selectedCountryLabel || !selectedStateLabel || !selectedCityLabel) {
-          setError('Please choose your country, state, and city.');
-          return false;
-        }
-
-        if (!formData.country.trim() || !formData.state.trim() || !formData.city.trim()) {
-          setError('Please fill in your country, state, and city.');
+        if (!formData.gender) {
+          setError('Please choose your gender.');
           return false;
         }
       }
@@ -567,9 +420,7 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
         email: formData.email.trim(),
         password: formData.password,
         occupationType: formData.occupationType,
-        country: formData.country.trim(),
-        state: formData.state.trim(),
-        city: formData.city.trim(),
+        gender: formData.gender,
         securityQuestion: formData.securityQuestion.trim(),
         securityAnswer: formData.securityAnswer.trim(),
       });
@@ -683,7 +534,7 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
     { eyebrow: 'New to CityYaari', title: 'Create your\nprofile', button: 'Continue' },
     { eyebrow: 'Set your login', title: 'Add your\ncredentials', button: 'Continue' },
     { eyebrow: 'A bit more', title: 'Choose your\ncurrent stage', button: 'Continue' },
-    { eyebrow: 'Local context', title: 'Tell us where\nyou are', button: 'Continue' },
+    { eyebrow: 'A bit more', title: 'Tell us your\ngender', button: 'Continue' },
     { eyebrow: 'Keep it secure', title: 'Set recovery\nquestion', button: 'Create Account' },
   ][signupStep - 1];
 
@@ -706,21 +557,6 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
       <TouchableWithoutFeedback onPress={onClose}>
         <Animated.View style={[styles.backdrop, { opacity }]} />
       </TouchableWithoutFeedback>
-
-      <SelectionModal
-        visible={pickerVisible}
-        title={getPickerTitle()}
-        options={getPickerOptions()}
-        loading={pickerLoading}
-        onClose={() => setPickerVisible(false)}
-        onSelect={
-          pickerType === 'country'
-            ? handleCountrySelect
-            : pickerType === 'state'
-              ? handleStateSelect
-              : handleCitySelect
-        }
-      />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -813,15 +649,6 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
               T={T}
               showPassword={showPassword}
               setShowPassword={setShowPassword}
-              selectedCountryLabel={selectedCountryLabel}
-              selectedStateLabel={selectedStateLabel}
-              selectedCityLabel={selectedCityLabel}
-              countryIsOther={countryIsOther}
-              stateIsOther={stateIsOther}
-              cityIsOther={cityIsOther}
-              pickerLoading={pickerLoading}
-              pickerType={pickerType}
-              openPicker={openPicker}
             />
           </View>
         </Animated.View>

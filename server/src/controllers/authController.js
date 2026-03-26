@@ -26,6 +26,12 @@ const buildAuthUserPayload = (user) => ({
   fullName: user.fullName,
   username: user.username,
   email: user.email,
+  gender: user.gender,
+  hometownCountry: user.hometownCountry,
+  hometownState: user.hometownState,
+  hometownCity: user.hometownCity,
+  organization: user.organization,
+  studyOrPost: user.studyOrPost,
   occupationType: user.occupationType,
   country: user.country,
   state: user.state,
@@ -47,9 +53,7 @@ export const registerUser = async (req, res) => {
     password,
     role,
     occupationType,
-    country,
-    state,
-    city,
+    gender,
     securityQuestion,
     securityAnswer,
   } = req.body;
@@ -58,9 +62,9 @@ export const registerUser = async (req, res) => {
     const normalizedEmail = email?.trim().toLowerCase();
     const normalizedUsername = username?.trim();
 
-    if (!occupationType || !country || !state || !city || !securityQuestion || !securityAnswer) {
+    if (!occupationType || !gender || !securityQuestion || !securityAnswer) {
       return res.status(400).json({
-        message: 'Occupation type, country, state, city, security question, and security answer are required',
+        message: 'Occupation type, gender, security question, and security answer are required',
       });
     }
 
@@ -82,9 +86,7 @@ export const registerUser = async (req, res) => {
       username: normalizedUsername,
       email: normalizedEmail,
       occupationType,
-      country: country.trim(),
-      state: state.trim(),
-      city: city.trim(),
+      gender,
       password: hashedPassword,
       securityQuestion: securityQuestion.trim(),
       securityAnswerHash: hashedSecurityAnswer,
@@ -166,8 +168,22 @@ export const getUserProfile = async (req, res) => {
 // @route   PUT /api/auth/profile
 // @access  Private
 export const updateUserProfile = async (req, res) => {
-  const { fullName, username, email, occupationType, country, state, city, profileImageUri } =
-    req.body;
+  const {
+    fullName,
+    username,
+    email,
+    occupationType,
+    gender,
+    hometownCountry,
+    hometownState,
+    hometownCity,
+    organization,
+    studyOrPost,
+    country,
+    state,
+    city,
+    profileImageUri
+  } = req.body;
 
   try {
     const user = await User.findById(req.user._id);
@@ -181,6 +197,12 @@ export const updateUserProfile = async (req, res) => {
     const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : undefined;
     const normalizedOccupationType =
       typeof occupationType === 'string' ? occupationType.trim() : undefined;
+    const normalizedGender = typeof gender === 'string' ? gender.trim() : undefined;
+    const normalizedHometownCountry = typeof hometownCountry === 'string' ? hometownCountry.trim() : undefined;
+    const normalizedHometownState = typeof hometownState === 'string' ? hometownState.trim() : undefined;
+    const normalizedHometownCity = typeof hometownCity === 'string' ? hometownCity.trim() : undefined;
+    const normalizedOrganization = typeof organization === 'string' ? organization.trim() : undefined;
+    const normalizedStudyOrPost = typeof studyOrPost === 'string' ? studyOrPost.trim() : undefined;
     const normalizedCountry = typeof country === 'string' ? country.trim() : undefined;
     const normalizedState = typeof state === 'string' ? state.trim() : undefined;
     const normalizedCity = typeof city === 'string' ? city.trim() : undefined;
@@ -192,6 +214,12 @@ export const updateUserProfile = async (req, res) => {
       normalizedUsername === undefined &&
       normalizedEmail === undefined &&
       normalizedOccupationType === undefined &&
+      normalizedGender === undefined &&
+      normalizedHometownCountry === undefined &&
+      normalizedHometownState === undefined &&
+      normalizedHometownCity === undefined &&
+      normalizedOrganization === undefined &&
+      normalizedStudyOrPost === undefined &&
       normalizedCountry === undefined &&
       normalizedState === undefined &&
       normalizedCity === undefined &&
@@ -265,6 +293,24 @@ export const updateUserProfile = async (req, res) => {
     }
     if (normalizedOccupationType !== undefined) {
       user.occupationType = normalizedOccupationType;
+    }
+    if (normalizedGender !== undefined) {
+      user.gender = normalizedGender;
+    }
+    if (normalizedHometownCountry !== undefined) {
+      user.hometownCountry = normalizedHometownCountry;
+    }
+    if (normalizedHometownState !== undefined) {
+      user.hometownState = normalizedHometownState;
+    }
+    if (normalizedHometownCity !== undefined) {
+      user.hometownCity = normalizedHometownCity;
+    }
+    if (normalizedOrganization !== undefined) {
+      user.organization = normalizedOrganization;
+    }
+    if (normalizedStudyOrPost !== undefined) {
+      user.studyOrPost = normalizedStudyOrPost;
     }
     if (normalizedCountry !== undefined) {
       user.country = normalizedCountry;
