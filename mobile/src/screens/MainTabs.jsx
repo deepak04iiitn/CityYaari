@@ -17,6 +17,7 @@ import MessagesTab from "../components/tabs/MessagesTab";
 import NotificationsTab from "../components/tabs/NotificationsTab";
 import PostTab from "../components/tabs/PostTab";
 import SearchTab from "../components/tabs/SearchTab";
+import UserProfileScreen from "./UserProfileScreen";
 import { TAB_COLORS as C } from "../components/tabs/TabShared";
 
 const { width } = Dimensions.get("window");
@@ -181,6 +182,11 @@ export default function MainTabs() {
       <Tab.Screen name="Search" component={SearchTab} />
       <Tab.Screen name="Account" component={AccountTab} />
       <Tab.Screen name="Notifications" component={NotificationsTab} />
+      <Tab.Screen
+        name="UserProfile"
+        component={UserProfileScreen}
+        options={{ tabBarButton: () => null }}
+      />
     </Tab.Navigator>
   );
 }

@@ -15,36 +15,6 @@ import { useEffect, useRef } from "react";
 
 const { width, height } = Dimensions.get("window");
 
-/* ─── Tiny pulsing orb used in the background ─── */
-function PulseOrb({ style, color, delay = 0 }) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const opacity = useRef(new Animated.Value(0.18)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.parallel([
-          Animated.timing(scale, { toValue: 1.25, duration: 2800, useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0.06, duration: 2800, useNativeDriver: true }),
-        ]),
-        Animated.parallel([
-          Animated.timing(scale, { toValue: 1, duration: 2800, useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0.18, duration: 2800, useNativeDriver: true }),
-        ]),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, []);
-
-  return (
-    <Animated.View
-      style={[style, { transform: [{ scale }], opacity, backgroundColor: color }]}
-      pointerEvents="none"
-    />
-  );
-}
 
 /* ─── Floating badge / pill chip ─── */
 function FloatingChip({ icon, label, subLabel, position, colorScheme, rotate = "0deg" }) {
@@ -168,17 +138,7 @@ export default function WelcomeScreen({ navigation }) {
           pointerEvents="none"
         />
 
-        {/* Ambient orbs */}
-        <PulseOrb
-          style={{ position: "absolute", width: 260, height: 260, borderRadius: 130, top: -40, left: -60 }}
-          color="#F97316"
-          delay={0}
-        />
-        <PulseOrb
-          style={{ position: "absolute", width: 200, height: 200, borderRadius: 100, bottom: 60, right: -50 }}
-          color="#2563EB"
-          delay={1400}
-        />
+
 
         {/* Top status bar area — logo teaser */}
         <View style={styles.topBar}>
@@ -349,9 +309,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(0,0,0,0.6)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
+    borderColor: "rgba(255,255,255,0.15)",
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 99,

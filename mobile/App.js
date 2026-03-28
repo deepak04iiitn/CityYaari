@@ -2,11 +2,11 @@ import React from 'react';
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { 
-  WelcomeScreen, 
-  OnboardingScreen, 
+import {
+  WelcomeScreen,
+  OnboardingScreen,
   AccessAccountScreen,
-  MainTabs
+  MainTabs,
 } from "./src/screens";
 import { AuthProvider, useAuth } from './src/store/AuthContext';
 import { ActivityIndicator, View } from 'react-native';
@@ -36,7 +36,9 @@ const Navigation = () => {
           <Stack.Screen name="AccessAccount" component={AccessAccountScreen} />
         </>
       ) : (
-        <Stack.Screen name="MainTabs" component={MainTabs} />
+        <>
+          <Stack.Screen name="MainTabs" component={MainTabs} />
+        </>
       )}
     </Stack.Navigator>
   );

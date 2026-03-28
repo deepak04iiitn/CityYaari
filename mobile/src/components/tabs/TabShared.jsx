@@ -50,10 +50,12 @@ export function ScreenShell({ navigation, routeName, title, subtitle, children }
         notificationCount={3}
       />
       <ScrollView contentContainerStyle={ss.screenContent} showsVerticalScrollIndicator={false}>
-        <LinearGradient colors={["#EEF5FF", "#FFFFFF"]} style={ss.heroCard}>
-          <Text style={ss.heroTitle}>{title}</Text>
-          <Text style={ss.heroSubtitle}>{subtitle}</Text>
-        </LinearGradient>
+        {(title || subtitle) && (
+          <LinearGradient colors={["#EEF5FF", "#FFFFFF"]} style={ss.heroCard}>
+            {title ? <Text style={ss.heroTitle}>{title}</Text> : null}
+            {subtitle ? <Text style={ss.heroSubtitle}>{subtitle}</Text> : null}
+          </LinearGradient>
+        )}
         {children}
       </ScrollView>
     </SafeAreaView>

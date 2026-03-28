@@ -571,85 +571,68 @@ export default function AccountTab({ navigation }) {
     <ScreenShell
       navigation={navigation}
       routeName="Account"
-      title="Profile"
-      subtitle="Manage your CityYaari identity"
     >
       {/* ── Hero Card ──────────────────────────────────────────────────── */}
       <View style={st.heroCard}>
-        <LinearGradient
-          colors={T.heroGrad}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={st.heroGrad}
-        >
-          {/* Decorative circles */}
-          <View style={[st.decoCircle, st.decoCircle1]} />
-          <View style={[st.decoCircle, st.decoCircle2]} />
+        {/* Top row: member badge + edit button */}
+        <View style={st.heroTopRow}>
+          <View style={st.verifiedBadge}>
+            <MaterialIcons name="verified" size={13} color={T.amber} />
+            <Text style={st.verifiedText}>Member</Text>
+          </View>
+          <Pressable onPress={() => openEdit(isProfileComplete ? "edit" : "complete")} style={st.heroEditBtn}>
+            <MaterialIcons name={isProfileComplete ? "edit" : "check-circle"} size={14} color={T.blueMid} />
+            <Text style={st.heroEditText}>{isProfileComplete ? "Edit" : "Complete Profile"}</Text>
+          </Pressable>
+        </View>
 
-          {/* Top row: edit button */}
-          <View style={st.heroTopRow}>
-            <View style={st.verifiedBadge}>
-              <MaterialIcons name="verified" size={13} color={T.amber} />
-              <Text style={st.verifiedText}>Member</Text>
+        {/* Avatar */}
+        <View style={st.avatarContainer}>
+          <Pressable onPress={pickPhoto} style={st.avatarOuter}>
+            <View style={st.avatarRing}>
+              {user?.profileImageUri ? (
+                <Image
+                  source={{ uri: user.profileImageUri }}
+                  style={st.avatarImg}
+                />
+              ) : (
+                <View style={st.avatarFallback}>
+                  <Text style={st.avatarInitials}>{initials}</Text>
+                </View>
+              )}
             </View>
-            <Pressable onPress={() => openEdit(isProfileComplete ? "edit" : "complete")} style={st.heroEditBtn}>
-              <MaterialIcons name={isProfileComplete ? "edit" : "check-circle"} size={14} color={T.white} />
-              <Text style={st.heroEditText}>{isProfileComplete ? "Edit" : "Complete Profile"}</Text>
-            </Pressable>
-          </View>
+            <View style={st.cameraBtn}>
+              <MaterialIcons name="photo-camera" size={12} color={T.white} />
+            </View>
+          </Pressable>
+        </View>
 
-          {/* Avatar */}
-          <View style={st.avatarContainer}>
-            <Pressable onPress={pickPhoto} style={st.avatarOuter}>
-              <View style={st.avatarRing}>
-                {user?.profileImageUri ? (
-                  <Image
-                    source={{ uri: user.profileImageUri }}
-                    style={st.avatarImg}
-                  />
-                ) : (
-                  <LinearGradient
-                    colors={["#2563EB", "#1D4ED8"]}
-                    style={st.avatarFallback}
-                  >
-                    <Text style={st.avatarInitials}>{initials}</Text>
-                  </LinearGradient>
-                )}
-              </View>
-              <View style={st.cameraBtn}>
-                <MaterialIcons name="photo-camera" size={12} color={T.white} />
-              </View>
-            </Pressable>
-          </View>
+        {/* Name + handle */}
+        <Text style={st.heroName}>
+          {user?.fullName || "CityYaari Member"}
+        </Text>
+        <Text style={st.heroHandle}>
+          @{user?.username || "cityyaari"}
+        </Text>
 
-          {/* Name + handle */}
-          <Text style={st.heroName}>
-            {user?.fullName || "CityYaari Member"}
-          </Text>
-          <Text style={st.heroHandle}>
-            @{user?.username || "cityyaari"}
-          </Text>
+        {/* Orange accent dash */}
+        <View style={st.heroDash} />
 
-          {/* Chips */}
-          <View style={st.chipRow}>
-            <StatChip
-              icon={
-                user?.occupationType === "working_professional"
-                  ? "work"
-                  : "school"
-              }
-              label={occupationLabel}
-              color="rgba(255,255,255,0.13)"
-              iconColor={T.amberPale}
-            />
-            <StatChip
-              icon="location-on"
-              label={[user?.city, user?.state].filter(Boolean).join(", ") || "Location"}
-              color="rgba(255,255,255,0.10)"
-              iconColor="#A5C8FF"
-            />
-          </View>
-        </LinearGradient>
+        {/* Chips */}
+        <View style={st.chipRow}>
+          <StatChip
+            icon={user?.occupationType === "working_professional" ? "work" : "school"}
+            label={occupationLabel}
+            color={user?.occupationType === "working_professional" ? T.blueGhost : "#EDE9FE"}
+            iconColor={user?.occupationType === "working_professional" ? T.blueMid : "#7C3AED"}
+          />
+          <StatChip
+            icon="location-on"
+            label={[user?.city, user?.state].filter(Boolean).join(", ") || "Location"}
+            color="#FFF7ED"
+            iconColor="#F97316"
+          />
+        </View>
       </View>
 
       {/* ── Account Details ───────────────────────────────────────────────── */}
@@ -1019,42 +1002,34 @@ export default function AccountTab({ navigation }) {
 const st = StyleSheet.create({
   // ── Hero Card
   heroCard: {
+    backgroundColor: T.surface,
     borderRadius: 28,
-    overflow: "hidden",
-    shadowColor: "#0F1E3D",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
-    shadowRadius: 28,
-    elevation: 12,
-  },
-  heroGrad: {
+    borderWidth: 1,
+    borderColor: T.lineLight,
     paddingTop: 20,
-    paddingBottom: 28,
+    paddingBottom: 24,
     paddingHorizontal: 20,
     alignItems: "center",
-    position: "relative",
-    overflow: "hidden",
+    gap: 6,
+    shadowColor: "#1E3A8A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+    elevation: 2,
   },
-  decoCircle: {
-    position: "absolute",
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.04)",
-  },
-  decoCircle1: { width: 200, height: 200, top: -80, right: -60 },
-  decoCircle2: { width: 140, height: 140, bottom: -50, left: -40 },
 
   heroTopRow: {
     width: "100%",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 18,
+    marginBottom: 12,
   },
   verifiedBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "rgba(245,158,11,0.18)",
+    backgroundColor: T.amberPale,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
@@ -1062,43 +1037,44 @@ const st = StyleSheet.create({
   verifiedText: {
     fontSize: 11,
     fontWeight: "700",
-    color: T.amberPale,
+    color: T.amberDeep,
     letterSpacing: 0.5,
   },
   heroEditBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "rgba(255,255,255,0.14)",
+    backgroundColor: T.blueGhost,
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderColor: T.bluePale,
   },
-  heroEditText: { fontSize: 12, fontWeight: "700", color: T.white },
+  heroEditText: { fontSize: 12, fontWeight: "700", color: T.blueMid },
 
   // Avatar
-  avatarContainer: { marginBottom: 14 },
+  avatarContainer: { marginBottom: 10 },
   avatarOuter: { position: "relative" },
   avatarRing: {
     width: 96,
     height: 96,
     borderRadius: 48,
     padding: 3,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: T.bluePale,
   },
-  avatarImg: { width: "100%", height: "100%", borderRadius: 99 },
+  avatarImg: { width: "100%", height: "100%", borderRadius: 48 },
   avatarFallback: {
     flex: 1,
-    borderRadius: 99,
+    borderRadius: 48,
+    backgroundColor: T.blueGhost,
     alignItems: "center",
     justifyContent: "center",
   },
   avatarInitials: {
     fontSize: 32,
     fontWeight: "900",
-    color: T.white,
+    color: T.blueMid,
     letterSpacing: -1,
   },
   cameraBtn: {
@@ -1112,21 +1088,28 @@ const st = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2.5,
-    borderColor: T.inkMid,
+    borderColor: T.surface,
   },
 
   heroName: {
     fontSize: 24,
     fontWeight: "800",
-    color: T.white,
+    color: T.ink,
     letterSpacing: -0.5,
     textAlign: "center",
   },
   heroHandle: {
     fontSize: 13,
-    color: "rgba(255,255,255,0.55)",
-    marginTop: 3,
-    marginBottom: 16,
+    color: T.soft,
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  heroDash: {
+    width: 32,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "#F97316",
+    marginBottom: 8,
   },
   chipRow: {
     flexDirection: "row",
