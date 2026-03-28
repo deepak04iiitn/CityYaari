@@ -13,49 +13,52 @@ import {
   Platform,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
 import { GetCity, GetCountries, GetState } from "react-country-state-city";
 import { useAuth } from "../../store/AuthContext";
 import { ScreenShell } from "./TabShared";
 
-// ─── Design Tokens ───────────────────────────────────────────────────────────
+// ─── Design Tokens ── Beige BG · White cards · Rich Blue · Gold touches ──────
 const T = {
-  // Neutrals
-  void: "#080C14",
-  ink: "#0E1726",
-  inkMid: "#1E2D47",
-  soft: "#5A6E8C",
-  mute: "#8FA4BF",
-  line: "#E2EAF4",
-  lineLight: "#EEF4FB",
-  bg: "#F5F8FD",
-  surface: "#FFFFFF",
+  // Beige — ONLY the page/screen background
+  bg:          "#F2EBE0",        // warm beige screen background
+  bgDeep:      "#EAE0D4",        // pressed states only
 
-  // Brand Blue
-  blue: "#1D4ED8",
-  blueMid: "#2563EB",
-  blueLight: "#3B82F6",
-  bluePale: "#DBEAFE",
-  blueGhost: "#EFF6FF",
+  // Cards & Surfaces — clean white so blue/gold pop
+  surface:     "#FFFFFF",        // card surface
+  surfaceAlt:  "#F8FBFD",        // sheet / modal surface (very faint blue tint)
 
-  // Accent Amber/Orange (warmth / "Yaari")
-  amber: "#F59E0B",
-  amberDeep: "#D97706",
-  amberPale: "#FEF3C7",
+  // Ink / Text — neutral charcoal (not brown)
+  ink:         "#1A2333",        // deep neutral dark
+  inkMid:      "#3A4A5C",        // mid tone
+  soft:        "#6B7A8D",        // muted
+  mute:        "#A0AEBB",        // placeholder / disabled
 
-  // Accent Coral
-  coral: "#F43F5E",
-  coralPale: "#FFF1F2",
+  // Borders & Lines — cooler, less warm
+  line:        "#D8E4EE",        // cool-neutral border
+  lineLight:   "#E8F0F7",        // very subtle separator
+
+  // Light Blue — MORE presence now
+  blue:        "#3A8FB5",        // primary blue (richer)
+  blueMid:     "#4DADD4",        // mid blue
+  blueLight:   "#72C3E0",        // light blue
+  bluePale:    "#C8E8F5",        // pale blue tint (used more)
+  blueGhost:   "#E8F5FC",        // ghost blue backgrounds (used more)
+  blueDark:    "#1F6A8A",        // deep blue for accents
+
+  // Gold — MORE presence now
+  gold:        "#D4A832",        // richer gold
+  goldDeep:    "#B08A20",        // deep gold for text
+  goldPale:    "#F5E8B0",        // pale gold tint (used more)
+  goldGhost:   "#FDF7E0",        // ghost gold backgrounds
+  goldBorder:  "#E8D080",        // gold border
 
   // Utility
-  white: "#FFFFFF",
-  success: "#10B981",
-  successPale: "#D1FAE5",
-
-  // Gradients
-  heroGrad: ["#0F1E3D", "#1D3461", "#163F7A"],
-  sheetBg: "#FFFFFF",
+  white:       "#FFFFFF",
+  coral:       "#C05A5A",
+  coralPale:   "#FAEAEA",
+  success:     "#3A8A60",
+  successPale: "#E0F2E9",
 };
 
 const OTHER = { id: -1, name: "Other", isOther: true };
@@ -66,7 +69,7 @@ function useFade(trigger) {
   useEffect(() => {
     Animated.timing(anim, {
       toValue: trigger ? 1 : 0,
-      duration: 280,
+      duration: 220,
       useNativeDriver: true,
     }).start();
   }, [trigger]);
@@ -78,7 +81,7 @@ function InfoRow({ icon, label, value, last }) {
   return (
     <View style={[st.infoRow, !last && st.infoRowBorder]}>
       <View style={st.infoIcon}>
-        <MaterialIcons name={icon} size={15} color={T.blueMid} />
+        <MaterialIcons name={icon} size={15} color={T.blue} />
       </View>
       <View style={st.infoBody}>
         <Text style={st.infoLabel}>{label}</Text>
@@ -117,13 +120,13 @@ function SelectField({ label, value, placeholder, onPress, disabled }) {
           st.fieldInput,
           st.fieldSelect,
           disabled && st.fieldDisabled,
-          pressed && { opacity: 0.8 },
+          pressed && { opacity: 0.75 },
         ]}
       >
         <Text style={[st.fieldSelectText, !value && { color: T.mute }]}>
           {value || placeholder}
         </Text>
-        <MaterialIcons name="expand-more" size={20} color={T.mute} />
+        <MaterialIcons name="expand-more" size={20} color={T.soft} />
       </Pressable>
     </View>
   );
@@ -144,9 +147,7 @@ function Sheet({ visible, title, subtitle, onClose, children }) {
       </Animated.View>
       <View style={st.sheetOuter}>
         <View style={st.sheetInner}>
-          {/* Handle */}
           <View style={st.sheetHandle} />
-          {/* Header */}
           <View style={st.sheetHeader}>
             <View style={{ flex: 1 }}>
               <Text style={st.sheetTitle}>{title}</Text>
@@ -214,10 +215,10 @@ function Picker({ visible, title, options, onClose, onSelect }) {
 }
 
 // ─── Stat Chip ────────────────────────────────────────────────────────────
-function StatChip({ icon, label, color = T.bluePale, iconColor = T.blueMid }) {
+function StatChip({ icon, label, color = T.bluePale, iconColor = T.blue, borderColor = T.line }) {
   return (
-    <View style={[st.statChip, { backgroundColor: color }]}>
-      <MaterialIcons name={icon} size={14} color={iconColor} />
+    <View style={[st.statChip, { backgroundColor: color, borderColor }]}>
+      <MaterialIcons name={icon} size={13} color={iconColor} />
       <Text style={[st.statChipText, { color: iconColor }]}>{label}</Text>
     </View>
   );
@@ -231,14 +232,14 @@ function ActionRow({ icon, label, sublabel, onPress, danger, last }) {
       style={({ pressed }) => [
         st.actionRow,
         !last && st.actionRowBorder,
-        pressed && { backgroundColor: danger ? T.coralPale : T.blueGhost },
+        pressed && { backgroundColor: danger ? T.coralPale : T.bgDeep },
       ]}
     >
       <View style={[st.actionIcon, danger && st.actionIconDanger]}>
         <MaterialIcons
           name={icon}
           size={17}
-          color={danger ? T.coral : T.blueMid}
+          color={danger ? T.coral : T.blue}
         />
       </View>
       <View style={{ flex: 1 }}>
@@ -264,11 +265,20 @@ function SectionCard({ title, badge, children, style }) {
     <View style={[st.sectionCard, style]}>
       <View style={st.sectionHead}>
         <Text style={st.sectionTitle}>{title}</Text>
-        {badge ? <View style={st.sectionBadge}><Text style={st.sectionBadgeText}>{badge}</Text></View> : null}
+        {badge ? (
+          <View style={st.sectionBadge}>
+            <Text style={st.sectionBadgeText}>{badge}</Text>
+          </View>
+        ) : null}
       </View>
       {children}
     </View>
   );
+}
+
+// ─── Divider line ─────────────────────────────────────────────────────────
+function Divider() {
+  return <View style={st.divider} />;
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────
@@ -277,7 +287,7 @@ export default function AccountTab({ navigation }) {
     useAuth();
 
   const [editOpen, setEditOpen] = useState(false);
-  const [sheetMode, setSheetMode] = useState("edit"); // "edit" or "complete"
+  const [sheetMode, setSheetMode] = useState("edit");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerType, setPickerType] = useState("country");
@@ -369,17 +379,10 @@ export default function AccountTab({ navigation }) {
       state: user?.state || "",
       city: user?.city || "",
     });
-    setCountryId(null);
-    setStateId(null);
-    setCountryOther(false);
-    setStateOther(false);
-    setCityOther(false);
-    
-    setHCountryId(null);
-    setHStateId(null);
-    setHCountryOther(false);
-    setHStateOther(false);
-    setHCityOther(false);
+    setCountryId(null); setStateId(null);
+    setCountryOther(false); setStateOther(false); setCityOther(false);
+    setHCountryId(null); setHStateId(null);
+    setHCountryOther(false); setHStateOther(false); setHCityOther(false);
 
     const matchedCountry = countries.find((c) => c.name === user?.country);
     if (matchedCountry?.id) {
@@ -393,10 +396,7 @@ export default function AccountTab({ navigation }) {
           const nc = await GetCity(matchedCountry.id, matchedState.id);
           setCities(Array.isArray(nc) ? nc : []);
         }
-      } catch {
-        setStates([]);
-        setCities([]);
-      }
+      } catch { setStates([]); setCities([]); }
     } else if (user?.country) {
       setCountryOther(true);
       if (user?.state) setStateOther(true);
@@ -415,10 +415,7 @@ export default function AccountTab({ navigation }) {
           const hnc = await GetCity(matchedHCountry.id, matchedHState.id);
           setHCities(Array.isArray(hnc) ? hnc : []);
         }
-      } catch {
-        setHStates([]);
-        setHCities([]);
-      }
+      } catch { setHStates([]); setHCities([]); }
     } else if (user?.hometownCountry) {
       setHCountryOther(true);
       if (user?.hometownState) setHStateOther(true);
@@ -429,13 +426,9 @@ export default function AccountTab({ navigation }) {
   };
 
   const pickPhoto = async () => {
-    const permission =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted)
-      return Alert.alert(
-        "Permission required",
-        "Allow photo access to update your profile picture."
-      );
+      return Alert.alert("Permission required", "Allow photo access to update your profile picture.");
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       allowsEditing: true,
@@ -463,21 +456,14 @@ export default function AccountTab({ navigation }) {
   const onPick = (item) => {
     setPickerOpen(false);
     if (pickerType === "country") {
-      setCountryId(item.isOther ? null : item.id);
-      setStateId(null);
-      setCountryOther(!!item.isOther);
-      setStateOther(false);
-      setCityOther(false);
-      setStates([]);
-      setCities([]);
+      setCountryId(item.isOther ? null : item.id); setStateId(null);
+      setCountryOther(!!item.isOther); setStateOther(false); setCityOther(false);
+      setStates([]); setCities([]);
       setEdit((p) => ({ ...p, country: item.isOther ? "" : item.name, state: "", city: "" }));
       return;
     }
     if (pickerType === "state") {
-      setStateId(item.isOther ? null : item.id);
-      setStateOther(!!item.isOther);
-      setCityOther(false);
-      setCities([]);
+      setStateId(item.isOther ? null : item.id); setStateOther(!!item.isOther); setCityOther(false); setCities([]);
       setEdit((p) => ({ ...p, state: item.isOther ? "" : item.name, city: "" }));
       return;
     }
@@ -487,21 +473,14 @@ export default function AccountTab({ navigation }) {
       return;
     }
     if (pickerType === "hcountry") {
-      setHCountryId(item.isOther ? null : item.id);
-      setHStateId(null);
-      setHCountryOther(!!item.isOther);
-      setHStateOther(false);
-      setHCityOther(false);
-      setHStates([]);
-      setHCities([]);
+      setHCountryId(item.isOther ? null : item.id); setHStateId(null);
+      setHCountryOther(!!item.isOther); setHStateOther(false); setHCityOther(false);
+      setHStates([]); setHCities([]);
       setEdit((p) => ({ ...p, hometownCountry: item.isOther ? "" : item.name, hometownState: "", hometownCity: "" }));
       return;
     }
     if (pickerType === "hstate") {
-      setHStateId(item.isOther ? null : item.id);
-      setHStateOther(!!item.isOther);
-      setHCityOther(false);
-      setHCities([]);
+      setHStateId(item.isOther ? null : item.id); setHStateOther(!!item.isOther); setHCityOther(false); setHCities([]);
       setEdit((p) => ({ ...p, hometownState: item.isOther ? "" : item.name, hometownCity: "" }));
       return;
     }
@@ -513,13 +492,8 @@ export default function AccountTab({ navigation }) {
   };
 
   const saveProfile = async () => {
-    if (
-      !edit.fullName.trim() ||
-      !edit.email.trim() ||
-      !edit.gender
-    )
+    if (!edit.fullName.trim() || !edit.email.trim() || !edit.gender)
       return Alert.alert("Missing fields", "Please complete Full Name, Email, and Gender.");
-      
     setBusy("profile");
     const res = await updateProfile({
       fullName: edit.fullName.trim(),
@@ -559,42 +533,40 @@ export default function AccountTab({ navigation }) {
   };
 
   const occupationLabel =
-    user?.occupationType === "working_professional"
-      ? "Working Professional"
-      : "Student";
+    user?.occupationType === "working_professional" ? "Working Professional" : "Student";
 
   const isProfileComplete = user?.hometownCountry && user?.country && user?.organization;
   const hometownStr = [user?.hometownCity, user?.hometownState, user?.hometownCountry].filter(Boolean).join(", ") || "Not set";
   const locationStr = [user?.city, user?.state, user?.country].filter(Boolean).join(", ") || "Not set";
 
   return (
-    <ScreenShell
-      navigation={navigation}
-      routeName="Account"
-    >
-      {/* ── Hero Card ──────────────────────────────────────────────────── */}
+    <ScreenShell navigation={navigation} routeName="Account">
+
+      {/* ── Hero Card ─────────────────────────────────────────────────── */}
       <View style={st.heroCard}>
-        {/* Top row: member badge + edit button */}
+
+        {/* Top row */}
         <View style={st.heroTopRow}>
-          <View style={st.verifiedBadge}>
-            <MaterialIcons name="verified" size={13} color={T.amber} />
-            <Text style={st.verifiedText}>Member</Text>
+          <View style={st.memberBadge}>
+            <View style={st.memberDot} />
+            <Text style={st.memberText}>Member</Text>
           </View>
-          <Pressable onPress={() => openEdit(isProfileComplete ? "edit" : "complete")} style={st.heroEditBtn}>
-            <MaterialIcons name={isProfileComplete ? "edit" : "check-circle"} size={14} color={T.blueMid} />
-            <Text style={st.heroEditText}>{isProfileComplete ? "Edit" : "Complete Profile"}</Text>
+          <Pressable
+            onPress={() => openEdit(isProfileComplete ? "edit" : "complete")}
+            style={({ pressed }) => [st.heroEditBtn, pressed && { opacity: 0.75 }]}
+          >
+            <Text style={st.heroEditText}>
+              {isProfileComplete ? "Edit Profile" : "Complete Profile"}
+            </Text>
           </Pressable>
         </View>
 
-        {/* Avatar */}
-        <View style={st.avatarContainer}>
+        {/* Avatar + name block */}
+        <View style={st.heroCenter}>
           <Pressable onPress={pickPhoto} style={st.avatarOuter}>
             <View style={st.avatarRing}>
               {user?.profileImageUri ? (
-                <Image
-                  source={{ uri: user.profileImageUri }}
-                  style={st.avatarImg}
-                />
+                <Image source={{ uri: user.profileImageUri }} style={st.avatarImg} />
               ) : (
                 <View style={st.avatarFallback}>
                   <Text style={st.avatarInitials}>{initials}</Text>
@@ -602,40 +574,39 @@ export default function AccountTab({ navigation }) {
               )}
             </View>
             <View style={st.cameraBtn}>
-              <MaterialIcons name="photo-camera" size={12} color={T.white} />
+              <MaterialIcons name="photo-camera" size={11} color={T.white} />
             </View>
           </Pressable>
+
+          <View style={st.heroNameBlock}>
+            <Text style={st.heroName}>{user?.fullName || "CityYaari Member"}</Text>
+            <Text style={st.heroHandle}>@{user?.username || "cityyaari"}</Text>
+
+            {/* Gold accent underline */}
+            <View style={st.goldAccentLine} />
+          </View>
         </View>
-
-        {/* Name + handle */}
-        <Text style={st.heroName}>
-          {user?.fullName || "CityYaari Member"}
-        </Text>
-        <Text style={st.heroHandle}>
-          @{user?.username || "cityyaari"}
-        </Text>
-
-        {/* Orange accent dash */}
-        <View style={st.heroDash} />
 
         {/* Chips */}
         <View style={st.chipRow}>
           <StatChip
             icon={user?.occupationType === "working_professional" ? "work" : "school"}
             label={occupationLabel}
-            color={user?.occupationType === "working_professional" ? T.blueGhost : "#EDE9FE"}
-            iconColor={user?.occupationType === "working_professional" ? T.blueMid : "#7C3AED"}
+            color={T.bluePale}
+            iconColor={T.blueDark}
+            borderColor={T.blueLight}
           />
           <StatChip
             icon="location-on"
             label={[user?.city, user?.state].filter(Boolean).join(", ") || "Location"}
-            color="#FFF7ED"
-            iconColor="#F97316"
+            color={T.goldGhost}
+            iconColor={T.goldDeep}
+            borderColor={T.goldBorder}
           />
         </View>
       </View>
 
-      {/* ── Account Details ───────────────────────────────────────────────── */}
+      {/* ── Account Details ──────────────────────────────────────────────── */}
       <SectionCard title="Account Details" badge="Personal">
         <InfoRow icon="person" label="Full Name" value={user?.fullName} />
         <InfoRow icon="alternate-email" label="Username" value={user?.username ? `@${user.username}` : null} />
@@ -646,7 +617,7 @@ export default function AccountTab({ navigation }) {
         <InfoRow icon="location-on" label="Current Location" value={locationStr} last />
       </SectionCard>
 
-      {/* ── Security ─────────────────────────────────────────────────────── */}
+      {/* ── Security ──────────────────────────────────────────────────────── */}
       <SectionCard title="Security" badge="Protected">
         <InfoRow
           icon="help-outline"
@@ -656,11 +627,7 @@ export default function AccountTab({ navigation }) {
         <InfoRow
           icon="lock-outline"
           label="Security Answer"
-          value={
-            user?.hasSecurityAnswer
-              ? "••••••••  (hidden for your safety)"
-              : "Not configured"
-          }
+          value={user?.hasSecurityAnswer ? "••••••••  (hidden for your safety)" : "Not configured"}
           last
         />
       </SectionCard>
@@ -721,9 +688,9 @@ export default function AccountTab({ navigation }) {
       <Picker
         visible={pickerOpen}
         title={
-          pickerType === "country"
+          pickerType === "country" || pickerType === "hcountry"
             ? "Select Country"
-            : pickerType === "state"
+            : pickerType === "state" || pickerType === "hstate"
             ? "Select State / Province"
             : "Select City"
         }
@@ -732,12 +699,16 @@ export default function AccountTab({ navigation }) {
         onSelect={onPick}
       />
 
-      {/* Edit Sheet */}
+      {/* ── Edit Sheet ────────────────────────────────────────────────────── */}
       <Sheet
         visible={editOpen}
         onClose={() => setEditOpen(false)}
         title={sheetMode === "edit" ? "Edit Profile" : "Complete Profile"}
-        subtitle={sheetMode === "edit" ? "Updates are visible to your connections." : "Fill in your missing details."}
+        subtitle={
+          sheetMode === "edit"
+            ? "Updates are visible to your connections."
+            : "Fill in your missing details."
+        }
       >
         {sheetMode === "edit" && (
           <>
@@ -758,7 +729,7 @@ export default function AccountTab({ navigation }) {
           </>
         )}
 
-        {((sheetMode === "complete" && !user?.gender) || (sheetMode === "edit" && user?.gender)) && (
+        {((sheetMode === "complete" && !user?.gender) || sheetMode === "edit") && (
           <View style={st.fieldWrap}>
             <Text style={st.fieldLabel}>Gender</Text>
             <View style={st.toggleRow}>
@@ -789,7 +760,11 @@ export default function AccountTab({ navigation }) {
                   onPress={() => setEdit((p) => ({ ...p, occupationType: opt }))}
                   style={[st.toggleBtn, active && st.toggleBtnActive]}
                 >
-                  <MaterialIcons name={opt === "student" ? "school" : "work"} size={14} color={active ? T.white : T.soft} />
+                  <MaterialIcons
+                    name={opt === "student" ? "school" : "work"}
+                    size={14}
+                    color={active ? T.white : T.soft}
+                  />
                   <Text style={[st.toggleText, active && st.toggleTextActive]}>
                     {opt === "student" ? "Student" : "Professional"}
                   </Text>
@@ -799,7 +774,7 @@ export default function AccountTab({ navigation }) {
           </View>
         </View>
 
-        {((sheetMode === "complete" && !user?.organization) || (sheetMode === "edit" && user?.organization)) && (
+        {((sheetMode === "complete" && !user?.organization) || sheetMode === "edit") && (
           <Field
             label={edit.occupationType === "student" ? "School / College Name" : "Company / Organization"}
             value={edit.organization}
@@ -808,7 +783,7 @@ export default function AccountTab({ navigation }) {
           />
         )}
 
-        {((sheetMode === "complete" && !user?.studyOrPost) || (sheetMode === "edit" && user?.studyOrPost)) && (
+        {((sheetMode === "complete" && !user?.studyOrPost) || sheetMode === "edit") && (
           <Field
             label={edit.occupationType === "student" ? "Course / Studying For" : "Post / Role Name"}
             value={edit.studyOrPost}
@@ -817,129 +792,78 @@ export default function AccountTab({ navigation }) {
           />
         )}
 
-        {/* Hometown section */}
-        {((sheetMode === "complete" && !user?.hometownCountry) || (sheetMode === "edit" && user?.hometownCountry)) && (
+        {/* Hometown */}
+        {((sheetMode === "complete" && !user?.hometownCountry) || sheetMode === "edit") && (
           <>
-            <Text style={[st.sectionTitle, { marginBottom: 16, marginTop: 8 }]}>Hometown</Text>
+            <View style={st.sectionDividerRow}>
+              <View style={st.sectionDividerLine} />
+              <Text style={st.sectionDividerText}>Hometown</Text>
+              <View style={st.sectionDividerLine} />
+            </View>
 
-            <SelectField
-              label="Country"
-              value={hCountryOther ? "Other" : edit.hometownCountry}
-              placeholder="Select country"
-              onPress={() => openPicker("hcountry")}
-            />
+            <SelectField label="Country" value={hCountryOther ? "Other" : edit.hometownCountry}
+              placeholder="Select country" onPress={() => openPicker("hcountry")} />
             {hCountryOther && (
-              <Field
-                label="Enter Country"
-                value={edit.hometownCountry}
-                onChangeText={(v) => setEdit((p) => ({ ...p, hometownCountry: v }))}
-                placeholder="Country name"
-              />
+              <Field label="Enter Country" value={edit.hometownCountry}
+                onChangeText={(v) => setEdit((p) => ({ ...p, hometownCountry: v }))} placeholder="Country name" />
             )}
-            <SelectField
-              label="State / Province"
-              value={hStateOther ? "Other" : edit.hometownState}
-              placeholder="Select state"
-              onPress={() => openPicker("hstate")}
-              disabled={!edit.hometownCountry}
-            />
+            <SelectField label="State / Province" value={hStateOther ? "Other" : edit.hometownState}
+              placeholder="Select state" onPress={() => openPicker("hstate")} disabled={!edit.hometownCountry} />
             {hStateOther && (
-              <Field
-                label="Enter State"
-                value={edit.hometownState}
-                onChangeText={(v) => setEdit((p) => ({ ...p, hometownState: v }))}
-                placeholder="State name"
-              />
+              <Field label="Enter State" value={edit.hometownState}
+                onChangeText={(v) => setEdit((p) => ({ ...p, hometownState: v }))} placeholder="State name" />
             )}
-            <SelectField
-              label="City"
-              value={hCityOther ? "Other" : edit.hometownCity}
-              placeholder="Select city"
-              onPress={() => openPicker("hcity")}
-              disabled={!edit.hometownState}
-            />
+            <SelectField label="City" value={hCityOther ? "Other" : edit.hometownCity}
+              placeholder="Select city" onPress={() => openPicker("hcity")} disabled={!edit.hometownState} />
             {hCityOther && (
-              <Field
-                label="Enter City"
-                value={edit.hometownCity}
-                onChangeText={(v) => setEdit((p) => ({ ...p, hometownCity: v }))}
-                placeholder="City name"
-              />
+              <Field label="Enter City" value={edit.hometownCity}
+                onChangeText={(v) => setEdit((p) => ({ ...p, hometownCity: v }))} placeholder="City name" />
             )}
           </>
         )}
 
-        {/* Current Location section */}
-        {((sheetMode === "complete" && !user?.country) || (sheetMode === "edit" && user?.country)) && (
+        {/* Current Location */}
+        {((sheetMode === "complete" && !user?.country) || sheetMode === "edit") && (
           <>
-            <Text style={[st.sectionTitle, { marginBottom: 16, marginTop: 8 }]}>Current Location</Text>
+            <View style={st.sectionDividerRow}>
+              <View style={st.sectionDividerLine} />
+              <Text style={st.sectionDividerText}>Current Location</Text>
+              <View style={st.sectionDividerLine} />
+            </View>
 
-            <SelectField
-              label="Country"
-              value={countryOther ? "Other" : edit.country}
-              placeholder="Select country"
-              onPress={() => openPicker("country")}
-            />
+            <SelectField label="Country" value={countryOther ? "Other" : edit.country}
+              placeholder="Select country" onPress={() => openPicker("country")} />
             {countryOther && (
-              <Field
-                label="Enter Country"
-                value={edit.country}
-                onChangeText={(v) => setEdit((p) => ({ ...p, country: v }))}
-                placeholder="Country name"
-              />
+              <Field label="Enter Country" value={edit.country}
+                onChangeText={(v) => setEdit((p) => ({ ...p, country: v }))} placeholder="Country name" />
             )}
-            <SelectField
-              label="State / Province"
-              value={stateOther ? "Other" : edit.state}
-              placeholder="Select state"
-              onPress={() => openPicker("state")}
-              disabled={!edit.country}
-            />
+            <SelectField label="State / Province" value={stateOther ? "Other" : edit.state}
+              placeholder="Select state" onPress={() => openPicker("state")} disabled={!edit.country} />
             {stateOther && (
-              <Field
-                label="Enter State"
-                value={edit.state}
-                onChangeText={(v) => setEdit((p) => ({ ...p, state: v }))}
-                placeholder="State name"
-              />
+              <Field label="Enter State" value={edit.state}
+                onChangeText={(v) => setEdit((p) => ({ ...p, state: v }))} placeholder="State name" />
             )}
-            <SelectField
-              label="City"
-              value={cityOther ? "Other" : edit.city}
-              placeholder="Select city"
-              onPress={() => openPicker("city")}
-              disabled={!edit.state}
-            />
+            <SelectField label="City" value={cityOther ? "Other" : edit.city}
+              placeholder="Select city" onPress={() => openPicker("city")} disabled={!edit.state} />
             {cityOther && (
-              <Field
-                label="Enter City"
-                value={edit.city}
-                onChangeText={(v) => setEdit((p) => ({ ...p, city: v }))}
-                placeholder="City name"
-              />
+              <Field label="Enter City" value={edit.city}
+                onChangeText={(v) => setEdit((p) => ({ ...p, city: v }))} placeholder="City name" />
             )}
           </>
         )}
 
         <Pressable
           onPress={saveProfile}
-          style={({ pressed }) => [st.primaryBtn, pressed && { opacity: 0.88 }]}
+          style={({ pressed }) => [st.primaryBtn, pressed && { opacity: 0.82 }]}
         >
-          <LinearGradient
-            colors={["#2563EB", "#1D4ED8"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={st.primaryBtnGrad}
-          >
-            <Text style={st.primaryBtnText}>
-              {busy === "profile" ? "Saving…" : "Save Changes"}
-            </Text>
-            <MaterialIcons name="arrow-forward" size={17} color={T.white} />
-          </LinearGradient>
+          <Text style={st.primaryBtnText}>
+            {busy === "profile" ? "Saving…" : "Save Changes"}
+          </Text>
+          <MaterialIcons name="arrow-forward" size={16} color={T.white} />
         </Pressable>
       </Sheet>
 
-      {/* Delete Sheet */}
+      {/* ── Delete Sheet ──────────────────────────────────────────────────── */}
       <Sheet
         visible={deleteOpen}
         onClose={() => setDeleteOpen(false)}
@@ -947,12 +871,11 @@ export default function AccountTab({ navigation }) {
         subtitle="This is irreversible after the 15-day grace period."
       >
         <View style={st.dangerBox}>
-          <MaterialIcons name="warning-amber" size={22} color={T.coral} />
+          <MaterialIcons name="warning-amber" size={20} color={T.coral} />
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={st.dangerBoxTitle}>Proceed with caution</Text>
             <Text style={st.dangerBoxText}>
-              You'll lose all your connections, posts, and data permanently
-              after the hold period.
+              You'll lose all your connections, posts, and data permanently after the hold period.
             </Text>
           </View>
         </View>
@@ -968,10 +891,7 @@ export default function AccountTab({ navigation }) {
               secureTextEntry={!deletePasswordVisible}
               style={st.pwdInput}
             />
-            <Pressable
-              onPress={() => setDeletePasswordVisible((v) => !v)}
-              style={st.eyeBtn}
-            >
+            <Pressable onPress={() => setDeletePasswordVisible((v) => !v)} style={st.eyeBtn}>
               <MaterialIcons
                 name={deletePasswordVisible ? "visibility-off" : "visibility"}
                 size={18}
@@ -983,12 +903,9 @@ export default function AccountTab({ navigation }) {
 
         <Pressable
           onPress={removeAccount}
-          style={({ pressed }) => [
-            st.dangerBtn,
-            pressed && { opacity: 0.85 },
-          ]}
+          style={({ pressed }) => [st.dangerBtn, pressed && { opacity: 0.82 }]}
         >
-          <MaterialIcons name="delete-forever" size={18} color={T.white} />
+          <MaterialIcons name="delete-forever" size={17} color={T.white} />
           <Text style={st.dangerBtnText}>
             {busy === "delete" ? "Processing…" : "Delete My Account"}
           </Text>
@@ -1000,143 +917,169 @@ export default function AccountTab({ navigation }) {
 
 // ─── Styles ───────────────────────────────────────────────────────────────
 const st = StyleSheet.create({
-  // ── Hero Card
+
+  // ── Hero Card ──────────────────────────────────────────────────────────
   heroCard: {
     backgroundColor: T.surface,
-    borderRadius: 28,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: T.lineLight,
-    paddingTop: 20,
-    paddingBottom: 24,
+    borderColor: T.line,
+    paddingTop: 0,           // top bar handles top spacing
+    paddingBottom: 22,
     paddingHorizontal: 20,
-    alignItems: "center",
-    gap: 6,
-    shadowColor: "#1E3A8A",
+    gap: 14,
+    overflow: "hidden",
+    shadowColor: "#3A8FB5",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 16,
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 3,
   },
-
   heroTopRow: {
-    width: "100%",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    backgroundColor: T.blueGhost,
+    borderBottomWidth: 1,
+    borderBottomColor: T.bluePale,
+    marginHorizontal: -20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    marginBottom: 4,
   },
-  verifiedBadge: {
+
+  // Member badge (gold)
+  memberBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: T.amberPale,
-    paddingHorizontal: 10,
+    gap: 6,
+    backgroundColor: T.goldGhost,
+    borderWidth: 1,
+    borderColor: T.goldBorder,
+    paddingHorizontal: 11,
     paddingVertical: 5,
     borderRadius: 999,
   },
-  verifiedText: {
+  memberDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: T.gold,
+  },
+  memberText: {
     fontSize: 11,
     fontWeight: "700",
-    color: T.amberDeep,
-    letterSpacing: 0.5,
+    color: T.goldDeep,
+    letterSpacing: 0.6,
   },
+
+  // Edit button (blue)
   heroEditBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: T.blueGhost,
-    paddingHorizontal: 12,
+    backgroundColor: T.blue,
+    paddingHorizontal: 13,
     paddingVertical: 7,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: T.bluePale,
   },
-  heroEditText: { fontSize: 12, fontWeight: "700", color: T.blueMid },
+  heroEditText: { fontSize: 12, fontWeight: "700", color: T.white },
 
-  // Avatar
-  avatarContainer: { marginBottom: 10 },
+  // Avatar + name horizontal layout
+  heroCenter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 18,
+    paddingVertical: 4,
+  },
   avatarOuter: { position: "relative" },
   avatarRing: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 82,
+    height: 82,
+    borderRadius: 41,
     padding: 3,
     backgroundColor: T.bluePale,
+    borderWidth: 2.5,
+    borderColor: T.blue,
   },
-  avatarImg: { width: "100%", height: "100%", borderRadius: 48 },
+  avatarImg: { width: "100%", height: "100%", borderRadius: 38 },
   avatarFallback: {
     flex: 1,
-    borderRadius: 48,
+    borderRadius: 38,
     backgroundColor: T.blueGhost,
     alignItems: "center",
     justifyContent: "center",
   },
   avatarInitials: {
-    fontSize: 32,
+    fontSize: 26,
     fontWeight: "900",
-    color: T.blueMid,
-    letterSpacing: -1,
+    color: T.blue,
+    letterSpacing: -0.5,
   },
   cameraBtn: {
     position: "absolute",
-    bottom: 2,
-    right: 2,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: T.blueMid,
+    bottom: 1,
+    right: 1,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: T.gold,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2.5,
+    borderWidth: 2,
     borderColor: T.surface,
   },
 
+  heroNameBlock: { flex: 1 },
   heroName: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "800",
     color: T.ink,
-    letterSpacing: -0.5,
-    textAlign: "center",
+    letterSpacing: -0.3,
   },
   heroHandle: {
     fontSize: 13,
     color: T.soft,
-    marginTop: 2,
-    marginBottom: 4,
+    marginTop: 3,
+    fontWeight: "500",
   },
-  heroDash: {
-    width: 32,
+  goldAccentLine: {
+    width: 36,
     height: 3,
     borderRadius: 2,
-    backgroundColor: "#F97316",
-    marginBottom: 8,
+    backgroundColor: T.gold,
+    marginTop: 8,
   },
+
+  // Chips
   chipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    justifyContent: "center",
   },
   statChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: 999,
+    borderWidth: 1,
   },
   statChipText: { fontSize: 11, fontWeight: "700" },
 
-  // ── Section Card
+  // ── Section Card ────────────────────────────────────────────────────────
   sectionCard: {
     backgroundColor: T.surface,
-    borderRadius: 22,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: T.lineLight,
+    borderColor: T.line,
+    borderLeftWidth: 4,
+    borderLeftColor: T.blue,
     overflow: "hidden",
-    shadowColor: "#1E3A5F",
+    shadowColor: "#3A8FB5",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.08,
     shadowRadius: 10,
     elevation: 2,
   },
@@ -1145,29 +1088,33 @@ const st = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 12,
+    paddingTop: 16,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: T.lineLight,
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "800",
     color: T.ink,
-    letterSpacing: -0.2,
+    letterSpacing: 0.1,
   },
   sectionBadge: {
-    backgroundColor: T.blueGhost,
-    paddingHorizontal: 9,
+    backgroundColor: T.goldGhost,
+    borderWidth: 1,
+    borderColor: T.goldBorder,
+    paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 999,
   },
   sectionBadgeText: {
     fontSize: 10,
     fontWeight: "800",
-    color: T.blueMid,
+    color: T.goldDeep,
     letterSpacing: 0.5,
   },
 
-  // ── Info Row
+  // ── Info Row ────────────────────────────────────────────────────────────
   infoRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -1183,10 +1130,12 @@ const st = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: T.blueGhost,
+    backgroundColor: T.bluePale,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 1,
+    borderWidth: 1,
+    borderColor: T.blueLight,
   },
   infoBody: { flex: 1 },
   infoLabel: {
@@ -1194,12 +1143,17 @@ const st = StyleSheet.create({
     fontWeight: "700",
     color: T.mute,
     textTransform: "uppercase",
-    letterSpacing: 0.8,
+    letterSpacing: 0.9,
     marginBottom: 3,
   },
-  infoValue: { fontSize: 14, fontWeight: "600", color: T.ink, lineHeight: 20 },
+  infoValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: T.ink,
+    lineHeight: 20,
+  },
 
-  // ── Action Row
+  // ── Action Row ──────────────────────────────────────────────────────────
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1209,58 +1163,60 @@ const st = StyleSheet.create({
   },
   actionRowBorder: { borderBottomWidth: 1, borderBottomColor: T.lineLight },
   actionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
-    backgroundColor: T.blueGhost,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: T.bluePale,
+    borderWidth: 1,
+    borderColor: T.blueLight,
     alignItems: "center",
     justifyContent: "center",
   },
-  actionIconDanger: { backgroundColor: T.coralPale },
+  actionIconDanger: {
+    backgroundColor: T.coralPale,
+    borderColor: "#FCCDD3",
+  },
   actionLabel: { fontSize: 14, fontWeight: "700", color: T.ink },
   actionSublabel: { fontSize: 12, color: T.mute, marginTop: 1 },
 
-  // ── App Info
+  // ── App Info ────────────────────────────────────────────────────────────
   appInfo: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     gap: 6,
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingBottom: 24,
   },
   appInfoText: { fontSize: 11, color: T.mute },
   appInfoDot: { fontSize: 11, color: T.line },
 
-  // ── Backdrop
+  // ── Backdrop ────────────────────────────────────────────────────────────
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(8,12,20,0.55)",
+    backgroundColor: "rgba(30,20,10,0.45)",
   },
 
-  // ── Sheet
-  sheetOuter: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
+  // ── Sheet ───────────────────────────────────────────────────────────────
+  sheetOuter: { flex: 1, justifyContent: "flex-end" },
   sheetInner: {
     maxHeight: "90%",
-    backgroundColor: T.sheetBg,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
+    backgroundColor: T.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingHorizontal: 20,
     paddingTop: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -8 },
+    shadowColor: "#3A8FB5",
+    shadowOffset: { width: 0, height: -6 },
     shadowOpacity: 0.12,
-    shadowRadius: 24,
+    shadowRadius: 20,
     elevation: 20,
   },
   sheetHandle: {
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: T.line,
+    backgroundColor: T.bluePale,
     alignSelf: "center",
     marginBottom: 16,
   },
@@ -1270,35 +1226,69 @@ const st = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 20,
   },
-  sheetTitle: { fontSize: 20, fontWeight: "800", color: T.ink, letterSpacing: -0.4 },
-  sheetSub: { fontSize: 13, color: T.soft, marginTop: 4, lineHeight: 19, maxWidth: 270 },
+  sheetTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: T.ink,
+    letterSpacing: -0.3,
+  },
+  sheetSub: {
+    fontSize: 13,
+    color: T.soft,
+    marginTop: 4,
+    lineHeight: 19,
+    maxWidth: 270,
+  },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: T.bg,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: T.blueGhost,
+    borderWidth: 1,
+    borderColor: T.bluePale,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: T.line,
   },
 
-  // ── Picker
+  // Section divider inside sheet
+  sectionDividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  sectionDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: T.line,
+  },
+  sectionDividerText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: T.soft,
+    textTransform: "uppercase",
+    letterSpacing: 0.9,
+  },
+
+  // ── Picker ──────────────────────────────────────────────────────────────
   pickerOverlay: {
     flex: 1,
-    backgroundColor: "rgba(8,12,20,0.55)",
+    backgroundColor: "rgba(30,20,10,0.45)",
     justifyContent: "center",
     padding: 20,
   },
   pickerBox: {
     maxHeight: "70%",
     backgroundColor: T.surface,
-    borderRadius: 24,
+    borderRadius: 22,
     padding: 18,
+    borderWidth: 1,
+    borderColor: T.line,
   },
   pickRow: {
     paddingVertical: 13,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     borderBottomWidth: 1,
     borderBottomColor: T.lineLight,
     borderRadius: 8,
@@ -1310,10 +1300,12 @@ const st = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 999,
+    borderWidth: 1,
+    borderColor: T.blueLight,
   },
-  otherBadgeText: { fontSize: 13, fontWeight: "800", color: T.blueMid },
+  otherBadgeText: { fontSize: 13, fontWeight: "800", color: T.blue },
 
-  // ── Field
+  // ── Field ───────────────────────────────────────────────────────────────
   fieldWrap: { marginBottom: 16 },
   fieldLabel: {
     fontSize: 10,
@@ -1324,9 +1316,9 @@ const st = StyleSheet.create({
     marginBottom: 8,
   },
   fieldInput: {
-    minHeight: 52,
-    borderRadius: 14,
-    backgroundColor: T.bg,
+    minHeight: 50,
+    borderRadius: 13,
+    backgroundColor: T.surfaceAlt,
     borderWidth: 1.5,
     borderColor: T.line,
     paddingHorizontal: 14,
@@ -1335,7 +1327,7 @@ const st = StyleSheet.create({
     fontWeight: "500",
   },
   fieldInputFocused: {
-    borderColor: T.blueMid,
+    borderColor: T.blue,
     backgroundColor: T.blueGhost,
   },
   fieldSelect: {
@@ -1345,9 +1337,9 @@ const st = StyleSheet.create({
     paddingRight: 10,
   },
   fieldSelectText: { fontSize: 15, color: T.ink, fontWeight: "500", flex: 1 },
-  fieldDisabled: { opacity: 0.45 },
+  fieldDisabled: { opacity: 0.4 },
 
-  // ── Toggle
+  // ── Toggle ──────────────────────────────────────────────────────────────
   toggleRow: { flexDirection: "row", gap: 10 },
   toggleBtn: {
     flex: 1,
@@ -1359,7 +1351,7 @@ const st = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: T.line,
-    backgroundColor: T.bg,
+    backgroundColor: T.surfaceAlt,
   },
   toggleBtnActive: {
     backgroundColor: T.blue,
@@ -1368,67 +1360,75 @@ const st = StyleSheet.create({
   toggleText: { fontSize: 13, fontWeight: "700", color: T.soft },
   toggleTextActive: { color: T.white },
 
-  // ── Primary Button
+  // ── Primary Button (solid, no gradient) ─────────────────────────────────
   primaryBtn: {
-    borderRadius: 16,
-    overflow: "hidden",
-    marginTop: 8,
-    shadowColor: T.blue,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 14,
-    elevation: 6,
-  },
-  primaryBtnGrad: {
-    minHeight: 54,
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: T.blue,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingHorizontal: 20,
+    marginTop: 8,
+    shadowColor: T.blue,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  primaryBtnText: { fontSize: 15, fontWeight: "800", color: T.white, letterSpacing: 0.2 },
+  primaryBtnText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: T.white,
+    letterSpacing: 0.2,
+  },
 
-  // ── Danger Box
+  // ── Danger Box ──────────────────────────────────────────────────────────
   dangerBox: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: "#FFF1F2",
-    borderRadius: 16,
+    backgroundColor: T.coralPale,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#FECDD3",
+    borderColor: "#F0CCCC",
     padding: 14,
     marginBottom: 20,
     gap: 4,
   },
   dangerBoxTitle: { fontSize: 14, fontWeight: "800", color: T.coral, marginBottom: 4 },
-  dangerBoxText: { fontSize: 13, lineHeight: 19, color: "#9F1239" },
+  dangerBoxText: { fontSize: 13, lineHeight: 19, color: "#8B3333" },
 
-  // ── Password Row
+  // ── Password Row ────────────────────────────────────────────────────────
   pwdRow: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 52,
-    borderRadius: 14,
-    backgroundColor: T.bg,
+    minHeight: 50,
+    borderRadius: 13,
+    backgroundColor: T.surfaceAlt,
     borderWidth: 1.5,
     borderColor: T.line,
     paddingLeft: 14,
     paddingRight: 8,
   },
-  pwdInput: { flex: 1, fontSize: 15, color: T.ink, fontWeight: "500", paddingVertical: 14 },
+  pwdInput: {
+    flex: 1,
+    fontSize: 15,
+    color: T.ink,
+    fontWeight: "500",
+    paddingVertical: 14,
+  },
   eyeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
   },
 
-  // ── Danger Button
+  // ── Danger Button ───────────────────────────────────────────────────────
   dangerBtn: {
-    minHeight: 54,
-    borderRadius: 16,
+    minHeight: 52,
+    borderRadius: 14,
     backgroundColor: T.coral,
     flexDirection: "row",
     alignItems: "center",
@@ -1436,10 +1436,21 @@ const st = StyleSheet.create({
     gap: 8,
     marginTop: 8,
     shadowColor: T.coral,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.28,
-    shadowRadius: 14,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  dangerBtnText: { fontSize: 15, fontWeight: "800", color: T.white, letterSpacing: 0.2 },
+  dangerBtnText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: T.white,
+    letterSpacing: 0.2,
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: T.lineLight,
+    marginHorizontal: 18,
+  },
 });
