@@ -14,6 +14,7 @@ import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from "react-native-maps";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
 import { getUserProfile } from "../services/users/userService";
 import AppTopHeader from "../components/AppTopHeader";
 
@@ -118,7 +119,39 @@ function getRegionForTwo(a, b, padding = 1.6) {
   };
 }
 
-// ─── JourneyMap ───────────────────────────────────────────────────────────────
+// ─── Journey Map ──────────────────────────────────────────────────────────────
+
+function JourneyBadge({ from, to }) {
+  return (
+    <View style={s.journeyBadgeContainer}>
+      <BlurView intensity={80} tint="light" style={s.journeyBadgePill}>
+        <View style={s.badgeCity}>
+          <MaterialIcons name="home" size={14} color={C.primary} />
+          <Text style={s.badgeCityText} numberOfLines={1}>{from}</Text>
+        </View>
+        <MaterialIcons name="east" size={18} color={C.primary} style={{ marginHorizontal: 8 }} />
+        <View style={s.badgeCity}>
+          <MaterialIcons name="location-city" size={14} color={C.primary} />
+          <Text style={s.badgeCityText} numberOfLines={1}>{to}</Text>
+        </View>
+      </BlurView>
+    </View>
+  );
+}
+
+function JourneyFallback({ homeLabel, currentLabel }) {
+  // Use a beautiful OSM static map of a fallback region (e.g., India center)
+  const fallbackMapUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=22.9734,78.6569&zoom=4&size=600x400&maptype=mapnik`;
+
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      <Image source={{ uri: fallbackMapUrl }} style={s.fallbackImage} />
+      <View style={s.fallbackOverlay} />
+      <JourneyBadge from={homeLabel?.split(',')[0] || "Hometown"} to={currentLabel?.split(',')[0] || "Current City"} />
+    </View>
+  );
+}
+
 function JourneyMap({ hometownCity, hometownState, currentCity, currentState }) {
   const [homeCoords, setHomeCoords]       = useState(null);
   const [currentCoords, setCurrentCoords] = useState(null);
@@ -178,29 +211,25 @@ function JourneyMap({ hometownCity, hometownState, currentCity, currentState }) 
               <Marker coordinate={currentCoords} pinColor="#16A34A" title="Current City" description={currentLabel} />
             )}
           </MapView>
+          
           <View style={s.mapBar}>
-            {homeLabel ? (
-              <View style={s.mapBarCity}>
-                <View style={[s.mapBarDot, { backgroundColor: '#004AC6' }]} />
-                <Text style={s.mapBarCityText} numberOfLines={1}>{homeLabel}</Text>
-              </View>
-            ) : null}
+            <View style={s.mapBarCity}>
+              <View style={[s.mapBarDot, { backgroundColor: '#004AC6' }]} />
+              <Text style={s.mapBarCityText} numberOfLines={1}>{homeLabel?.split(',')[0]}</Text>
+            </View>
             {bothExist && (
-              <MaterialIcons name="arrow-forward" size={14} color={C.outline} style={{ marginHorizontal: 6 }} />
+              <MaterialIcons name="east" size={14} color={C.outline} style={{ marginHorizontal: 6 }} />
             )}
             {currentLabel ? (
               <View style={s.mapBarCity}>
                 <View style={[s.mapBarDot, { backgroundColor: '#16A34A' }]} />
-                <Text style={s.mapBarCityText} numberOfLines={1}>{currentLabel}</Text>
+                <Text style={s.mapBarCityText} numberOfLines={1}>{currentLabel?.split(',')[0]}</Text>
               </View>
             ) : null}
           </View>
         </>
       ) : (
-        <View style={s.mapFallback}>
-          <MaterialIcons name="map" size={40} color={C.outline} />
-          <Text style={s.mapFallbackText}>Location unavailable</Text>
-        </View>
+        <JourneyFallback homeLabel={homeLabel} currentLabel={currentLabel} />
       )}
     </View>
   );
@@ -500,9 +529,16 @@ const s = StyleSheet.create({
   messageBtnText: { color: C.primary, fontWeight: '800', fontSize: 13 },
 
   // ── Bio ──
-  bioSection: { gap: 8 },
-  bioLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.8, color: 'rgba(0,74,198,0.55)' },
-  bioText:  { fontSize: 17, lineHeight: 27, color: C.onSurface, fontWeight: '500' },
+  bioSection: {
+    marginVertical: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: 'rgba(0,74,198,0.03)',
+    borderRadius: 16,
+    gap: 4,
+  },
+  bioLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 1.5, color: C.primary, opacity: 0.6 },
+  bioText:  { fontSize: 15, lineHeight: 22, color: C.onSurface, fontWeight: '500', fontStyle: 'italic' },
 
   // ── Stats bar ──
   statsBar: {
@@ -532,8 +568,23 @@ const s = StyleSheet.create({
   // ── Map ──
   mapCard: { height: 260, borderRadius: 24, overflow: 'hidden', ...CARD_SHADOW },
   mapLoading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.surfaceLow },
-  mapFallback: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8, backgroundColor: C.surfaceLow },
-  mapFallbackText: { fontSize: 13, color: C.outline, fontWeight: '500' },
+  mapFallback: { flex: 1, backgroundColor: C.surfaceLow },
+  fallbackImage: { ...StyleSheet.absoluteFillObject, opacity: 0.6 },
+  fallbackOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.02)' },
+  journeyBadgeContainer: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', paddingBottom: 20 },
+  journeyBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+    ...CARD_SHADOW,
+  },
+  badgeCity: { gap: 2, alignItems: 'center', maxWidth: 100 },
+  badgeCityText: { fontSize: 13, fontWeight: '800', color: C.onSurface, textAlign: 'center' },
   mapBar: {
     position: 'absolute',
     bottom: 0, left: 0, right: 0,
@@ -546,5 +597,5 @@ const s = StyleSheet.create({
   },
   mapBarCity:     { flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1 },
   mapBarDot:      { width: 8, height: 8, borderRadius: 4 },
-  mapBarCityText: { fontSize: 13, fontWeight: '700', color: C.onSurface, flex: 1 },
+  mapBarCityText: { fontSize: 13, fontWeight: '800', color: C.onSurface, flex: 1 },
 });

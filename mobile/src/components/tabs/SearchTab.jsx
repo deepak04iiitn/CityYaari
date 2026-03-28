@@ -7,11 +7,13 @@ import {
   Text,
   TextInput,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { ScreenShell } from "./TabShared";
 import SearchResultItem from "../search/SearchResultItem";
 import SearchSkeleton from "../search/SearchSkeleton";
+import SearchInput from "../search/SearchInput";
 import { searchUsers } from "../../services/users/userService";
 
 // ─── Design tokens (matching the HTML colour palette) ────────────────────────
@@ -214,25 +216,63 @@ function DiscoverView() {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function SearchTab({ navigation }) {
-  const [query, setQuery]     = useState("");
-  const [results, setResults] = useState([]);
+  const [query, setQuery]         = useState("");
+  const [results, setResults]     = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [page, setPage]           = useState(1);
+  const [total, setTotal]         = useState(0);
+  const [hasMore, setHasMore]     = useState(false);
+  const [isMoreLoading, setIsMoreLoading] = useState(false);
 
+  // Debounced search
   useEffect(() => {
     let active = true;
     if (!query.trim()) {
       setResults([]);
+      setTotal(0);
+      setHasMore(false);
+      setPage(1);
       setIsLoading(false);
       return;
     }
-    const run = async () => {
-      setIsLoading(true);
-      const data = await searchUsers(query.trim());
-      if (active) { setResults(data || []); setIsLoading(false); }
+
+    const timer = setTimeout(() => {
+      if (active) {
+        setIsLoading(true);
+        setPage(1);
+        performSearch(query, 1);
+      }
+    }, 450);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
     };
-    const timer = setTimeout(run, 500);
-    return () => { active = false; clearTimeout(timer); };
   }, [query]);
+
+  const performSearch = async (q, p) => {
+    const data = await searchUsers(q, p);
+    
+    if (p === 1) {
+      setResults(data.users || []);
+    } else {
+      setResults(prev => [...prev, ...(data.users || [])]);
+    }
+    
+    setTotal(data.total || 0);
+    setHasMore(data.hasMore || false);
+    setIsLoading(false);
+    setIsMoreLoading(false);
+  };
+
+  const loadMore = () => {
+    if (hasMore && !isMoreLoading) {
+      setIsMoreLoading(true);
+      const nextPage = page + 1;
+      setPage(nextPage);
+      performSearch(query, nextPage);
+    }
+  };
 
   const handleUserPress = useCallback(
     (user) => navigation.navigate("UserProfile", { username: user.username }),
@@ -252,42 +292,61 @@ export default function SearchTab({ navigation }) {
       </View>
 
       {/* ── Search input ── */}
-      <View style={s.searchBar}>
-        <MaterialIcons name="search" size={22} color={C.outline} />
-        <TextInput
-          style={s.searchInput}
-          placeholder="Search for friends or usernames..."
-          placeholderTextColor={C.outline}
-          value={query}
-          onChangeText={setQuery}
-          returnKeyType="search"
-          autoCorrect={false}
-          autoCapitalize="none"
-        />
-      </View>
+      <SearchInput
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Search for friends or usernames..."
+      />
 
       {/* ── Content area ── */}
       {searching ? (
-        <View style={s.resultsCard}>
-          {isLoading ? (
-            <SearchSkeleton />
-          ) : results.length > 0 ? (
-            <FlatList
-              data={results}
-              keyExtractor={(item) => item._id}
-              renderItem={({ item }) => (
-                <SearchResultItem user={item} onPress={handleUserPress} />
-              )}
-              showsVerticalScrollIndicator={false}
-              scrollEnabled={false}
-            />
-          ) : (
-            <View style={s.noResults}>
-              <MaterialIcons name="search-off" size={32} color={C.outline} />
-              <Text style={s.noResultsText}>No results for "{query}"</Text>
-            </View>
+        <>
+          {total > 0 && !isLoading && (
+            <Text style={s.resultsTitle}>
+              {total} {total === 1 ? 'result' : 'results'} for "{query}"
+            </Text>
           )}
-        </View>
+
+          <View style={s.resultsCard}>
+            {isLoading ? (
+              <SearchSkeleton />
+            ) : results.length > 0 ? (
+              <>
+                <FlatList
+                  data={results}
+                  keyExtractor={(item) => item._id}
+                  renderItem={({ item, index }) => (
+                    <SearchResultItem 
+                      user={item} 
+                      onPress={handleUserPress} 
+                      isLast={index === results.length - 1}
+                    />
+                  )}
+                  showsVerticalScrollIndicator={false}
+                  scrollEnabled={false}
+                />
+                {hasMore && (
+                  <Pressable
+                    onPress={loadMore}
+                    style={({ pressed }) => [s.loadMoreBtn, pressed && { opacity: 0.7 }]}
+                    disabled={isMoreLoading}
+                  >
+                    {isMoreLoading ? (
+                      <ActivityIndicator size="small" color={C.primary} />
+                    ) : (
+                      <Text style={s.loadMoreText}>Show more</Text>
+                    )}
+                  </Pressable>
+                )}
+              </>
+            ) : (
+              <View style={s.noResults}>
+                <MaterialIcons name="search-off" size={32} color={C.outline} />
+                <Text style={s.noResultsText}>No results for "{query}"</Text>
+              </View>
+            )}
+          </View>
+        </>
       ) : (
         <DiscoverView />
       )}
@@ -615,12 +674,20 @@ const s = StyleSheet.create({
     paddingHorizontal: 24,
   },
 
-  // ── Search results ──────────────────────────────────────────────────────────
+  resultsTitle: {
+    fontSize: 14,
+    color: "#64748B",
+    marginBottom: 12,
+    marginLeft: 6,
+    fontWeight: "500",
+  },
   resultsCard: {
     backgroundColor: C.surfaceLowest,
-    borderRadius: CARD_RADIUS,
-    padding: 16,
+    borderRadius: 28,
+    paddingVertical: 4,
     minHeight: 180,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     ...CARD_SHADOW,
   },
   noResults: {
@@ -632,5 +699,18 @@ const s = StyleSheet.create({
   noResultsText: {
     fontSize: 14,
     color: C.onSurfaceVariant,
+  },
+  loadMoreBtn: {
+    marginTop: 18,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,74,198,0.06)",
+  },
+  loadMoreText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: C.primary,
   },
 });

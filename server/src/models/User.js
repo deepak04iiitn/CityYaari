@@ -70,6 +70,12 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: [200, 'Bio cannot be more than 200 characters'],
+      default: '',
+    },
     password: {
       type: String,
       required: [true, 'Please add a password'],

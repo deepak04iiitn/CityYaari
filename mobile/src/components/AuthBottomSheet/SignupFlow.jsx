@@ -16,6 +16,7 @@ export default function SignupFlow({
   styles,
   T,
   showPassword,
+  setShowPassword,
   pickerType,
   openPicker,
 }) {

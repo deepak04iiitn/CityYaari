@@ -37,6 +37,7 @@ const buildAuthUserPayload = (user) => ({
   state: user.state,
   city: user.city,
   profileImageUri: user.profileImageUri,
+  bio: user.bio,
   securityQuestion: user.securityQuestion,
   hasSecurityAnswer: Boolean(user.securityAnswerHash || user.securityQuestion),
   role: user.role,
@@ -182,7 +183,8 @@ export const updateUserProfile = async (req, res) => {
     country,
     state,
     city,
-    profileImageUri
+    profileImageUri,
+    bio
   } = req.body;
 
   try {
@@ -208,6 +210,7 @@ export const updateUserProfile = async (req, res) => {
     const normalizedCity = typeof city === 'string' ? city.trim() : undefined;
     const normalizedProfileImageUri =
       typeof profileImageUri === 'string' ? profileImageUri.trim() : undefined;
+    const normalizedBio = typeof bio === 'string' ? bio.trim() : undefined;
 
     if (
       normalizedFullName === undefined &&
@@ -223,7 +226,8 @@ export const updateUserProfile = async (req, res) => {
       normalizedCountry === undefined &&
       normalizedState === undefined &&
       normalizedCity === undefined &&
-      normalizedProfileImageUri === undefined
+      normalizedProfileImageUri === undefined &&
+      normalizedBio === undefined
     ) {
       return res.status(400).json({ message: 'Provide at least one field to update' });
     }
@@ -323,6 +327,9 @@ export const updateUserProfile = async (req, res) => {
     }
     if (normalizedProfileImageUri !== undefined) {
       user.profileImageUri = normalizedProfileImageUri;
+    }
+    if (normalizedBio !== undefined) {
+      user.bio = normalizedBio;
     }
 
     const updatedUser = await user.save();

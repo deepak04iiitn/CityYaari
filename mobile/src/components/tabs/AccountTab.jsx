@@ -323,6 +323,7 @@ export default function AccountTab({ navigation }) {
     country: "",
     state: "",
     city: "",
+    bio: "",
   });
   const [deletePwd, setDeletePwd] = useState("");
   const [deletePasswordVisible, setDeletePasswordVisible] = useState(false);
@@ -378,6 +379,7 @@ export default function AccountTab({ navigation }) {
       country: user?.country || "",
       state: user?.state || "",
       city: user?.city || "",
+      bio: user?.bio || "",
     });
     setCountryId(null); setStateId(null);
     setCountryOther(false); setStateOther(false); setCityOther(false);
@@ -508,6 +510,7 @@ export default function AccountTab({ navigation }) {
       country: edit.country.trim(),
       state: edit.state.trim(),
       city: edit.city.trim(),
+      bio: edit.bio.trim(),
     });
     setBusy("");
     if (!res.success) return Alert.alert("Update failed", res.message);
@@ -535,7 +538,7 @@ export default function AccountTab({ navigation }) {
   const occupationLabel =
     user?.occupationType === "working_professional" ? "Working Professional" : "Student";
 
-  const isProfileComplete = user?.hometownCountry && user?.country && user?.organization;
+  const isProfileComplete = user?.hometownCountry && user?.country && user?.organization && user?.bio;
   const hometownStr = [user?.hometownCity, user?.hometownState, user?.hometownCountry].filter(Boolean).join(", ") || "Not set";
   const locationStr = [user?.city, user?.state, user?.country].filter(Boolean).join(", ") || "Not set";
 
@@ -614,7 +617,8 @@ export default function AccountTab({ navigation }) {
         <InfoRow icon="people-outline" label="Gender" value={user?.gender} />
         <InfoRow icon="business" label={occupationLabel} value={user?.organization ? `${user?.studyOrPost} at ${user?.organization}` : "Not set"} />
         <InfoRow icon="home" label="Hometown" value={hometownStr} />
-        <InfoRow icon="location-on" label="Current Location" value={locationStr} last />
+        <InfoRow icon="location-on" label="Current Location" value={locationStr} />
+        <InfoRow icon="notes" label="Bio" value={user?.bio} last />
       </SectionCard>
 
       {/* ── Security ──────────────────────────────────────────────────────── */}
@@ -727,6 +731,17 @@ export default function AccountTab({ navigation }) {
               autoCapitalize="none"
             />
           </>
+        )}
+        {(sheetMode === "edit" || (sheetMode === "complete" && !user?.bio)) && (
+          <Field
+            label="Bio"
+            value={edit.bio}
+            onChangeText={(v) => setEdit((p) => ({ ...p, bio: v }))}
+            placeholder="Tell us a bit about yourself..."
+            multiline
+            numberOfLines={3}
+            maxLength={200}
+          />
         )}
 
         {((sheetMode === "complete" && !user?.gender) || sheetMode === "edit") && (
@@ -1074,8 +1089,6 @@ const st = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: T.line,
-    borderLeftWidth: 4,
-    borderLeftColor: T.blue,
     overflow: "hidden",
     shadowColor: "#3A8FB5",
     shadowOffset: { width: 0, height: 2 },
@@ -1150,7 +1163,7 @@ const st = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: T.ink,
-    lineHeight: 20,
+    lineHeight: 21,
   },
 
   // ── Action Row ──────────────────────────────────────────────────────────
@@ -1322,9 +1335,11 @@ const st = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: T.line,
     paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 15,
     color: T.ink,
     fontWeight: "500",
+    textAlignVertical: "top",
   },
   fieldInputFocused: {
     borderColor: T.blue,
