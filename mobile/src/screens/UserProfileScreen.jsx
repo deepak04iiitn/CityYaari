@@ -4,16 +4,20 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
-  SafeAreaView,
   ScrollView,
   Image,
+  Pressable,
+  StatusBar,
+  Dimensions,
 } from "react-native";
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from "react-native-maps";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getUserProfile } from "../services/users/userService";
-import { TAB_COLORS } from "../components/tabs/TabShared";
 import AppTopHeader from "../components/AppTopHeader";
 
+// ─── Avatar palette (preserved) ──────────────────────────────────────────────
 const AVATAR_PALETTE = [
   { bg: '#EDE9FE', text: '#6D28D9' },
   { bg: '#DBEAFE', text: '#1D4ED8' },
@@ -24,18 +28,189 @@ const AVATAR_PALETTE = [
   { bg: '#E0F2FE', text: '#0369A1' },
   { bg: '#F0FDF4', text: '#166534' },
 ];
-
 function getAvatarColor(name) {
   const index = (name?.charCodeAt(0) ?? 0) % AVATAR_PALETTE.length;
   return AVATAR_PALETTE[index];
 }
 
-const GENDER_ICON = { Male: 'male', Female: 'female', Other: 'transgender' };
+const GENDER_ICON  = { Male: 'male', Female: 'female', Other: 'transgender' };
 const GENDER_COLOR = { Male: '#3B82F6', Female: '#EC4899', Other: '#8B5CF6' };
 
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const C = {
+  primary:           "#004AC6",
+  onPrimary:         "#FFFFFF",
+  secondary:         "#9D4300",
+  secondaryFixed:    "#FFDBCA",
+  onSecondaryFixed:  "#341100",
+  surfaceLowest:     "#FFFFFF",
+  surfaceLow:        "#F2F4F6",
+  surfaceHigh:       "#E6E8EA",
+  onSurface:         "#191C1E",
+  onSurfaceVariant:  "#434655",
+  outline:           "#737686",
+};
+
+const AVATAR_SIZE = 116;
+// cover.png is 1200×480 — compute hero height to exactly fit full image width
+const HERO_HEIGHT = Math.round(Dimensions.get('window').width * (480 / 1200));
+const CARD_SHADOW = {
+  shadowColor: "#004AC6",
+  shadowOffset: { width: 0, height: 6 },
+  shadowOpacity: 0.07,
+  shadowRadius: 16,
+  elevation: 3,
+};
+
+// ─── Small reusable sub-components ───────────────────────────────────────────
+
+function StatItem({ value, label }) {
+  return (
+    <View style={s.statItem}>
+      <Text style={s.statValue}>{value}</Text>
+      <Text style={s.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function BentoCard({ icon, iconColor, label, value, style, labelStyle, valueStyle }) {
+  return (
+    <View style={[s.bentoCard, style]}>
+      <MaterialIcons name={icon} size={28} color={iconColor ?? C.primary} />
+      <View>
+        <Text style={[s.bentoLabel, labelStyle]}>{label}</Text>
+        <Text style={[s.bentoValue, valueStyle]}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
+// ─── Nominatim geocoding helper ──────────────────────────────────────────────
+async function geocodePlace(city, state) {
+  const q = [city, state].filter(Boolean).join(', ');
+  if (!q) return null;
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`,
+      { headers: { 'User-Agent': 'CityYaari/1.0' } }
+    );
+    const data = await res.json();
+    if (data.length > 0) {
+      return { latitude: parseFloat(data[0].lat), longitude: parseFloat(data[0].lon) };
+    }
+  } catch (_) {}
+  return null;
+}
+
+// ─── Auto-fit region for two coordinates ─────────────────────────────────────
+function getRegionForTwo(a, b, padding = 1.6) {
+  const minLat = Math.min(a.latitude, b.latitude);
+  const maxLat = Math.max(a.latitude, b.latitude);
+  const minLon = Math.min(a.longitude, b.longitude);
+  const maxLon = Math.max(a.longitude, b.longitude);
+  const latDelta = Math.max((maxLat - minLat) * padding, 0.25);
+  const lonDelta = Math.max((maxLon - minLon) * padding, 0.25);
+  return {
+    latitude: (minLat + maxLat) / 2,
+    longitude: (minLon + maxLon) / 2,
+    latitudeDelta: latDelta,
+    longitudeDelta: lonDelta,
+  };
+}
+
+// ─── JourneyMap ───────────────────────────────────────────────────────────────
+function JourneyMap({ hometownCity, hometownState, currentCity, currentState }) {
+  const [homeCoords, setHomeCoords]       = useState(null);
+  const [currentCoords, setCurrentCoords] = useState(null);
+  const [loading, setLoading]             = useState(true);
+
+  const homeLabel    = [hometownCity, hometownState].filter(Boolean).join(', ');
+  const currentLabel = [currentCity,  currentState ].filter(Boolean).join(', ');
+
+  useEffect(() => {
+    Promise.all([
+      geocodePlace(hometownCity, hometownState),
+      geocodePlace(currentCity,  currentState),
+    ]).then(([home, current]) => {
+      setHomeCoords(home);
+      setCurrentCoords(current);
+      setLoading(false);
+    });
+  }, [hometownCity, hometownState, currentCity, currentState]);
+
+  const bothExist = homeCoords && currentCoords;
+  const region = bothExist
+    ? getRegionForTwo(homeCoords, currentCoords)
+    : homeCoords
+    ? { ...homeCoords, latitudeDelta: 0.25, longitudeDelta: 0.25 }
+    : null;
+
+  return (
+    <View style={s.mapCard}>
+      {loading ? (
+        <View style={s.mapLoading}>
+          <ActivityIndicator size="large" color={C.primary} />
+        </View>
+      ) : region ? (
+        <>
+          <MapView
+            style={StyleSheet.absoluteFill}
+            provider={PROVIDER_DEFAULT}
+            region={region}
+            scrollEnabled={false}
+            zoomEnabled={false}
+            pitchEnabled={false}
+            rotateEnabled={false}
+          >
+            {bothExist && (
+              <Polyline
+                coordinates={[homeCoords, currentCoords]}
+                strokeWidth={3}
+                strokeColor={C.primary}
+                lineDashPattern={[8, 6]}
+                geodesic
+              />
+            )}
+            {homeCoords && (
+              <Marker coordinate={homeCoords} pinColor="#004AC6" title="Hometown" description={homeLabel} />
+            )}
+            {currentCoords && (
+              <Marker coordinate={currentCoords} pinColor="#16A34A" title="Current City" description={currentLabel} />
+            )}
+          </MapView>
+          <View style={s.mapBar}>
+            {homeLabel ? (
+              <View style={s.mapBarCity}>
+                <View style={[s.mapBarDot, { backgroundColor: '#004AC6' }]} />
+                <Text style={s.mapBarCityText} numberOfLines={1}>{homeLabel}</Text>
+              </View>
+            ) : null}
+            {bothExist && (
+              <MaterialIcons name="arrow-forward" size={14} color={C.outline} style={{ marginHorizontal: 6 }} />
+            )}
+            {currentLabel ? (
+              <View style={s.mapBarCity}>
+                <View style={[s.mapBarDot, { backgroundColor: '#16A34A' }]} />
+                <Text style={s.mapBarCityText} numberOfLines={1}>{currentLabel}</Text>
+              </View>
+            ) : null}
+          </View>
+        </>
+      ) : (
+        <View style={s.mapFallback}>
+          <MaterialIcons name="map" size={40} color={C.outline} />
+          <Text style={s.mapFallbackText}>Location unavailable</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
 export default function UserProfileScreen({ route, navigation }) {
+  const insets = useSafeAreaInsets();
   const { username } = route.params;
-  const [profile, setProfile] = useState(null);
+  const [profile, setProfile]     = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -55,525 +230,321 @@ export default function UserProfileScreen({ route, navigation }) {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.screen}>
-        <AppTopHeader
-          onBackPress={handleBack}
-          onNotificationPress={() => navigation.navigate('Notifications')}
-          notificationCount={3}
-        />
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={TAB_COLORS.blue} />
-          <Text style={styles.loadingText}>Loading profile…</Text>
+      <View style={s.screen}>
+        <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
+        <AppTopHeader onBackPress={handleBack} onNotificationPress={() => navigation.navigate('Notifications')} notificationCount={3} />
+        <View style={s.center}>
+          <ActivityIndicator size="large" color={C.primary} />
+          <Text style={s.loadingText}>Loading profile…</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!profile) {
     return (
-      <SafeAreaView style={styles.screen}>
-        <AppTopHeader
-          onBackPress={handleBack}
-          onNotificationPress={() => navigation.navigate('Notifications')}
-          notificationCount={3}
-        />
-        <View style={styles.center}>
-          <MaterialIcons name="error-outline" size={56} color={TAB_COLORS.inkFaint} />
-          <Text style={styles.errorText}>User not found</Text>
+      <View style={s.screen}>
+        <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
+        <AppTopHeader onBackPress={handleBack} onNotificationPress={() => navigation.navigate('Notifications')} notificationCount={3} />
+        <View style={s.center}>
+          <MaterialIcons name="error-outline" size={56} color={C.outline} />
+          <Text style={s.errorText}>User not found</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   const avatarColor = getAvatarColor(profile.fullName);
-  const occupation = profile.occupationType === 'student' ? 'Student' : 'Working Professional';
-  const genderIcon = GENDER_ICON[profile.gender];
-  const genderColor = GENDER_COLOR[profile.gender] ?? TAB_COLORS.inkFaint;
+  const genderIcon  = GENDER_ICON[profile.gender];
+  const genderColor = GENDER_COLOR[profile.gender] ?? C.outline;
 
-  const hometownCity = profile.hometownCity;
-  const hometownState = profile.hometownState;
-  const currentCity = profile.city;
-  const currentState = profile.state;
-  const hasJourney = (hometownCity || hometownState) && (currentCity || currentState);
-  const hasAbout = profile.studyOrPost || profile.organization || profile.gender;
+  const occupation = profile.occupationType === 'student' ? 'Student' : 'Working Professional';
+  const occupationDetail =
+    profile.studyOrPost && profile.organization
+      ? `${profile.studyOrPost} at ${profile.organization}`
+      : profile.studyOrPost || profile.organization || occupation;
+
+  const hometownLabel = [profile.hometownCity, profile.hometownState].filter(Boolean).join(', ');
+  const currentLabel  = [profile.city, profile.state].filter(Boolean).join(', ');
+  const hasHometown    = !!hometownLabel;
+  const hasCurrentCity = !!currentLabel;
+  const firstName      = profile.fullName.split(' ')[0];
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <View style={s.screen}>
+      <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
       <AppTopHeader
         onBackPress={handleBack}
         onNotificationPress={() => navigation.navigate('Notifications')}
         notificationCount={3}
+        absolute
       />
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
 
-        {/* ── Profile Card ── */}
-        <View style={styles.profileCard}>
+        {/* ── Hero banner ── */}
+        <View style={[s.heroWrap, { height: HERO_HEIGHT + insets.top, backgroundColor: '#FAFCFF' }]}>
+          {/* Image sits below the status bar, exactly fits screen width */}
+          <Image
+            source={require("../../assets/cover.png")}
+            style={{ position: 'absolute', top: insets.top, left: 0, right: 0, height: HERO_HEIGHT }}
+            resizeMode="contain"
+          />
 
-          {/* Left — circular avatar */}
-          <View style={styles.avatarWrap}>
-            <View style={[styles.avatar, { backgroundColor: avatarColor.bg }]}>
-              {profile.profileImageUri ? (
-                <Image source={{ uri: profile.profileImageUri }} style={styles.avatarImg} />
-              ) : (
-                <Text style={[styles.avatarInitial, { color: avatarColor.text }]}>
-                  {profile.fullName.charAt(0).toUpperCase()}
-                </Text>
+          {/* Floating profile picture */}
+          <View style={s.floatingAvatarOuter}>
+            <View style={{ position: 'relative' }}>
+              <View style={s.floatingAvatarBorder}>
+                {profile.profileImageUri ? (
+                  <Image source={{ uri: profile.profileImageUri }} style={s.floatingAvatarImg} />
+                ) : (
+                  <View style={[s.floatingAvatarFallback, { backgroundColor: avatarColor.bg }]}>
+                    <Text style={[s.floatingAvatarInitial, { color: avatarColor.text }]}>
+                      {profile.fullName.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {genderIcon && (
+                <View style={[s.genderBadge, { backgroundColor: genderColor }]}>
+                  <MaterialIcons name={genderIcon} size={11} color="#fff" />
+                </View>
               )}
             </View>
-            {genderIcon && (
-              <View style={[styles.genderBadge, { backgroundColor: genderColor }]}>
-                <MaterialIcons name={genderIcon} size={11} color="#fff" />
+          </View>
+        </View>
+
+        {/* ── Profile detail section ── */}
+        <View style={s.profileSection}>
+          <View style={s.nameRow}>
+            <View style={s.nameBlock}>
+              <Text style={s.heroName}>{profile.fullName}</Text>
+              <Text style={s.heroHandle}>@{profile.username}</Text>
+            </View>
+            <View style={s.actionButtons}>
+              <Pressable style={s.connectBtn}>
+                <Text style={s.connectBtnText}>Connect</Text>
+              </Pressable>
+              <Pressable style={s.messageBtn}>
+                <Text style={s.messageBtnText}>Message</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {!!profile.bio && (
+            <View style={s.bioSection}>
+              <Text style={s.bioLabel}>BIO</Text>
+              <Text style={s.bioText}>{profile.bio}</Text>
+            </View>
+          )}
+
+          <View style={s.statsBar}>
+            <StatItem value={profile.connectionsCount ?? '—'} label="Connections" />
+            <View style={s.statDivider} />
+            <StatItem value={profile.postsCount ?? '—'} label="Posts" />
+            <View style={s.statDivider} />
+            <StatItem value={profile.yaariCount ?? '—'} label="Yaaris" />
+          </View>
+
+          <View style={s.bentoGrid}>
+            <View style={s.bentoRow}>
+              <BentoCard icon="work" iconColor={C.primary} label="OCCUPATION" value={occupationDetail} style={{ flex: 1, backgroundColor: C.surfaceLowest }} />
+              {hasHometown && (
+                <View style={[s.bentoCard, { flex: 1, backgroundColor: C.secondaryFixed }]}>
+                  <MaterialIcons name="location-city" size={28} color={C.onSecondaryFixed} />
+                  <View>
+                    <Text style={[s.bentoLabel, { color: C.onSecondaryFixed, opacity: 0.7 }]}>HOMETOWN</Text>
+                    <Text style={[s.bentoValue, { color: C.onSecondaryFixed }]}>{hometownLabel}</Text>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {(hasCurrentCity || !!profile.gender) && (
+              <View style={s.bentoRow}>
+                {hasCurrentCity && (
+                  <BentoCard icon="near-me" iconColor={C.primary} label="CURRENT LOCATION" value={currentLabel} style={{ flex: 1, backgroundColor: C.surfaceLowest }} />
+                )}
+                {!!profile.gender && (
+                  <BentoCard icon={genderIcon ?? 'person'} iconColor={C.primary} label="GENDER" value={profile.gender} style={{ flex: 1, backgroundColor: C.surfaceLowest }} />
+                )}
               </View>
+            )}
+
+            {hasHometown && (
+              <LinearGradient
+                colors={['#004AC6', '#2563EB']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[s.bentoCard, s.featuredCard]}
+              >
+                <View style={s.featuredText}>
+                  <Text style={s.featuredTitle}>Same Hometown!</Text>
+                  <Text style={s.featuredSubtitle}>
+                    {firstName} is also from {profile.hometownCity || profile.hometownState}.
+                    Connect and explore your roots together!
+                  </Text>
+                </View>
+                <MaterialIcons name="people" size={52} color="rgba(255,255,255,0.35)" />
+              </LinearGradient>
             )}
           </View>
 
-          {/* Right — text info */}
-          <View style={styles.profileInfo}>
-            <Text style={styles.heroName}>{profile.fullName}</Text>
-            <Text style={styles.heroUsername}>@{profile.username}</Text>
-
-            <View style={styles.accentDash} />
-
-            <View style={[
-              styles.occupationPill,
-              profile.occupationType === 'student' ? styles.pillStudent : styles.pillPro,
-            ]}>
-              <MaterialIcons
-                name={profile.occupationType === 'student' ? 'school' : 'work'}
-                size={13}
-                color={profile.occupationType === 'student' ? '#7C3AED' : TAB_COLORS.blue}
-              />
-              <Text style={[
-                styles.occupationText,
-                profile.occupationType === 'student' ? styles.occupationTextStudent : styles.occupationTextPro,
-              ]}>
-                {occupation}
-              </Text>
-            </View>
-          </View>
-
-        </View>
-
-        {/* ── Cards ── */}
-        <View style={styles.body}>
-
-          {/* Journey Card — hometown → current city */}
-          {hasJourney && (
-            <View style={styles.card}>
-              {/* Card header */}
-              <View style={styles.journeyCardHeader}>
-                <View style={styles.journeyTitleRow}>
-                  <LinearGradient colors={['#FFEDD5', '#FED7AA']} style={styles.journeyTitleIcon}>
-                    <MaterialIcons name="flight" size={15} color={TAB_COLORS.orange} />
-                  </LinearGradient>
-                  <Text style={styles.journeyTitleText}>Journey</Text>
-                </View>
-                <Text style={styles.journeySubtitle}>Where they come from</Text>
-              </View>
-
-              {/* hometown ——✈—— current city */}
-              <View style={styles.journeyRow}>
-
-                {/* Hometown node */}
-                <View style={styles.journeyNode}>
-                  <View style={[styles.journeyNodeIcon, styles.journeyNodeIconHome]}>
-                    <MaterialIcons name="home" size={26} color={TAB_COLORS.orange} />
-                  </View>
-                  <View style={[styles.journeyNodeTag, styles.journeyNodeTagHome]}>
-                    <Text style={[styles.journeyNodeTagText, { color: TAB_COLORS.orange }]}>HOME</Text>
-                  </View>
-                  <Text style={styles.journeyNodeCity} numberOfLines={1}>
-                    {hometownCity || hometownState}
-                  </Text>
-                  {hometownCity && hometownState && (
-                    <Text style={styles.journeyNodeState} numberOfLines={1}>{hometownState}</Text>
-                  )}
-                </View>
-
-                {/* Connector */}
-                <View style={styles.connectorWrap}>
-                  <View style={styles.connectorTrack}>
-                    <View style={[styles.connectorDot, { backgroundColor: '#FDBA74' }]} />
-                    {[0, 1, 2, 3].map((i) => (
-                      <View key={i} style={styles.connectorDash} />
-                    ))}
-                    <View style={[styles.connectorDot, { backgroundColor: '#93C5FD' }]} />
-                  </View>
-                  <LinearGradient
-                    colors={[TAB_COLORS.orange, '#FB923C']}
-                    style={styles.connectorPlane}
-                  >
-                    <MaterialIcons name="flight" size={15} color="#fff" />
-                  </LinearGradient>
-                </View>
-
-                {/* Current city node */}
-                <View style={styles.journeyNode}>
-                  <View style={[styles.journeyNodeIcon, styles.journeyNodeIconCity]}>
-                    <MaterialIcons name="location-on" size={26} color={TAB_COLORS.blue} />
-                  </View>
-                  <View style={[styles.journeyNodeTag, styles.journeyNodeTagCity]}>
-                    <Text style={[styles.journeyNodeTagText, { color: TAB_COLORS.blue }]}>NOW IN</Text>
-                  </View>
-                  <Text style={styles.journeyNodeCity} numberOfLines={1}>
-                    {currentCity || currentState}
-                  </Text>
-                  {currentCity && currentState && (
-                    <Text style={styles.journeyNodeState} numberOfLines={1}>{currentState}</Text>
-                  )}
-                </View>
-
-              </View>
-            </View>
+          {(hasHometown || hasCurrentCity) && (
+            <JourneyMap
+              hometownCity={profile.hometownCity}
+              hometownState={profile.hometownState}
+              currentCity={profile.city}
+              currentState={profile.state}
+            />
           )}
-
-          {/* About Card */}
-          {hasAbout && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>About</Text>
-
-              {(profile.studyOrPost || profile.organization) && (
-                <InfoRow
-                  icon={profile.occupationType === 'student' ? 'school' : 'business-center'}
-                  iconBg={profile.occupationType === 'student' ? '#EDE9FE' : '#DBEAFE'}
-                  iconColor={profile.occupationType === 'student' ? '#7C3AED' : TAB_COLORS.blue}
-                  label={profile.occupationType === 'student' ? 'Programme' : 'Role'}
-                  value={
-                    profile.studyOrPost && profile.organization
-                      ? `${profile.studyOrPost} at ${profile.organization}`
-                      : profile.studyOrPost || profile.organization
-                  }
-                />
-              )}
-
-              {profile.gender && (
-                <InfoRow
-                  icon={genderIcon ?? 'person'}
-                  iconBg={genderColor + '22'}
-                  iconColor={genderColor}
-                  label="Gender"
-                  value={profile.gender}
-                />
-              )}
-            </View>
-          )}
-
         </View>
       </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-function InfoRow({ icon, iconBg, iconColor, label, value }) {
-  if (!value) return null;
-  return (
-    <View style={styles.infoRow}>
-      <View style={[styles.infoIconWrap, { backgroundColor: iconBg }]}>
-        <MaterialIcons name={icon} size={18} color={iconColor} />
-      </View>
-      <View style={styles.infoTextWrap}>
-        <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={styles.infoValue}>{value}</Text>
-      </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: TAB_COLORS.bg,
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: TAB_COLORS.inkFaint,
-    fontWeight: '500',
-  },
-  errorText: {
-    fontSize: 16,
-    color: TAB_COLORS.inkFaint,
-    fontWeight: '600',
-  },
-  scroll: {
-    paddingBottom: 120,
-  },
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  screen:      { flex: 1, backgroundColor: '#F7F9FB' },
+  center:      { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingText: { fontSize: 14, color: C.outline, fontWeight: '500' },
+  errorText:   { fontSize: 16, color: C.outline, fontWeight: '600' },
+  scroll:      { paddingBottom: 120 },
 
-  // ── Profile Card ──
-  profileCard: {
-    backgroundColor: TAB_COLORS.surface,
-    marginHorizontal: 16,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: TAB_COLORS.cardBorder,
-    paddingVertical: 24,
-    paddingHorizontal: 22,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#1E3A8A',
-    shadowOpacity: 0.05,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  profileInfo: {
-    flex: 1,
-    gap: 6,
-    alignItems: 'flex-end',
-  },
-
-  avatarWrap: {
+  // ── Hero ──
+  heroWrap: {
     position: 'relative',
   },
-  avatar: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+
+  // Floating avatar
+  floatingAvatarOuter: {
+    position: 'absolute',
+    bottom: -(AVATAR_SIZE / 2 + 5),
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  floatingAvatarBorder: {
+    padding: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 30,
+    ...CARD_SHADOW,
+  },
+  floatingAvatarImg: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: 24,
+  },
+  floatingAvatarFallback: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  avatarImg: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-  },
-  avatarInitial: {
-    fontSize: 34,
+  floatingAvatarInitial: {
+    fontSize: 44,
     fontWeight: '800',
-    letterSpacing: -1,
   },
   genderBadge: {
     position: 'absolute',
-    bottom: 2,
-    right: 2,
+    bottom: 4,
+    right: 4,
     width: 24,
     height: 24,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: TAB_COLORS.surface,
+    borderWidth: 2.5,
+    borderColor: '#FFFFFF',
   },
 
-  heroName: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: TAB_COLORS.ink,
-    letterSpacing: -0.4,
-    textAlign: 'right',
+  // ── Profile section ──
+  profileSection: {
+    marginTop: AVATAR_SIZE / 2 + 18,
+    paddingHorizontal: 20,
+    gap: 28,
   },
-  heroUsername: {
-    fontSize: 13,
-    color: TAB_COLORS.inkFaint,
-    fontWeight: '500',
-    textAlign: 'right',
-  },
-
-  accentDash: {
-    width: 32,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: TAB_COLORS.orange,
-  },
-
-  occupationPill: {
+  nameRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-end',
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 10,
+    flexWrap: 'wrap',
   },
-  pillStudent: { backgroundColor: '#EDE9FE' },
-  pillPro: { backgroundColor: '#EFF6FF' },
-  occupationText: { fontSize: 12, fontWeight: '700' },
-  occupationTextStudent: { color: '#7C3AED' },
-  occupationTextPro: { color: TAB_COLORS.blue },
-
-  // ── Body ──
-  body: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    gap: 14,
-  },
-
-  // ── Card base ──
-  card: {
-    backgroundColor: TAB_COLORS.surface,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: TAB_COLORS.cardBorder,
-    padding: 20,
-    gap: 18,
-    shadowColor: '#1E3A8A',
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  cardTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: TAB_COLORS.inkFaint,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-
-  // ── Journey card ──
-  journeyCardHeader: {
-    gap: 3,
-  },
-  journeyTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 9,
-  },
-  journeyTitleIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  journeyTitleText: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: TAB_COLORS.ink,
-    letterSpacing: -0.3,
-  },
-  journeySubtitle: {
-    fontSize: 12,
-    color: TAB_COLORS.inkFaint,
-    fontWeight: '500',
-    marginLeft: 39,
-  },
-  journeyRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  journeyNode: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 6,
-  },
-  journeyNodeIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-  },
-  journeyNodeIconHome: {
-    backgroundColor: '#FFF7ED',
-    borderColor: '#FED7AA',
-  },
-  journeyNodeIconCity: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
-  },
-  journeyNodeTag: {
-    borderRadius: 20,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  journeyNodeTagHome: { backgroundColor: '#FFEDD5' },
-  journeyNodeTagCity: { backgroundColor: '#DBEAFE' },
-  journeyNodeTagText: {
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  journeyNodeCity: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: TAB_COLORS.ink,
-    textAlign: 'center',
-  },
-  journeyNodeState: {
-    fontSize: 11,
-    color: TAB_COLORS.inkFaint,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-
-  // Connector
-  connectorWrap: {
-    width: 72,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 30,
-    position: 'relative',
-  },
-  connectorTrack: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    gap: 3,
-  },
-  connectorDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    flexShrink: 0,
-  },
-  connectorDash: {
-    flex: 1,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: '#CBD5E1',
-  },
-  connectorPlane: {
-    position: 'absolute',
-    top: 17,
-    width: 32,
-    height: 32,
-    borderRadius: 11,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: TAB_COLORS.orange,
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
-  },
-
-  // ── About info rows ──
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  infoIconWrap: {
-    width: 44,
-    height: 44,
+  nameBlock:  { flex: 1, gap: 4 },
+  heroName:   { fontSize: 26, fontWeight: '800', color: C.onSurface, letterSpacing: -0.5 },
+  heroHandle: { fontSize: 15, fontWeight: '500', color: C.onSurfaceVariant },
+  actionButtons: { flexDirection: 'row', gap: 10 },
+  connectBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    backgroundColor: C.primary,
     borderRadius: 14,
-    justifyContent: 'center',
+    shadowColor: C.primary,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.30,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  connectBtnText:  { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
+  messageBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: 'rgba(0,74,198,0.20)',
+  },
+  messageBtnText: { color: C.primary, fontWeight: '800', fontSize: 13 },
+
+  // ── Bio ──
+  bioSection: { gap: 8 },
+  bioLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.8, color: 'rgba(0,74,198,0.55)' },
+  bioText:  { fontSize: 17, lineHeight: 27, color: C.onSurface, fontWeight: '500' },
+
+  // ── Stats bar ──
+  statsBar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    flexShrink: 0,
+    paddingVertical: 20,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(195,198,215,0.35)',
   },
-  infoTextWrap: {
-    flex: 1,
-    gap: 3,
+  statItem:    { flex: 1, alignItems: 'center', gap: 3 },
+  statValue:   { fontSize: 22, fontWeight: '800', color: C.onSurface },
+  statLabel:   { fontSize: 12, fontWeight: '600', color: C.onSurfaceVariant },
+  statDivider: { width: 1, height: 34, backgroundColor: 'rgba(195,198,215,0.5)' },
+
+  // ── Bento grid ──
+  bentoGrid: { gap: 12 },
+  bentoRow:  { flexDirection: 'row', gap: 12 },
+  bentoCard: { borderRadius: 16, padding: 18, gap: 10, ...CARD_SHADOW },
+  bentoLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.9, color: C.outline },
+  bentoValue: { fontSize: 15, fontWeight: '700', color: C.onSurface, marginTop: 2 },
+  featuredCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  featuredText:    { flex: 1, gap: 6 },
+  featuredTitle:   { fontSize: 19, fontWeight: '800', color: '#FFFFFF' },
+  featuredSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.88)', lineHeight: 19 },
+
+  // ── Map ──
+  mapCard: { height: 260, borderRadius: 24, overflow: 'hidden', ...CARD_SHADOW },
+  mapLoading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.surfaceLow },
+  mapFallback: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8, backgroundColor: C.surfaceLow },
+  mapFallbackText: { fontSize: 13, color: C.outline, fontWeight: '500' },
+  mapBar: {
+    position: 'absolute',
+    bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 14, paddingVertical: 11,
+    backgroundColor: 'rgba(255,255,255,0.90)',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(0,0,0,0.06)',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  infoLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: TAB_COLORS.inkFaint,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  infoValue: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: TAB_COLORS.ink,
-  },
+  mapBarCity:     { flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1 },
+  mapBarDot:      { width: 8, height: 8, borderRadius: 4 },
+  mapBarCityText: { fontSize: 13, fontWeight: '700', color: C.onSurface, flex: 1 },
 });
