@@ -43,16 +43,109 @@ export const createPost = async (req, res) => {
 // @access  Public
 export const getPosts = async (req, res) => {
   try {
-    const posts = await Post.find().populate('user', 'fullName username profileImageUri').sort({ createdAt: -1 });
-    
-    // Add comment counts dynamically
+    const { q, category, hasImage, sortBy, from, to, gender, hometown, location } = req.query;
+
+    // 1. Initial Match (Post-level filters)
+    const matchStage = {};
+
+    if (q && q.trim()) {
+      const regex = new RegExp(q.trim(), 'i');
+      matchStage.$or = [{ title: regex }, { details: regex }];
+    }
+
+    if (category && category.trim()) {
+      const cats = category.split(',').map((c) => c.trim()).filter(Boolean);
+      matchStage.category = { $in: cats.map((c) => new RegExp(`^${c}$`, 'i')) };
+    }
+
+    if (hasImage === 'true') matchStage.imageUri = { $nin: [null, ''] };
+    if (hasImage === 'false') matchStage.$or = [
+      ...(matchStage.$or || []),
+      { imageUri: null },
+      { imageUri: '' },
+      { imageUri: { $exists: false } },
+    ];
+
+    if (from || to) {
+      matchStage.createdAt = {};
+      if (from) matchStage.createdAt.$gte = new Date(from);
+      if (to)   matchStage.createdAt.$lte = new Date(to);
+    }
+
+    // 2. Start Pipeline
+    const pipeline = [
+      { $match: matchStage },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'user',
+          foreignField: '_id',
+          as: 'author',
+        },
+      },
+      { $unwind: '$author' },
+    ];
+
+    // 3. Match Author Filters
+    const authorMatch = {};
+    if (gender) {
+      authorMatch['author.gender'] = gender;
+    }
+    if (hometown && hometown.trim()) {
+      authorMatch['author.hometownCity'] = new RegExp(hometown.trim(), 'i');
+    }
+    if (location && location.trim()) {
+      authorMatch['author.city'] = new RegExp(location.trim(), 'i');
+    }
+
+    if (Object.keys(authorMatch).length > 0) {
+      pipeline.push({ $match: authorMatch });
+    }
+
+    // 4. Sort and Count Fields
+    pipeline.push({
+      $addFields: {
+        likesCount: { $size: { $ifNull: ['$likes', []] } },
+        dislikesCount: { $size: { $ifNull: ['$dislikes', []] } },
+      },
+    });
+
+    let sort = { createdAt: -1 };
+    if (sortBy === 'top_liked')    sort = { likesCount: -1 };
+    if (sortBy === 'top_disliked') sort = { dislikesCount: -1 };
+    if (sortBy === 'oldest')       sort = { createdAt: 1 };
+
+    pipeline.push({ $sort: sort });
+
+    // 5. Final Projection (to match expected post structure)
+    pipeline.push({
+      $project: {
+        _id: 1,
+        title: 1,
+        details: 1,
+        category: 1,
+        imageUri: 1,
+        likes: 1,
+        dislikes: 1,
+        savedBy: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        user: {
+          _id: '$author._id',
+          fullName: '$author.fullName',
+          username: '$author.username',
+          profileImageUri: '$author.profileImageUri',
+        },
+      },
+    });
+
+    const posts = await Post.aggregate(pipeline);
+
+    // 6. Add comment counts
     const postsWithCounts = await Promise.all(
       posts.map(async (post) => {
         const count = await Comment.countDocuments({ post: post._id });
-        return {
-          ...post.toJSON(),
-          comments: count
-        };
+        return { ...post, comments: count };
       })
     );
 

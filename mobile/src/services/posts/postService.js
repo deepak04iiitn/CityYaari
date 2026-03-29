@@ -1,8 +1,8 @@
 import apiClient from '../api/apiClient';
 
-export const fetchPosts = async () => {
+export const fetchPosts = async (filters = {}) => {
   try {
-    const response = await apiClient.get('/posts');
+    const response = await apiClient.get('/posts', { params: filters });
     return { success: true, posts: response.data };
   } catch (error) {
     return {

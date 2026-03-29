@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,12 +11,16 @@ import {
   Platform,
   UIManager,
   ActivityIndicator,
+  TextInput,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { ScreenShell } from "./TabShared";
 import { fetchPosts, toggleLike, toggleDislike, toggleSave } from "../../services/posts/postService";
 import { useAuth } from "../../store/AuthContext";
 import CommentsSheet from "./CommentsSheet";
+import FilterModal from "./FilterModal";
 
 const { width } = Dimensions.get("window");
 
@@ -82,20 +86,76 @@ export default function HomeTab({ navigation }) {
   const [expandedPosts, setExpandedPosts] = useState({});
   const [activeCommentPostId, setActiveCommentPostId] = useState(null);
 
-  useEffect(() => {
-    loadPosts();
-  }, []);
+  // ── SEARCH & FILTER STATE ──────────────────────────────────────
+  const [searchText, setSearchText] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [activeCategory, setActiveCategory] = useState(null);
+  const [hasImageFilter, setHasImageFilter] = useState(null);
+  const [sortBy, setSortBy] = useState("newest");
+  const [activeGender, setActiveGender] = useState(null);
+  const [activeHometown, setActiveHometown] = useState("");
+  const [activeLocation, setActiveLocation] = useState("");
+  const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
+  const debounceTimer = useRef(null);
+  const searchInputRef = useRef(null);
+  const activeFilters = useRef({});
 
-  const loadPosts = async () => {
+  // Sync activeFilters ref and trigger fetch whenever any filter changes
+  useEffect(() => {
+    activeFilters.current = {
+      ...(searchText.trim() ? { q: searchText.trim() } : {}),
+      ...(activeCategory ? { category: activeCategory } : {}),
+      ...(hasImageFilter !== null ? { hasImage: String(hasImageFilter) } : {}),
+      ...(sortBy !== "newest" ? { sortBy } : {}),
+      ...(activeGender ? { gender: activeGender } : {}),
+      ...(activeHometown.trim() ? { hometown: activeHometown.trim() } : {}),
+      ...(activeLocation.trim() ? { location: activeLocation.trim() } : {}),
+    };
+  }, [searchText, activeCategory, hasImageFilter, sortBy, activeGender, activeHometown, activeLocation]);
+
+  useEffect(() => { loadPosts({}); }, []);
+
+  const loadPosts = async (filters) => {
     setIsLoading(true);
     setError(null);
-    const result = await fetchPosts();
+    const result = await fetchPosts(filters ?? activeFilters.current);
     if (result.success) {
       setPosts(result.posts);
     } else {
       setError(result.message);
     }
     setIsLoading(false);
+  };
+
+  // Debounced search — fires 500ms after user stops typing
+  const onSearchChange = (text) => {
+    setSearchText(text);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      const f = {
+        ...(text.trim() ? { q: text.trim() } : {}),
+        ...(activeCategory ? { category: activeCategory } : {}),
+        ...(hasImageFilter !== null ? { hasImage: String(hasImageFilter) } : {}),
+        ...(sortBy !== "newest" ? { sortBy } : {}),
+        ...(activeGender ? { gender: activeGender } : {}),
+        ...(activeHometown.trim() ? { hometown: activeHometown.trim() } : {}),
+        ...(activeLocation.trim() ? { location: activeLocation.trim() } : {}),
+      };
+      loadPosts(f);
+    }, 500);
+  };
+
+  const applyFilters = (updatedFilters) => {
+    if (updatedFilters) {
+      setSortBy(updatedFilters.sortBy);
+      setActiveCategory(updatedFilters.category);
+      setHasImageFilter(updatedFilters.hasImage);
+      setActiveGender(updatedFilters.gender);
+      setActiveHometown(updatedFilters.hometown);
+      setActiveLocation(updatedFilters.location);
+    }
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    setTimeout(() => loadPosts(), 0);
   };
 
   const getRelativeTime = (dateString) => {
@@ -116,7 +176,16 @@ export default function HomeTab({ navigation }) {
     const defaultTheme = { color: COLORS.accent, bg: COLORS.tagRed };
     if (!category) return defaultTheme;
     const lower = category.toLowerCase();
-    if (lower.includes('advice') || lower.includes('moving')) return { color: COLORS.accentGold, bg: COLORS.tagGold };
+    
+    if (lower.includes('housing') || lower.includes('flatmate')) 
+      return { color: COLORS.accentBlue, bg: COLORS.tagBlue };
+    if (lower.includes('travel') || lower.includes('trip')) 
+      return { color: COLORS.accentGreen || "#10b981", bg: COLORS.tagGreen || "#ecfdf5" };
+    if (lower.includes('hangouts') || lower.includes('events')) 
+      return { color: COLORS.accentGold, bg: COLORS.tagGold };
+    if (lower.includes('help') || lower.includes('questions')) 
+      return { color: COLORS.accentRed || "#ef4444", bg: COLORS.tagRed || "#fef2f2" };
+      
     return defaultTheme;
   };
 
@@ -182,9 +251,10 @@ export default function HomeTab({ navigation }) {
       title={null}
       noPadding
       background={COLORS.paper}
-      contentContainerStyle={{ flexGrow: 1 }}
+      keyboardShouldPersistTaps="handled"
     >
-      <View style={styles.container}>
+      <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()} accessible={false}>
+        <View style={styles.container}>
         {/* ── MASTHEAD ── */}
         <View style={styles.masthead}>
           <View style={styles.mastheadTop}>
@@ -192,19 +262,12 @@ export default function HomeTab({ navigation }) {
               <View style={styles.liveDot} />
               <Text style={styles.liveLabel}>LIVE CITY FEED</Text>
             </View>
-            {/* <Pressable style={styles.notifBtn}>
-              <MaterialIcons
-                name="notifications-none"
-                size={22}
-                color={COLORS.ink}
-              />
-            </Pressable> */}
           </View>
 
           <Text style={styles.heroTitle}>
             <Text style={styles.heroTitleLight}>Discover</Text>
             {"\n"}
-            Your City<Text style={{ color: COLORS.accent }}>.</Text>
+            Your Yaari<Text style={{ color: COLORS.accent }}>.</Text>
           </Text>
 
           {/* Pill toggle */}
@@ -293,9 +356,45 @@ export default function HomeTab({ navigation }) {
           ))}
         </ScrollView>
 
-        {/* ── FEED ── */}
         <View style={styles.sectionRow}>
           <Text style={styles.sectionLabel}>LATEST IN YOUR CITY</Text>
+        </View>
+
+        {/* ── SEARCH BAR ── */}
+        <View style={styles.searchRow}>
+          <Pressable 
+            style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}
+            onPress={() => searchInputRef.current?.focus()}
+          >
+            <MaterialIcons name="search" size={18} color={searchFocused ? COLORS.accentBlue : COLORS.inkMuted} />
+            <TextInput
+              ref={searchInputRef}
+              style={styles.searchInput}
+              placeholder="Search posts..."
+              placeholderTextColor={COLORS.inkMuted}
+              value={searchText}
+              onChangeText={onSearchChange}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              returnKeyType="search"
+              onSubmitEditing={() => applyFilters()}
+            />
+            {searchText.length > 0 && (
+              <Pressable onPress={() => { setSearchText(""); onSearchChange(""); }}>
+                <MaterialIcons name="close" size={16} color={COLORS.inkMuted} />
+              </Pressable>
+            )}
+          </Pressable>
+          <Pressable
+            style={[styles.filterToggleBtn, (activeCategory || hasImageFilter || activeGender || activeHometown || activeLocation || sortBy !== "newest") && styles.filterToggleBtnActive]}
+            onPress={() => setIsFilterModalVisible(true)}
+          >
+            <MaterialIcons
+              name="tune"
+              size={18}
+              color={(activeCategory || hasImageFilter || activeGender || activeHometown || activeLocation || sortBy !== "newest") ? COLORS.white : COLORS.ink}
+            />
+          </Pressable>
         </View>
 
         <View style={styles.feed}>
@@ -446,14 +545,28 @@ export default function HomeTab({ navigation }) {
             })
           )}
         </View>
-      </View>
 
-      <CommentsSheet
-        visible={!!activeCommentPostId}
-        postId={activeCommentPostId}
-        onClose={() => setActiveCommentPostId(null)}
-      />
+        <CommentsSheet
+          visible={!!activeCommentPostId}
+          postId={activeCommentPostId}
+          onClose={() => setActiveCommentPostId(null)}
+        />
 
+        <FilterModal
+          visible={isFilterModalVisible}
+          onClose={() => setIsFilterModalVisible(false)}
+          onApply={applyFilters}
+          initialFilters={{
+            sortBy,
+            category: activeCategory,
+            hasImage: hasImageFilter,
+            gender: activeGender,
+            hometown: activeHometown,
+            location: activeLocation,
+          }}
+        />
+        </View>
+      </TouchableWithoutFeedback>
     </ScreenShell>
   );
 }
@@ -793,5 +906,54 @@ const styles = StyleSheet.create({
   postImg: {
     width: "100%",
     height: "100%",
+  },
+
+  // ── Search & Filter ──────────────────────────────────────────
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 14,
+    paddingHorizontal: 20,
+  },
+  searchBox: {
+    flex: 1,
+    height: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+  },
+  searchBoxFocused: {
+    borderColor: COLORS.accentBlue,
+    backgroundColor: COLORS.paper,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.ink,
+    padding: 0,
+    fontWeight: "500",
+  },
+  filterToggleBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterToggleBtnActive: {
+    backgroundColor: COLORS.ink,
+    borderColor: COLORS.ink,
+  },
+  white: {
+    color: COLORS.white,
   },
 });

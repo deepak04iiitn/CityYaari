@@ -1,19 +1,24 @@
-import React, { useState } from 'react';
-import { View, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, TextInput, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { TAB_COLORS } from '../tabs/TabShared';
 
 export default function SearchInput({ value, onChangeText, isSearching, placeholder }) {
   const [focused, setFocused] = useState(false);
+  const inputRef = useRef(null);
 
   return (
-    <View style={[styles.container, focused && styles.containerFocused]}>
+    <Pressable 
+      style={[styles.container, focused && styles.containerFocused]}
+      onPress={() => inputRef.current?.focus()}
+    >
       <MaterialIcons
         name="search"
         size={22}
         color={focused ? TAB_COLORS.blue : TAB_COLORS.inkFaint}
       />
       <TextInput
+        ref={inputRef}
         style={styles.input}
         placeholder={placeholder || "Search by name or @handle..."}
         placeholderTextColor={TAB_COLORS.inkFaint}
@@ -34,7 +39,7 @@ export default function SearchInput({ value, onChangeText, isSearching, placehol
           <MaterialIcons name="close" size={20} color={TAB_COLORS.inkFaint} />
         </TouchableOpacity>
       )}
-    </View>
+    </Pressable>
   );
 }
 

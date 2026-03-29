@@ -39,6 +39,7 @@ export function ScreenShell({
   style,
   contentContainerStyle,
   background,
+  keyboardShouldPersistTaps = "handled",
 }) {
   const canGoBack = navigation.canGoBack();
 
@@ -75,6 +76,7 @@ export function ScreenShell({
           contentContainerStyle,
         ]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps={keyboardShouldPersistTaps}
       >
         {(title || subtitle) && (
           <LinearGradient colors={["#EEF5FF", "#FFFFFF"]} style={ss.heroCard}>
