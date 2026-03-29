@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,9 +10,11 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  ActivityIndicator,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { ScreenShell } from "./TabShared";
+import { fetchPosts } from "../../services/posts/postService";
 
 const { width } = Dimensions.get("window");
 
@@ -59,43 +61,7 @@ const MEETUPS = [
   },
 ];
 
-const POSTS = [
-  {
-    id: "1",
-    author: "Ananya Sharma",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuD_U-NZY0RFeUY9P5Fkhb-5wNctxgfrFhUfprbfq6A71lrAejL8nlJs1vDGOJA6mvl3fA96_4UDjcP7ZQ6X1nDRru4IiZZ5PNLmfpRf5iqtrTqqc_LIr3ulI0SRhnO_sihJKpxjko2U2oXUXH4SGqbfpS3OgqsNV79cGqAtw7Sgz3TGE18OqAM5uqeAq2CFKRbbqDrugXtJhB4ouViWGHXZyBciRycVDtQpq9QJ9W-C7rLKsjUriNjNzOW03i0sm31m_mFSIQhoUlg",
-    time: "2 hours ago",
-    category: "Moving Advice",
-    categoryColor: COLORS.accentGold,
-    categoryBg: COLORS.tagGold,
-    title: "Best Packers and Movers from Jaipur?",
-    content:
-      "Hey everyone! I'm moving to Bangalore next month and looking for reliable service providers who handle delicate items well. Any personal recommendations?",
-    likes: 12,
-    dislikes: 2,
-    comments: 4,
-  },
-  {
-    id: "2",
-    author: "Rahul Varma",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDsnHzsLHOCDmvGGiH_ZIlfoYgh6lGVxDwlqT6ffRgoGgIzVYrsgo9agiE3z3vkoGM1hTJ3YhJ_q49EJPKC9pGVoC9IqfCgm9mHZYVt3muymbaVPiJaxReXHAobAloWQidQfsPip2A2rapun_25Sbhsizi1Bw5O5Qdrokuz0kn-mgplOuU1y9-cgEipYrMJ_qewEMf6IvX3Rd_efGJblAEKXRoX3HCUaXwVTmSPKftS5uuZPhhqXyY_mqg6cTSZY7zySsLPC4zesL8",
-    time: "5 hours ago",
-    category: "Foodie Meetup",
-    categoryColor: COLORS.accent,
-    categoryBg: COLORS.tagRed,
-    title: "Hidden Gem: Old Delhi Street Food",
-    content:
-      "Just discovered this tiny paratha shop in the lanes of Chandni Chowk. The flavors are nostalgic! Thinking of organizing a group visit this Friday night.",
-    likes: 45,
-    dislikes: 5,
-    comments: 18,
-    isBookmarked: true,
-    image:
-      "https://images.unsplash.com/photo-1542204165-65bf26472b9b?q=80&w=2532&auto=format&fit=crop",
-  },
-];
+
 
 if (
   Platform.OS === "android" &&
@@ -106,10 +72,52 @@ if (
 
 export default function HomeTab({ navigation }) {
   const [mode, setMode] = useState("Posts");
+  const [posts, setPosts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const [likedPosts, setLikedPosts] = useState({});
   const [dislikedPosts, setDislikedPosts] = useState({});
   const [expandedPosts, setExpandedPosts] = useState({});
-  const [bookmarks, setBookmarks] = useState({ 2: true });
+  const [bookmarks, setBookmarks] = useState({});
+
+  useEffect(() => {
+    loadPosts();
+  }, []);
+
+  const loadPosts = async () => {
+    setIsLoading(true);
+    setError(null);
+    const result = await fetchPosts();
+    if (result.success) {
+      setPosts(result.posts);
+    } else {
+      setError(result.message);
+    }
+    setIsLoading(false);
+  };
+
+  const getRelativeTime = (dateString) => {
+    if (!dateString) return "Just now";
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHrs = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHrs / 24);
+
+    if (diffMins < 60) return `${Math.max(1, diffMins)} mins ago`;
+    if (diffHrs < 24) return `${diffHrs} hours ago`;
+    return `${diffDays} days ago`;
+  };
+
+  const getCategoryTheme = (category) => {
+    const defaultTheme = { color: COLORS.accent, bg: COLORS.tagRed };
+    if (!category) return defaultTheme;
+    const lower = category.toLowerCase();
+    if (lower.includes('advice') || lower.includes('moving')) return { color: COLORS.accentGold, bg: COLORS.tagGold };
+    return defaultTheme;
+  };
 
   const toggleLike = (id) =>
     setLikedPosts((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -246,142 +254,152 @@ export default function HomeTab({ navigation }) {
         </View>
 
         <View style={styles.feed}>
-          {POSTS.map((post, idx) => (
-            <View key={post.id}>
-              {/* Horizontal rule between posts */}
-              {idx > 0 && <View style={styles.hrule} />}
+          {isLoading ? (
+            <ActivityIndicator style={{ marginTop: 20 }} size="large" color={COLORS.accent} />
+          ) : error ? (
+            <Text style={{ textAlign: 'center', marginTop: 20, color: COLORS.inkMuted }}>{error}</Text>
+          ) : posts.length === 0 ? (
+            <Text style={{ textAlign: 'center', marginTop: 20, color: COLORS.inkMuted }}>No posts found.</Text>
+          ) : (
+            posts.map((post, idx) => {
+              const theme = getCategoryTheme(post.category);
+              return (
+                <View key={post._id || idx}>
+                  {/* Horizontal rule between posts */}
+                  {idx > 0 && <View style={styles.hrule} />}
 
-              <View style={styles.postCard}>
-                {/* Header */}
-                <View style={styles.postHeader}>
-                  <View style={styles.authorRow}>
-                    <View style={styles.avatarWrap}>
-                      <Image
-                        source={{ uri: post.avatar }}
-                        style={styles.avatar}
-                      />
-                    </View>
-                    <View>
-                      <Text style={styles.authorName}>{post.author}</Text>
-                      <Text style={styles.postTime}>{post.time}</Text>
-                    </View>
-                  </View>
+                  <View style={styles.postCard}>
+                    {/* Header */}
+                    <View style={styles.postHeader}>
+                      <View style={styles.authorRow}>
+                        <View style={styles.avatarWrap}>
+                          <Image
+                            source={{ uri: post.user?.profileImageUri || 'https://via.placeholder.com/150' }}
+                            style={styles.avatar}
+                          />
+                        </View>
+                        <View>
+                          <Text style={styles.authorName}>{post.user?.fullName || 'Unknown User'}</Text>
+                          <Text style={styles.postTime}>{getRelativeTime(post.createdAt)}</Text>
+                        </View>
+                      </View>
 
-                  <View
-                    style={[
-                      styles.catTag,
-                      { backgroundColor: post.categoryBg },
-                    ]}
-                  >
+                      <View
+                        style={[
+                          styles.catTag,
+                          { backgroundColor: theme.bg },
+                        ]}
+                      >
+                        <Text
+                          style={[styles.catText, { color: theme.color }]}
+                        >
+                          {(post.category || 'General').toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Content */}
+                    <Text style={styles.postTitle}>{post.title}</Text>
                     <Text
-                      style={[styles.catText, { color: post.categoryColor }]}
+                      style={styles.postBody}
+                      numberOfLines={expandedPosts[post._id] ? undefined : 3}
                     >
-                      {post.category.toUpperCase()}
+                      {post.details}
                     </Text>
+                    {post.details && post.details.length > 100 && (
+                      <Pressable onPress={() => toggleExpand(post._id)} hitSlop={10}>
+                        <Text style={styles.readMore}>
+                          {expandedPosts[post._id] ? "Show less" : "Read more"}
+                        </Text>
+                      </Pressable>
+                    )}
+
+                    {post.imageUri && (
+                      <View style={styles.postImgWrap}>
+                        <Image source={{ uri: post.imageUri }} style={styles.postImg} />
+                      </View>
+                    )}
+
+                    {/* Actions */}
+                    <View style={styles.actions}>
+                      <View style={styles.actionsLeft}>
+                        <Pressable
+                          style={styles.actionBtn}
+                          onPress={() => toggleLike(post._id)}
+                        >
+                          <MaterialIcons
+                            name={likedPosts[post._id] ? "thumb-up" : "thumb-up-off-alt"}
+                            size={18}
+                            color={
+                              likedPosts[post._id] ? COLORS.accent : COLORS.inkMuted
+                            }
+                          />
+                          <Text
+                            style={[
+                              styles.actionCount,
+                              likedPosts[post._id] && { color: COLORS.accent },
+                            ]}
+                          >
+                            {(post.likes || 0) + (likedPosts[post._id] ? 1 : 0)}
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          style={styles.actionBtn}
+                          onPress={() => toggleDislike(post._id)}
+                        >
+                          <MaterialIcons
+                            name={
+                              dislikedPosts[post._id]
+                                ? "thumb-down"
+                                : "thumb-down-off-alt"
+                            }
+                            size={18}
+                            color={
+                              dislikedPosts[post._id]
+                                ? COLORS.accentBlue
+                                : COLORS.inkMuted
+                            }
+                          />
+                          <Text
+                            style={[
+                              styles.actionCount,
+                              dislikedPosts[post._id] && { color: COLORS.accentBlue },
+                            ]}
+                          >
+                            {(post.dislikes || 0) + (dislikedPosts[post._id] ? 1 : 0)}
+                          </Text>
+                        </Pressable>
+
+                        <Pressable style={styles.actionBtn}>
+                          <MaterialIcons
+                            name="chat-bubble-outline"
+                            size={18}
+                            color={COLORS.inkMuted}
+                          />
+                          <Text style={styles.actionCount}>{post.comments || 0}</Text>
+                        </Pressable>
+                      </View>
+
+                      <Pressable onPress={() => toggleBookmark(post._id)}>
+                        <MaterialIcons
+                          name={
+                            bookmarks[post._id] ? "bookmark" : "bookmark-border"
+                          }
+                          size={20}
+                          color={
+                            bookmarks[post._id]
+                              ? COLORS.accentBlue
+                              : COLORS.inkMuted
+                          }
+                        />
+                      </Pressable>
+                    </View>
                   </View>
                 </View>
-
-                {/* Content */}
-                <Text style={styles.postTitle}>{post.title}</Text>
-                <Text
-                  style={styles.postBody}
-                  numberOfLines={expandedPosts[post.id] ? undefined : 3}
-                >
-                  {post.content}
-                </Text>
-                {post.content.length > 100 && (
-                  <Pressable onPress={() => toggleExpand(post.id)} hitSlop={10}>
-                    <Text style={styles.readMore}>
-                      {expandedPosts[post.id] ? "Show less" : "Read more"}
-                    </Text>
-                  </Pressable>
-                )}
-
-                {post.image && (
-                  <View style={styles.postImgWrap}>
-                    <Image source={{ uri: post.image }} style={styles.postImg} />
-                  </View>
-                )}
-
-                {/* Actions */}
-                <View style={styles.actions}>
-                  <View style={styles.actionsLeft}>
-                    <Pressable
-                      style={styles.actionBtn}
-                      onPress={() => toggleLike(post.id)}
-                    >
-                      <MaterialIcons
-                        name={likedPosts[post.id] ? "thumb-up" : "thumb-up-off-alt"}
-                        size={18}
-                        color={
-                          likedPosts[post.id] ? COLORS.accent : COLORS.inkMuted
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.actionCount,
-                          likedPosts[post.id] && { color: COLORS.accent },
-                        ]}
-                      >
-                        {post.likes + (likedPosts[post.id] ? 1 : 0)}
-                      </Text>
-                    </Pressable>
-
-                    <Pressable
-                      style={styles.actionBtn}
-                      onPress={() => toggleDislike(post.id)}
-                    >
-                      <MaterialIcons
-                        name={
-                          dislikedPosts[post.id]
-                            ? "thumb-down"
-                            : "thumb-down-off-alt"
-                        }
-                        size={18}
-                        color={
-                          dislikedPosts[post.id]
-                            ? COLORS.accentBlue
-                            : COLORS.inkMuted
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.actionCount,
-                          dislikedPosts[post.id] && { color: COLORS.accentBlue },
-                        ]}
-                      >
-                        {post.dislikes + (dislikedPosts[post.id] ? 1 : 0)}
-                      </Text>
-                    </Pressable>
-
-                    <Pressable style={styles.actionBtn}>
-                      <MaterialIcons
-                        name="chat-bubble-outline"
-                        size={18}
-                        color={COLORS.inkMuted}
-                      />
-                      <Text style={styles.actionCount}>{post.comments}</Text>
-                    </Pressable>
-
-                  </View>
-
-                  <Pressable onPress={() => toggleBookmark(post.id)}>
-                    <MaterialIcons
-                      name={
-                        bookmarks[post.id] ? "bookmark" : "bookmark-border"
-                      }
-                      size={20}
-                      color={
-                        bookmarks[post.id]
-                          ? COLORS.accentBlue
-                          : COLORS.inkMuted
-                      }
-                    />
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-          ))}
+              );
+            })
+          )}
         </View>
       </View>
     </ScreenShell>
