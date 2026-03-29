@@ -10,6 +10,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppTopHeader from "../AppTopHeader";
 
 export const TAB_COLORS = {
@@ -26,7 +27,15 @@ export const TAB_COLORS = {
   cardBorder: "#DCE8F8",
 };
 
-export function ScreenShell({ navigation, routeName, title, subtitle, children }) {
+export function ScreenShell({
+  navigation,
+  routeName,
+  title,
+  subtitle,
+  noPadding,
+  absoluteHeader,
+  children,
+}) {
   const canGoBack = navigation.canGoBack();
 
   const handleBack = () => {
@@ -40,16 +49,26 @@ export function ScreenShell({ navigation, routeName, title, subtitle, children }
     }
   };
 
+  const Container = absoluteHeader ? View : SafeAreaView;
+
   return (
-    <SafeAreaView style={ss.screen}>
+    <Container style={ss.screen}>
       <StatusBar style="dark" />
       <AppTopHeader
         onBackPress={handleBack}
         onNotificationPress={() => navigation.navigate("Notifications")}
         backDisabled={!canGoBack && routeName === "Home"}
         notificationCount={3}
+        absolute={absoluteHeader}
       />
-      <ScrollView contentContainerStyle={ss.screenContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[
+          ss.screenContent,
+          noPadding && { paddingHorizontal: 0 },
+          absoluteHeader && { paddingTop: 0 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         {(title || subtitle) && (
           <LinearGradient colors={["#EEF5FF", "#FFFFFF"]} style={ss.heroCard}>
             {title ? <Text style={ss.heroTitle}>{title}</Text> : null}
@@ -58,7 +77,7 @@ export function ScreenShell({ navigation, routeName, title, subtitle, children }
         )}
         {children}
       </ScrollView>
-    </SafeAreaView>
+    </Container>
   );
 }
 

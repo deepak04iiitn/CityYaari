@@ -27,7 +27,7 @@ export default function AppTopHeader({
   return (
     <View style={[styles.wrap, (absolute || transparent) && styles.wrapAbsolute]}>
       <LinearGradient
-        colors={transparent ? ["transparent", "transparent"] : ["rgba(255,255,255,0.98)", "#FFFFFF"]}
+        colors={["rgba(255,255,255,0.98)", "#FFFFFF"]}
         style={[
           styles.shell,
           { paddingTop: insets.top + (absolute || transparent ? 0 : 8), height: headerHeight },
@@ -46,16 +46,16 @@ export default function AppTopHeader({
           <MaterialIcons
             name="arrow-back-ios-new"
             size={20}
-            color={backDisabled ? "#B8C2D3" : (transparent ? "#FFF" : C.ink)}
+            color={backDisabled ? "#B8C2D3" : C.ink}
           />
         </Pressable>
 
         <View style={styles.brandWrap}>
           <Text style={styles.brandText}>
-            <Text style={[styles.brandCity, transparent && { color: "#FFF" }]}>City</Text>
-            <Text style={[styles.brandYaari, transparent && { color: "#FFF" }]}>Yaari</Text>
+            <Text style={styles.brandCity}>City</Text>
+            <Text style={styles.brandYaari}>Yaari</Text>
           </Text>
-          <View style={[styles.brandUnderline, transparent && { backgroundColor: "#FFF" }]} />
+          <View style={styles.brandUnderline} />
         </View>
 
         <Pressable onPress={onNotificationPress} style={styles.notificationButton}>
@@ -63,7 +63,7 @@ export default function AppTopHeader({
             colors={transparent ? ["rgba(255,255,255,0.2)", "rgba(255,255,255,0.1)"] : ["#F3F8FF", "#EAF2FF"]}
             style={[styles.notificationInner, transparent && styles.notificationInnerTransparent]}
           >
-            <MaterialIcons name="notifications-none" size={22} color={transparent ? "#FFF" : C.blue} />
+            <MaterialIcons name="notifications-none" size={22} color={C.blue} />
             {notificationCount > 0 ? (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{notificationCount > 9 ? "9+" : notificationCount}</Text>
