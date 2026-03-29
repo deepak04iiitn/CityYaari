@@ -36,6 +36,9 @@ export function ScreenShell({
   absoluteHeader,
   noPaddingBottom,
   children,
+  style,
+  contentContainerStyle,
+  background,
 }) {
   const canGoBack = navigation.canGoBack();
 
@@ -53,7 +56,7 @@ export function ScreenShell({
   const Container = absoluteHeader ? View : SafeAreaView;
 
   return (
-    <Container style={ss.screen}>
+    <Container style={[ss.screen, background && { backgroundColor: background }, style]}>
       <StatusBar style="dark" />
       <AppTopHeader
         onBackPress={handleBack}
@@ -63,11 +66,13 @@ export function ScreenShell({
         absolute={absoluteHeader}
       />
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={[
           ss.screenContent,
           noPadding && { paddingHorizontal: 0 },
           absoluteHeader && { paddingTop: 0 },
           noPaddingBottom && { paddingBottom: 0 },
+          contentContainerStyle,
         ]}
         showsVerticalScrollIndicator={false}
       >
