@@ -32,14 +32,17 @@ const COLORS = {
 };
 
 export default function PostTab({ navigation }) {
+  
   const [mode, setMode] = useState("Post"); // Post or Meetup
-  const [category, setCategory] = useState("Food");
+  const [category, setCategory] = useState("General");
 
   const categories = [
-    { name: "Food", icon: "restaurant" },
-    { name: "Sports", icon: "fitness-center" },
-    { name: "Travel", icon: "flight" },
-    { name: "Arts", icon: "palette" },
+    { name: "General", icon: "grid-view" },
+    { name: "Flatmate / Housing", icon: "home" },
+    { name: "Travelmate", icon: "groups" },
+    { name: "Trip", icon: "map" },
+    { name: "Hangouts", icon: "celebration" },
+    { name: "Help / Questions", icon: "help-outline" },
   ];
 
   return (
