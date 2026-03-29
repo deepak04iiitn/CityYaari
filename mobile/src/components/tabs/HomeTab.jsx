@@ -14,7 +14,9 @@ import {
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { ScreenShell } from "./TabShared";
-import { fetchPosts } from "../../services/posts/postService";
+import { fetchPosts, toggleLike, toggleDislike, toggleSave } from "../../services/posts/postService";
+import { useAuth } from "../../store/AuthContext";
+import CommentsSheet from "./CommentsSheet";
 
 const { width } = Dimensions.get("window");
 
@@ -71,15 +73,14 @@ if (
 }
 
 export default function HomeTab({ navigation }) {
+  const { user } = useAuth();
   const [mode, setMode] = useState("Posts");
   const [posts, setPosts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [likedPosts, setLikedPosts] = useState({});
-  const [dislikedPosts, setDislikedPosts] = useState({});
   const [expandedPosts, setExpandedPosts] = useState({});
-  const [bookmarks, setBookmarks] = useState({});
+  const [activeCommentPostId, setActiveCommentPostId] = useState(null);
 
   useEffect(() => {
     loadPosts();
@@ -119,16 +120,60 @@ export default function HomeTab({ navigation }) {
     return defaultTheme;
   };
 
-  const toggleLike = (id) =>
-    setLikedPosts((prev) => ({ ...prev, [id]: !prev[id] }));
-  const toggleDislike = (id) =>
-    setDislikedPosts((prev) => ({ ...prev, [id]: !prev[id] }));
   const toggleExpand = (id) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpandedPosts((prev) => ({ ...prev, [id]: !prev[id] }));
   };
-  const toggleBookmark = (id) =>
-    setBookmarks((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  const handleToggleLike = async (postId) => {
+    const currentUserId = user?._id;
+    if (!currentUserId) return;
+    setPosts((prev) => 
+      prev.map(p => {
+        if (p._id !== postId) return p;
+        const hasLiked = p.likes?.includes(currentUserId);
+        return {
+          ...p,
+          likes: hasLiked ? p.likes.filter(id => id !== currentUserId) : [...(p.likes||[]), currentUserId],
+          dislikes: p.dislikes?.filter(id => id !== currentUserId) || [],
+        };
+      })
+    );
+    await toggleLike(postId);
+  };
+
+  const handleToggleDislike = async (postId) => {
+    const currentUserId = user?._id;
+    if (!currentUserId) return;
+    setPosts((prev) => 
+      prev.map(p => {
+        if (p._id !== postId) return p;
+        const hasDisliked = p.dislikes?.includes(currentUserId);
+        return {
+          ...p,
+          dislikes: hasDisliked ? p.dislikes.filter(id => id !== currentUserId) : [...(p.dislikes||[]), currentUserId],
+          likes: p.likes?.filter(id => id !== currentUserId) || [],
+        };
+      })
+    );
+    await toggleDislike(postId);
+  };
+
+  const handleToggleBookmark = async (postId) => {
+    const currentUserId = user?._id;
+    if (!currentUserId) return;
+    setPosts((prev) => 
+      prev.map(p => {
+        if (p._id !== postId) return p;
+        const hasSaved = p.savedBy?.includes(currentUserId);
+        return {
+          ...p,
+          savedBy: hasSaved ? p.savedBy.filter(id => id !== currentUserId) : [...(p.savedBy||[]), currentUserId],
+        };
+      })
+    );
+    await toggleSave(postId);
+  };
 
   return (
     <ScreenShell
@@ -325,38 +370,38 @@ export default function HomeTab({ navigation }) {
                       <View style={styles.actionsLeft}>
                         <Pressable
                           style={styles.actionBtn}
-                          onPress={() => toggleLike(post._id)}
+                          onPress={() => handleToggleLike(post._id)}
                         >
                           <MaterialIcons
-                            name={likedPosts[post._id] ? "thumb-up" : "thumb-up-off-alt"}
+                            name={post.likes?.includes(user?._id) ? "thumb-up" : "thumb-up-off-alt"}
                             size={18}
                             color={
-                              likedPosts[post._id] ? COLORS.accent : COLORS.inkMuted
+                              post.likes?.includes(user?._id) ? COLORS.accent : COLORS.inkMuted
                             }
                           />
                           <Text
                             style={[
                               styles.actionCount,
-                              likedPosts[post._id] && { color: COLORS.accent },
+                              post.likes?.includes(user?._id) && { color: COLORS.accent },
                             ]}
                           >
-                            {(post.likes || 0) + (likedPosts[post._id] ? 1 : 0)}
+                            {post.likes?.length || 0}
                           </Text>
                         </Pressable>
 
                         <Pressable
                           style={styles.actionBtn}
-                          onPress={() => toggleDislike(post._id)}
+                          onPress={() => handleToggleDislike(post._id)}
                         >
                           <MaterialIcons
                             name={
-                              dislikedPosts[post._id]
+                              post.dislikes?.includes(user?._id)
                                 ? "thumb-down"
                                 : "thumb-down-off-alt"
                             }
                             size={18}
                             color={
-                              dislikedPosts[post._id]
+                              post.dislikes?.includes(user?._id)
                                 ? COLORS.accentBlue
                                 : COLORS.inkMuted
                             }
@@ -364,14 +409,14 @@ export default function HomeTab({ navigation }) {
                           <Text
                             style={[
                               styles.actionCount,
-                              dislikedPosts[post._id] && { color: COLORS.accentBlue },
+                              post.dislikes?.includes(user?._id) && { color: COLORS.accentBlue },
                             ]}
                           >
-                            {(post.dislikes || 0) + (dislikedPosts[post._id] ? 1 : 0)}
+                            {post.dislikes?.length || 0}
                           </Text>
                         </Pressable>
 
-                        <Pressable style={styles.actionBtn}>
+                        <Pressable style={styles.actionBtn} onPress={() => setActiveCommentPostId(post._id)}>
                           <MaterialIcons
                             name="chat-bubble-outline"
                             size={18}
@@ -381,14 +426,14 @@ export default function HomeTab({ navigation }) {
                         </Pressable>
                       </View>
 
-                      <Pressable onPress={() => toggleBookmark(post._id)}>
+                      <Pressable onPress={() => handleToggleBookmark(post._id)}>
                         <MaterialIcons
                           name={
-                            bookmarks[post._id] ? "bookmark" : "bookmark-border"
+                            post.savedBy?.includes(user?._id) ? "bookmark" : "bookmark-border"
                           }
                           size={20}
                           color={
-                            bookmarks[post._id]
+                            post.savedBy?.includes(user?._id)
                               ? COLORS.accentBlue
                               : COLORS.inkMuted
                           }
@@ -402,6 +447,13 @@ export default function HomeTab({ navigation }) {
           )}
         </View>
       </View>
+
+      <CommentsSheet
+        visible={!!activeCommentPostId}
+        postId={activeCommentPostId}
+        onClose={() => setActiveCommentPostId(null)}
+      />
+
     </ScreenShell>
   );
 }

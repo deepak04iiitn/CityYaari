@@ -1,26 +1,25 @@
 import mongoose from 'mongoose';
 
-const postSchema = mongoose.Schema(
+const commentSchema = mongoose.Schema(
   {
+    post: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      ref: 'Post',
+    },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       ref: 'User',
     },
-    category: {
+    content: {
       type: String,
       required: true,
     },
-    title: {
-      type: String,
-      required: true,
-    },
-    details: {
-      type: String,
-      required: true,
-    },
-    imageUri: {
-      type: String,
+    parentComment: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+      ref: 'Comment',
     },
     likes: [
       {
@@ -34,18 +33,12 @@ const postSchema = mongoose.Schema(
         ref: 'User',
       },
     ],
-    savedBy: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-      },
-    ],
   },
   {
     timestamps: true,
   }
 );
 
-const Post = mongoose.model('Post', postSchema);
+const Comment = mongoose.model('Comment', commentSchema);
 
-export default Post;
+export default Comment;

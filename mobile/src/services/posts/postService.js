@@ -11,3 +11,30 @@ export const fetchPosts = async () => {
     };
   }
 };
+
+export const toggleLike = async (postId) => {
+  try {
+    const response = await apiClient.post(`/posts/${postId}/like`);
+    return { success: true, data: response.data };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message || 'Error toggling like' };
+  }
+};
+
+export const toggleDislike = async (postId) => {
+  try {
+    const response = await apiClient.post(`/posts/${postId}/dislike`);
+    return { success: true, data: response.data };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message || 'Error toggling dislike' };
+  }
+};
+
+export const toggleSave = async (postId) => {
+  try {
+    const response = await apiClient.post(`/posts/${postId}/save`);
+    return { success: true, data: response.data };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message || 'Error toggling save' };
+  }
+};

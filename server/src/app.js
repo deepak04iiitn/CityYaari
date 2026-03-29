@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import postRoutes from './routes/postRoutes.js';
+import commentRoutes from './routes/commentRoutes.js';
 import { protect, admin } from './middleware/authMiddleware.js';
 
 const app = express();
@@ -19,6 +20,7 @@ app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/posts', postRoutes);
+app.use('/api/comments', commentRoutes);
 
 // Health check
 app.get('/health', (_req, res) => {
