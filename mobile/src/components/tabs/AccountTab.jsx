@@ -609,16 +609,20 @@ export default function AccountTab({ navigation }) {
         </View>
       </View>
 
-      {/* ── Account Details ──────────────────────────────────────────────── */}
-      <SectionCard title="Account Details" badge="Personal">
+      {/* ── Personal Info ───────────────────────────────────────────────── */}
+      <SectionCard title="Personal Information" badge="Individual">
         <InfoRow icon="person" label="Full Name" value={user?.fullName} />
         <InfoRow icon="alternate-email" label="Username" value={user?.username ? `@${user.username}` : null} />
         <InfoRow icon="mail-outline" label="Email" value={user?.email} />
         <InfoRow icon="people-outline" label="Gender" value={user?.gender} />
         <InfoRow icon="business" label={occupationLabel} value={user?.organization ? `${user?.studyOrPost} at ${user?.organization}` : "Not set"} />
-        <InfoRow icon="home" label="Hometown" value={hometownStr} />
-        <InfoRow icon="location-on" label="Current Location" value={locationStr} />
         <InfoRow icon="notes" label="Bio" value={user?.bio} last />
+      </SectionCard>
+
+      {/* ── Location Details ────────────────────────────────────────────── */}
+      <SectionCard title="Location Details" badge="Proximity">
+        <InfoRow icon="home" label="Hometown" value={hometownStr} />
+        <InfoRow icon="location-on" label="Current Location" value={locationStr} last />
       </SectionCard>
 
       {/* ── Security ──────────────────────────────────────────────────────── */}

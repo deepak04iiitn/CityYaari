@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,22 +8,29 @@ import {
   ScrollView,
   Pressable,
   Dimensions,
+  Alert,
+  ActivityIndicator,
+  Modal,
+  Animated,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import axios from "axios";
+import { useAuth } from "../../store/AuthContext";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { ScreenShell } from "./TabShared";
 
-const { width } = Dimensions.get("window");
+const { width, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 const COLORS = {
   primary: "#004ac6",
   primaryContainer: "#2563eb",
   onPrimary: "#ffffff",
   surface: "#f7f9fb",
-  onSurface: "#191c1e",
-  onSurfaceVariant: "#434655",
-  surfaceContainerLow: "#f2f4f6",
-  surfaceContainerLowest: "#ffffff",
+  onSurface: "#0A0C0E", // Deeper black for better visibility
+  onSurfaceVariant: "#2F323F", // Darker variant for secondary text
+  surfaceContainerLow: "#FAF7F2",
+  surfaceContainerLowest: "#FFFBF0", // Premium Warm Cream
   secondaryFixed: "#ffdbca",
   onSecondaryFixed: "#341100",
   outline: "#737686",
@@ -33,8 +40,21 @@ const COLORS = {
 
 export default function PostTab({ navigation }) {
   
+  const { token, user } = useAuth();
   const [mode, setMode] = useState("Post"); // Post or Meetup
   const [category, setCategory] = useState("General");
+  const [title, setTitle] = useState("");
+  const [details, setDetails] = useState("");
+  const [image, setImage] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [showError, setShowError] = useState(false);
+  const [showProfileGuard, setShowProfileGuard] = useState(false);
+  
+  const successAnim = useMemo(() => new Animated.Value(0), []);
+  const errorAnim = useMemo(() => new Animated.Value(0), []);
+  const profileGuardAnim = useMemo(() => new Animated.Value(0), []);
 
   const categories = [
     { name: "General", icon: "grid-view" },
@@ -45,6 +65,145 @@ export default function PostTab({ navigation }) {
     { name: "Help / Questions", icon: "help-outline" },
   ];
 
+  const API_BASE_URL = "http://192.168.31.65:5000/api";
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Please allow access to your photos.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) {
+        showErrorMsg("Image too large. Please select an image smaller than 2MB.");
+        return;
+      }
+      setImage(asset);
+    }
+  };
+
+  const showErrorMsg = (msg) => {
+    setErrorMsg(msg);
+    setShowError(true);
+    Animated.spring(errorAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 40,
+      friction: 7,
+    }).start();
+  };
+
+  const closeError = () => {
+    Animated.timing(errorAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setShowError(false));
+  };
+
+  const removeImage = () => {
+    setImage(null);
+  };
+
+  const handleShareYaari = async () => {
+    if (mode === "Meetup") {
+      Alert.alert("Coming Soon", "Meetup posting will be available shortly.");
+      return;
+    }
+
+    if (!title.trim() || !details.trim()) {
+      Alert.alert("Missing Information", "Please provide both a title and details.");
+      return;
+    }
+
+    // Profile Completion Guard
+    const isProfileComplete = user?.hometownCountry && user?.country && user?.organization && user?.bio;
+    if (!isProfileComplete) {
+      setShowProfileGuard(true);
+      Animated.spring(profileGuardAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 40,
+        friction: 7,
+      }).start();
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append("category", category);
+      formData.append("title", title);
+      formData.append("details", details);
+
+      if (image) {
+        const uri = image.uri;
+        const filename = uri.split("/").pop();
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : `image`;
+
+        formData.append("postImage", {
+          uri,
+          name: filename,
+          type,
+        });
+      }
+
+      await axios.post(`${API_BASE_URL}/posts`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      // Show animated success
+      setShowSuccess(true);
+      Animated.spring(successAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 40,
+        friction: 7,
+      }).start();
+
+      // Reset form
+      setTitle("");
+      setDetails("");
+      setImage(null);
+      setCategory("General");
+
+    } catch (error) {
+      console.error(error);
+      showErrorMsg(error.response?.data?.message || "Something went wrong. Please check your connection.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const closeSuccess = () => {
+    Animated.timing(successAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setShowSuccess(false));
+  };
+
+  const closeProfileGuard = () => {
+    Animated.timing(profileGuardAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setShowProfileGuard(false));
+  };
+
   return (
     <ScreenShell
       navigation={navigation}
@@ -53,6 +212,7 @@ export default function PostTab({ navigation }) {
       subtitle={null}
       noPadding
       absoluteHeader
+      noPaddingBottom
     >
       <View style={styles.container}>
         {/* Immersive Hero Background */}
@@ -156,11 +316,13 @@ export default function PostTab({ navigation }) {
 
             {/* Title Input */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>WHAT'S THE YAARI?</Text>
+              <Text style={styles.label}>WHAT'S THE YAARI ABOUT?</Text>
               <TextInput
                 style={styles.mainInput}
-                placeholder="Travel partner to Jaipur"
+                placeholder="Ex. - Looking for Travel partner to Jaipur"
                 placeholderTextColor={COLORS.outline}
+                value={title}
+                onChangeText={setTitle}
               />
             </View>
 
@@ -173,33 +335,189 @@ export default function PostTab({ navigation }) {
                 placeholderTextColor={COLORS.outline}
                 multiline
                 textAlignVertical="top"
+                value={details}
+                onChangeText={setDetails}
               />
             </View>
 
             {/* Media Upload Zone */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>ADD IMAGE (optional)</Text>
-              <Pressable style={styles.uploadZone}>
-                <View style={styles.uploadIconCircle}>
-                  <MaterialIcons name="add-a-photo" size={24} color={COLORS.primary} />
-                </View>
-                <Text style={styles.uploadMainText}>Drop your image here</Text>
-                <Text style={styles.uploadSubText}>
-                  High quality JPEGs or PNGs (max 10MB)
-                </Text>
+              <Pressable 
+                style={[
+                  styles.uploadZone, 
+                  image && { paddingVertical: 0, borderStyle: "solid", overflow: "hidden" }
+                ]} 
+                onPress={pickImage}
+              >
+                {image ? (
+                  <>
+                    <Image source={{ uri: image.uri }} style={styles.previewImage} resizeMode="cover" />
+                    <Pressable style={styles.removeImageIcon} onPress={removeImage}>
+                      <MaterialIcons name="close" size={20} color={COLORS.onPrimary} />
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.uploadIconCircle}>
+                      <MaterialIcons name="add-a-photo" size={24} color={COLORS.primary} />
+                    </View>
+                    <Text style={styles.uploadMainText}>Drop your image here</Text>
+                    <Text style={styles.uploadSubText}>
+                      High quality JPEGs or PNGs (max 2MB)
+                    </Text>
+                  </>
+                )}
               </Pressable>
             </View>
 
             {/* Submission Button */}
-            <Pressable style={styles.submitButton}>
-              <Text style={styles.submitButtonText}>Share Yaari</Text>
+            <Pressable
+              style={[styles.submitButton, isSubmitting && { opacity: 0.7 }]}
+              onPress={handleShareYaari}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color={COLORS.onPrimary} />
+              ) : (
+                <Text style={styles.submitButtonText}>Share Yaari</Text>
+              )}
             </Pressable>
 
-            {/* Bottom Spacer */}
-            <View style={{ height: 40 }} />
+            {/* Bottom Spacer to ensure button visibility above bottom bar */}
+            <View style={{ height: 120 }} />
           </View>
         </View>
       </View>
+
+      {/* Modern Success Modal */}
+      <Modal visible={showSuccess} transparent animationType="none">
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[
+              styles.successCard,
+              {
+                opacity: successAnim,
+                transform: [
+                  {
+                    scale: successAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.8, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={["#ecfdf5", "#ffffff"]}
+              style={styles.successGradient}
+            >
+              <View style={styles.successIconOuter}>
+                <MaterialIcons name="auto-awesome" size={32} color="#10b981" />
+              </View>
+              <Text style={styles.successTitle}>Yaari Shared!</Text>
+              <Text style={styles.successSub}>
+                Your spark is now live and waiting for someone to connect.
+              </Text>
+              <Pressable style={styles.successBtn} onPress={closeSuccess}>
+                <Text style={styles.successBtnText}>Great!</Text>
+              </Pressable>
+            </LinearGradient>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* Modern Error Modal */}
+      <Modal visible={showError} transparent animationType="none">
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[
+              styles.errorCard,
+              {
+                opacity: errorAnim,
+                transform: [
+                  {
+                    scale: errorAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.8, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={["#fef2f2", "#ffffff"]}
+              style={styles.successGradient}
+            >
+              <View style={styles.errorIconOuter}>
+                <MaterialIcons name="error-outline" size={32} color="#ef4444" />
+              </View>
+              <Text style={styles.errorTitle}>Oops!</Text>
+              <Text style={styles.errorSub}>{errorMsg}</Text>
+              <Pressable 
+                style={[styles.successBtn, { backgroundColor: "#ef4444" }]} 
+                onPress={closeError}
+              >
+                <Text style={styles.successBtnText}>Got it</Text>
+              </Pressable>
+            </LinearGradient>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* Profile Completion Guard Modal */}
+      <Modal visible={showProfileGuard} transparent animationType="none">
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[
+              styles.guardCard,
+              {
+                opacity: profileGuardAnim,
+                transform: [
+                  {
+                    scale: profileGuardAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.8, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={["#fefce8", "#ffffff"]}
+              style={styles.successGradient}
+            >
+              <View style={styles.guardIconOuter}>
+                <MaterialIcons name="security" size={32} color="#ca8a04" />
+              </View>
+              <Text style={styles.successTitle}>Profile Incomplete</Text>
+              <Text style={styles.successSub}>
+                Looks like you haven't completed your profile. Please fill in your details (Bio, Hometown, etc.) before posting a Yaari.
+              </Text>
+              <View style={styles.guardBtnRow}>
+                <Pressable 
+                  style={[styles.guardBtn, { backgroundColor: "#f3f4f6" }]} 
+                  onPress={closeProfileGuard}
+                >
+                  <Text style={[styles.guardBtnText, { color: "#4b5563" }]}>Not Now</Text>
+                </Pressable>
+                <Pressable 
+                  style={[styles.guardBtn, { backgroundColor: COLORS.primary }]} 
+                  onPress={() => {
+                    closeProfileGuard();
+                    navigation.navigate("Account");
+                  }}
+                >
+                  <Text style={styles.guardBtnText}>Complete Now</Text>
+                </Pressable>
+              </View>
+            </LinearGradient>
+          </Animated.View>
+        </View>
+      </Modal>
     </ScreenShell>
   );
 }
@@ -223,19 +541,17 @@ const styles = StyleSheet.create({
   },
   card: {
     marginTop: -80,
-    marginHorizontal: 16,
     backgroundColor: COLORS.surfaceContainerLowest,
     borderTopLeftRadius: 40,
     borderTopRightRadius: 40,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
     padding: 24,
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.08,
     shadowRadius: 40,
     elevation: 8,
-    marginBottom: 20,
+    marginBottom: 0,
+    minHeight: SCREEN_HEIGHT - 260, // Adjust minHeight to reach bottom bar accurately
   },
   segmentedControl: {
     flexDirection: "row",
@@ -273,29 +589,34 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   label: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: COLORS.onSurfaceVariant,
-    letterSpacing: 1,
+    fontSize: 12,
+    fontWeight: "900", // Extra bold for max visibility
+    color: COLORS.onSurface,
+    letterSpacing: 1.2,
     paddingLeft: 4,
+    marginBottom: 4,
   },
   mainInput: {
-    backgroundColor: COLORS.surfaceContainerLow,
+    backgroundColor: "rgba(0, 0, 0, 0.02)",
     borderRadius: 16,
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 18,
     fontSize: 14,
-    fontWeight: "450",
+    fontWeight: "480",
     color: COLORS.onSurface,
+    borderWidth: 1,
+    borderColor: "rgba(0, 74, 198, 0.1)",
   },
   textArea: {
-    backgroundColor: COLORS.surfaceContainerLow,
+    backgroundColor: "rgba(0, 0, 0, 0.02)",
     borderRadius: 16,
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    fontSize: 15,
+    paddingVertical: 18,
+    fontSize: 16,
     color: COLORS.onSurface,
     minHeight: 120,
+    borderWidth: 1,
+    borderColor: "rgba(0, 74, 198, 0.1)",
   },
   chipScroll: {
     gap: 12,
@@ -315,8 +636,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(253, 118, 26, 0.2)",
   },
   chipInactive: {
-    backgroundColor: COLORS.surfaceContainerLow,
-    borderColor: "transparent",
+    backgroundColor: "rgba(0, 0, 0, 0.02)",
+    borderColor: "rgba(0, 74, 198, 0.05)",
   },
   chipText: {
     fontSize: 14,
@@ -400,14 +721,20 @@ const styles = StyleSheet.create({
     color: COLORS.onSurfaceVariant,
   },
   uploadZone: {
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderStyle: "dashed",
-    borderColor: COLORS.outlineVariant,
-    borderRadius: 16,
+    borderColor: "rgba(0, 74, 198, 0.2)",
+    borderRadius: 24,
     paddingVertical: 32,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: COLORS.surfaceContainerLowest,
+    backgroundColor: "rgba(0, 74, 198, 0.02)",
+    overflow: "hidden",
+  },
+  previewImage: {
+    width: "100%",
+    aspectRatio: 16 / 9,
+    borderRadius: 14,
   },
   uploadIconCircle: {
     width: 48,
@@ -445,5 +772,160 @@ const styles = StyleSheet.create({
     color: COLORS.onPrimary,
     fontSize: 16,
     fontWeight: "800",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  successCard: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: COLORS.surfaceContainerLowest,
+    borderRadius: 32,
+    overflow: "hidden",
+    elevation: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+  },
+  successGradient: {
+    padding: 32,
+    alignItems: "center",
+    gap: 16,
+  },
+  successIconOuter: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  successTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: COLORS.onSurface,
+    textAlign: "center",
+  },
+  successSub: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: COLORS.onSurfaceVariant,
+    textAlign: "center",
+    paddingHorizontal: 12,
+  },
+  successBtn: {
+    marginTop: 8,
+    backgroundColor: COLORS.onSurface,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 100,
+    width: "100%",
+    alignItems: "center",
+  },
+  successBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  errorCard: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: COLORS.surfaceContainerLowest,
+    borderRadius: 32,
+    overflow: "hidden",
+    elevation: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.1)",
+  },
+  errorIconOuter: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#b91c1c",
+    textAlign: "center",
+  },
+  errorSub: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: COLORS.onSurfaceVariant,
+    textAlign: "center",
+    paddingHorizontal: 12,
+  },
+  removeImageIcon: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 6,
+  },
+  guardCard: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: COLORS.surfaceContainerLowest,
+    borderRadius: 32,
+    overflow: "hidden",
+    elevation: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(202, 138, 4, 0.1)",
+  },
+  guardIconOuter: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(202, 138, 4, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  guardBtnRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+    width: "100%",
+  },
+  guardBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 100,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  guardBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

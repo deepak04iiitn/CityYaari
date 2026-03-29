@@ -52,3 +52,42 @@ export const handleProfileImageUpload = (req, res, next) => {
 };
 
 export const profileImageUploadDir = uploadDir;
+
+// --- Post Image Upload ---
+const postUploadDir = path.resolve(__dirname, '../../uploads/post-images');
+fs.mkdirSync(postUploadDir, { recursive: true });
+
+const postStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, postUploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const safeExt = ext || '.jpg';
+    cb(null, `post-${req.user._id}-${Date.now()}${safeExt}`);
+  },
+});
+
+export const uploadPostImage = multer({
+  storage: postStorage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit for posts
+  fileFilter,
+}).single('postImage');
+
+export const handlePostImageUpload = (req, res, next) => {
+  uploadPostImage(req, res, (error) => {
+    if (!error) {
+      next();
+      return;
+    }
+
+    if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+      res.status(400).json({ message: 'Post image must be 2MB or smaller' });
+      return;
+    }
+
+    res.status(400).json({ message: error.message || 'Could not upload post image' });
+  });
+};
+
+export const postImageUploadDir = postUploadDir;

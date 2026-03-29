@@ -34,6 +34,7 @@ export function ScreenShell({
   subtitle,
   noPadding,
   absoluteHeader,
+  noPaddingBottom,
   children,
 }) {
   const canGoBack = navigation.canGoBack();
@@ -66,6 +67,7 @@ export function ScreenShell({
           ss.screenContent,
           noPadding && { paddingHorizontal: 0 },
           absoluteHeader && { paddingTop: 0 },
+          noPaddingBottom && { paddingBottom: 0 },
         ]}
         showsVerticalScrollIndicator={false}
       >
