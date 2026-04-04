@@ -1,15 +1,26 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { TAB_COLORS } from '../tabs/TabShared';
+
+const C = {
+  ink: "#0a0a0a",
+  muted: "#888888",
+  border: "#e0dbd4",
+  divider: "#ece7e0",
+  card: "#ffffff",
+  paper: "#f5f2ed",
+  blue: "#004ac6",
+  bluePale: "#eef2ff",
+  goldPale: "#fff8e6",
+};
 
 const AVATAR_PALETTE = [
-  { bg: '#EEF2FF', text: '#4338CA' }, // Indigo
-  { bg: '#ECFDF5', text: '#047857' }, // Emerald
-  { bg: '#FEF2F2', text: '#B91C1C' }, // Red
-  { bg: '#FFFBEB', text: '#B45309' }, // Amber
-  { bg: '#F5F3FF', text: '#6D28D9' }, // Violet
-  { bg: '#EFF6FF', text: '#1D4ED8' }, // Blue
+  { bg: '#eef2ff', text: '#004ac6' },
+  { bg: '#fff8e6', text: '#8f6207' },
+  { bg: '#fef0ed', text: '#a13211' },
+  { bg: '#eef2ff', text: '#003996' },
+  { bg: '#fff4cf', text: '#8f6207' },
+  { bg: '#f3f6ff', text: '#004ac6' },
 ];
 
 function getAvatarStyle(name) {
@@ -47,7 +58,7 @@ export default function SearchResultItem({ user, onPress, isLast }) {
       <MaterialIcons
         name="chevron-right"
         size={22}
-        color="#CBD5E1"
+        color={C.muted}
       />
     </TouchableOpacity>
   );
@@ -60,8 +71,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: C.divider,
     gap: 14,
+    backgroundColor: C.card,
   },
   noBorder: {
     borderBottomWidth: 0,
@@ -69,19 +81,21 @@ const styles = StyleSheet.create({
   avatar: {
     width: 52,
     height: 52,
-    borderRadius: 14,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
+    borderWidth: 1.5,
+    borderColor: C.border,
   },
   avatarImage: {
     width: 52,
     height: 52,
-    borderRadius: 14,
+    borderRadius: 10,
   },
   avatarText: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '900',
     letterSpacing: -0.5,
   },
   info: {
@@ -90,14 +104,15 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   fullName: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1E293B',
+    fontSize: 16,
+    fontWeight: '900',
+    color: C.ink,
     letterSpacing: -0.4,
   },
   username: {
-    fontSize: 14,
-    color: '#94A3B8',
-    fontWeight: '500',
+    fontSize: 12,
+    color: C.muted,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
 });

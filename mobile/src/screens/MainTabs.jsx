@@ -18,17 +18,29 @@ import NotificationsTab from "../components/tabs/NotificationsTab";
 import PostTab from "../components/tabs/PostTab";
 import SearchTab from "../components/tabs/SearchTab";
 import UserProfileScreen from "./UserProfileScreen";
-import { TAB_COLORS as C } from "../components/tabs/TabShared";
 
 const { width } = Dimensions.get("window");
 const Tab = createBottomTabNavigator();
 
+const C = {
+  blue: "#004ac6",
+  blueXLight: "#eef2ff",
+  orange: "#e8380d",
+  orangeDark: "#a13211",
+  ink: "#0a0a0a",
+  inkFaint: "#888888",
+  white: "#ffffff",
+  bg: "#f5f2ed",
+  border: "#e0dbd4",
+  surface: "#ffffff",
+};
+
 const TAB_CONFIG = {
-  Home: { icon: "home" },
-  Messages: { icon: "chat-bubble" },
+  Home: { icon: "home", label: "Home" },
+  Messages: { icon: "chat-bubble", label: "Messages" },
   Post: { icon: "add", isPost: true },
-  Search: { icon: "search" },
-  Account: { icon: "person" },
+  Search: { icon: "search", label: "Search" },
+  Account: { icon: "person", label: "Account" },
 };
 
 const SPRING = { tension: 200, friction: 18 };
@@ -59,36 +71,43 @@ function NotchedBar({ bottomPad }) {
   );
 }
 
-function TabIcon({ icon, focused }) {
-  const anim = useRef(new Animated.Value(focused ? 1 : 0)).current;
+function TabIcon({ icon, label, focused }) {
   const animNative = useRef(new Animated.Value(focused ? 1 : 0)).current;
 
   useEffect(() => {
-    Animated.spring(anim, {
-      toValue: focused ? 1 : 0,
-      ...SPRING,
-      useNativeDriver: false,
-    }).start();
     Animated.spring(animNative, {
       toValue: focused ? 1 : 0,
       ...SPRING,
       useNativeDriver: true,
     }).start();
-  }, [anim, animNative, focused]);
+  }, [animNative, focused]);
 
-  const pillWidth = anim.interpolate({ inputRange: [0, 1], outputRange: [0, 60] });
-  const pillOpacity = anim.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 0, 1] });
+  const pillOpacity = animNative.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
   const iconScale = animNative.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
   const iconTranslateY = animNative.interpolate({ inputRange: [0, 1], outputRange: [0, -1.5] });
+  const labelOpacity = animNative.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1] });
+  const labelTranslateY = animNative.interpolate({ inputRange: [0, 1], outputRange: [0, -1] });
 
   return (
     <View style={ss.tabItem}>
       <View style={ss.pillArea}>
-        <Animated.View style={[ss.pill, { width: pillWidth, opacity: pillOpacity }]} />
+        <Animated.View
+          style={[ss.pill, { opacity: pillOpacity }]}
+        />
         <Animated.View style={{ transform: [{ scale: iconScale }, { translateY: iconTranslateY }] }}>
-          <MaterialIcons name={icon} size={26} color={focused ? C.blue : C.inkFaint} />
+          <MaterialIcons name={icon} size={24} color={focused ? C.blue : C.inkFaint} />
         </Animated.View>
       </View>
+      <Animated.Text
+        style={[
+          ss.tabLabel,
+          focused && ss.tabLabelActive,
+          { opacity: labelOpacity, transform: [{ translateY: labelTranslateY }] },
+        ]}
+        numberOfLines={1}
+      >
+        {label}
+      </Animated.Text>
     </View>
   );
 }
@@ -103,7 +122,7 @@ function PostFAB({ onPress }) {
 
   return (
     <Pressable onPress={onPress} onPressIn={pressIn} onPressOut={pressOut} style={ss.fabPressable}>
-      <Animated.View style={{ transform: [{ scale }] }}>
+      <Animated.View style={{ transform: [{ scale }], alignItems: "center" }}>
         <LinearGradient
           colors={[C.orange, C.orangeDark]}
           start={{ x: 0, y: 0 }}
@@ -159,7 +178,7 @@ function CustomTabBar({ state, navigation }) {
               style={ss.tabTouchable}
               android_ripple={{ color: "transparent" }}
             >
-              <TabIcon icon={config.icon} focused={focused} />
+              <TabIcon icon={config.icon} label={config.label} focused={focused} />
             </Pressable>
           );
         })}
@@ -203,10 +222,10 @@ const ss = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: -4 },
+    shadowColor: "#0a0a0a",
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -6 },
     elevation: 20,
   },
   topBorder: {
@@ -236,24 +255,39 @@ const ss = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     height: "100%",
-    paddingBottom: 10,
+    paddingBottom: 6,
   },
   tabItem: {
     alignItems: "center",
     justifyContent: "center",
-    transform: [{ translateY: -5 }],
+    transform: [{ translateY: -3 }],
   },
   pillArea: {
-    width: 64,
-    height: 40,
+    width: 58,
+    height: 36,
     alignItems: "center",
     justifyContent: "center",
   },
   pill: {
     position: "absolute",
-    height: 40,
-    borderRadius: 20,
+    width: 58,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: C.blueXLight,
+    borderWidth: 1,
+    borderColor: "#cfddff",
+  },
+  tabLabel: {
+    marginTop: 1,
+    fontSize: 10,
+    fontWeight: "700",
+    color: C.inkFaint,
+    letterSpacing: 0.5,
+  },
+  tabLabelActive: {
+    color: C.blue,
+    fontWeight: "900",
+    letterSpacing: 0.8,
   },
   fabSlot: {
     flex: 1,
@@ -271,12 +305,12 @@ const ss = StyleSheet.create({
     borderRadius: FAB_SIZE / 2,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: C.orange,
-    shadowOpacity: 0.45,
-    shadowRadius: 16,
+    shadowColor: "#9a2d10",
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 16,
     borderWidth: 4,
-    borderColor: C.white,
+    borderColor: "#fff6f2",
   },
 });

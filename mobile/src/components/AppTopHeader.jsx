@@ -5,12 +5,14 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const C = {
-  blue: "#2563EB",
-  blueLight: "#EEF5FF",
-  ink: "#0F172A",
-  inkSoft: "#6B7280",
-  white: "#FFFFFF",
-  border: "#DCE7F7",
+  blue: "#004ac6",
+  blueLight: "#eef2ff",
+  ink: "#0a0a0a",
+  inkSoft: "#888888",
+  white: "#ffffff",
+  border: "#e0dbd4",
+  surface: "#f8f6f2",
+  accent: "#e8380d",
 };
 
 export default function AppTopHeader({
@@ -27,7 +29,7 @@ export default function AppTopHeader({
   return (
     <View style={[styles.wrap, (absolute || transparent) && styles.wrapAbsolute]}>
       <LinearGradient
-        colors={["rgba(255,255,255,0.98)", "#FFFFFF"]}
+        colors={["rgba(248,246,242,0.98)", "#f8f6f2"]}
         style={[
           styles.shell,
           { paddingTop: insets.top + (absolute || transparent ? 0 : 8), height: headerHeight },
@@ -45,7 +47,7 @@ export default function AppTopHeader({
         >
           <MaterialIcons
             name="arrow-back-ios-new"
-            size={20}
+            size={19}
             color={backDisabled ? "#B8C2D3" : C.ink}
           />
         </Pressable>
@@ -60,7 +62,7 @@ export default function AppTopHeader({
 
         <Pressable onPress={onNotificationPress} style={styles.notificationButton}>
           <LinearGradient
-            colors={transparent ? ["rgba(255,255,255,0.2)", "rgba(255,255,255,0.1)"] : ["#F3F8FF", "#EAF2FF"]}
+            colors={transparent ? ["rgba(255,255,255,0.2)", "rgba(255,255,255,0.1)"] : ["#f3f6ff", "#eef2ff"]}
             style={[styles.notificationInner, transparent && styles.notificationInnerTransparent]}
           >
             <MaterialIcons name="notifications-none" size={22} color={C.blue} />
@@ -90,16 +92,16 @@ const styles = StyleSheet.create({
   },
   shell: {
     borderRadius: 0,
-    borderWidth: 1,
+    borderWidth: 1.2,
     borderColor: C.border,
     paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    shadowColor: "#0F172A",
+    shadowColor: "#0a0a0a",
     shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
     elevation: 8,
   },
   shellTransparent: {
@@ -114,12 +116,12 @@ const styles = StyleSheet.create({
   iconButton: {
     width: 44,
     height: 44,
-    borderRadius: 16,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F8FAFD",
-    borderWidth: 1,
-    borderColor: "#E6EDF8",
+    backgroundColor: C.white,
+    borderWidth: 1.5,
+    borderColor: C.border,
   },
   iconButtonTransparent: {
     backgroundColor: "rgba(255,255,255,0.2)",
@@ -133,9 +135,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   brandText: {
-    fontSize: 22,
-    fontWeight: "800",
-    letterSpacing: -0.6,
+    fontSize: 21,
+    fontWeight: "900",
+    letterSpacing: -0.5,
   },
   brandCity: {
     color: C.ink,
@@ -144,25 +146,25 @@ const styles = StyleSheet.create({
     color: C.blue,
   },
   brandUnderline: {
-    marginTop: 5,
-    width: 34,
-    height: 4,
+    marginTop: 4,
+    width: 30,
+    height: 3,
     borderRadius: 999,
-    backgroundColor: C.blue,
+    backgroundColor: C.accent,
   },
   notificationButton: {
     width: 50,
     height: 50,
-    borderRadius: 18,
+    borderRadius: 14,
     overflow: "hidden",
   },
   notificationInner: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#DCE7F7",
-    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: C.border,
+    borderRadius: 14,
   },
   notificationInnerTransparent: {
     borderColor: "rgba(255,255,255,0.3)",
@@ -174,7 +176,7 @@ const styles = StyleSheet.create({
     minWidth: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: "#F97316",
+    backgroundColor: C.accent,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 4,
@@ -184,6 +186,6 @@ const styles = StyleSheet.create({
   badgeText: {
     color: C.white,
     fontSize: 9,
-    fontWeight: "800",
+    fontWeight: "900",
   },
 });

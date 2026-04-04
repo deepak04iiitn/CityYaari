@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
-import { TAB_COLORS } from '../tabs/TabShared';
 
 function SkeletonBox({ style }) {
   const opacity = useRef(new Animated.Value(0.4)).current;
@@ -39,7 +38,7 @@ export default function SearchSkeleton() {
   );
 }
 
-const SKEL = '#E2E8F0';
+const SKEL = '#e7e1da';
 
 const styles = StyleSheet.create({
   container: {
@@ -49,15 +48,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     paddingVertical: 14,
-    paddingHorizontal: 4,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: '#ece7e0',
     gap: 14,
   },
   avatar: {
     width: 52,
     height: 52,
-    borderRadius: 26,
+    borderRadius: 10,
     backgroundColor: SKEL,
     flexShrink: 0,
   },
@@ -79,7 +78,7 @@ const styles = StyleSheet.create({
   badge: {
     height: 18,
     width: 64,
-    borderRadius: 6,
+    borderRadius: 4,
     backgroundColor: SKEL,
   },
   usernameLine: {

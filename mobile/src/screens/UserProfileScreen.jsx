@@ -8,13 +8,12 @@ import {
   Image,
   Pressable,
   StatusBar,
-  Dimensions,
 } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from "react-native-maps";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getUserProfile } from "../services/users/userService";
 import AppTopHeader from "../components/AppTopHeader";
 
@@ -39,28 +38,26 @@ const GENDER_COLOR = { Male: '#3B82F6', Female: '#EC4899', Other: '#8B5CF6' };
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
-  primary:           "#004AC6",
-  onPrimary:         "#FFFFFF",
-  secondary:         "#9D4300",
-  secondaryFixed:    "#FFDBCA",
-  onSecondaryFixed:  "#341100",
-  surfaceLowest:     "#FFFFFF",
-  surfaceLow:        "#F2F4F6",
-  surfaceHigh:       "#E6E8EA",
-  onSurface:         "#191C1E",
-  onSurfaceVariant:  "#434655",
-  outline:           "#737686",
+  primary:           "#004ac6",
+  onPrimary:         "#ffffff",
+  secondary:         "#e8380d",
+  secondaryFixed:    "#fff8e6",
+  onSecondaryFixed:  "#8f6207",
+  surfaceLowest:     "#ffffff",
+  surfaceLow:        "#f5f2ed",
+  surfaceHigh:       "#ede9e2",
+  onSurface:         "#0a0a0a",
+  onSurfaceVariant:  "#888888",
+  outline:           "#e0dbd4",
 };
 
-const AVATAR_SIZE = 116;
-// cover.png is 1200×480 — compute hero height to exactly fit full image width
-const HERO_HEIGHT = Math.round(Dimensions.get('window').width * (480 / 1200));
+const AVATAR_SIZE = 96;
 const CARD_SHADOW = {
-  shadowColor: "#004AC6",
-  shadowOffset: { width: 0, height: 6 },
-  shadowOpacity: 0.07,
-  shadowRadius: 16,
-  elevation: 3,
+  shadowColor: "#0a0a0a",
+  shadowOffset: { width: 3, height: 6 },
+  shadowOpacity: 0.08,
+  shadowRadius: 12,
+  elevation: 5,
 };
 
 // ─── Small reusable sub-components ───────────────────────────────────────────
@@ -68,19 +65,21 @@ const CARD_SHADOW = {
 function StatItem({ value, label }) {
   return (
     <View style={s.statItem}>
-      <Text style={s.statValue}>{value}</Text>
       <Text style={s.statLabel}>{label}</Text>
+      <Text style={s.statValue}>{value}</Text>
     </View>
   );
 }
 
-function BentoCard({ icon, iconColor, label, value, style, labelStyle, valueStyle }) {
+function DetailRow({ icon, label, value, last }) {
   return (
-    <View style={[s.bentoCard, style]}>
-      <MaterialIcons name={icon} size={28} color={iconColor ?? C.primary} />
-      <View>
-        <Text style={[s.bentoLabel, labelStyle]}>{label}</Text>
-        <Text style={[s.bentoValue, valueStyle]}>{value}</Text>
+    <View style={[s.detailRow, !last && s.detailRowBorder]}>
+      <View style={s.detailIconWrap}>
+        <MaterialIcons name={icon} size={16} color={C.primary} />
+      </View>
+      <View style={s.detailBody}>
+        <Text style={s.detailLabel}>{label}</Text>
+        <Text style={s.detailValue}>{value || "Not available"}</Text>
       </View>
     </View>
   );
@@ -297,7 +296,6 @@ export default function UserProfileScreen({ route, navigation }) {
   const currentLabel  = [profile.city, profile.state].filter(Boolean).join(', ');
   const hasHometown    = !!hometownLabel;
   const hasCurrentCity = !!currentLabel;
-  const firstName      = profile.fullName.split(' ')[0];
 
   return (
     <View style={s.screen}>
@@ -309,123 +307,114 @@ export default function UserProfileScreen({ route, navigation }) {
         absolute
       />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 74 }]}
+      >
+        <LinearGradient
+          colors={["#fdfcf9", "#f5f2ed"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={s.heroCard}
+        >
+          <View style={s.heroTop}>
+            <View style={s.memberPill}>
+              <View style={s.memberDot} />
+              <Text style={s.memberText}>CityYaari Member</Text>
+            </View>
+          </View>
 
-        {/* ── Hero banner ── */}
-        <View style={[s.heroWrap, { height: HERO_HEIGHT + insets.top, backgroundColor: '#FAFCFF' }]}>
-          {/* Image sits below the status bar, exactly fits screen width */}
-          <Image
-            source={require("../../assets/cover.png")}
-            style={{ position: 'absolute', top: insets.top, left: 0, right: 0, height: HERO_HEIGHT }}
-            resizeMode="contain"
-          />
-
-          {/* Floating profile picture */}
-          <View style={s.floatingAvatarOuter}>
-            <View style={{ position: 'relative' }}>
-              <View style={s.floatingAvatarBorder}>
-                {profile.profileImageUri ? (
-                  <Image source={{ uri: profile.profileImageUri }} style={s.floatingAvatarImg} />
-                ) : (
-                  <View style={[s.floatingAvatarFallback, { backgroundColor: avatarColor.bg }]}>
-                    <Text style={[s.floatingAvatarInitial, { color: avatarColor.text }]}>
-                      {profile.fullName.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-              </View>
+          <View style={s.profileRow}>
+            <View style={s.avatarWrap}>
+              {profile.profileImageUri ? (
+                <Image source={{ uri: profile.profileImageUri }} style={s.avatarImg} />
+              ) : (
+                <View style={[s.avatarFallback, { backgroundColor: avatarColor.bg }]}>
+                  <Text style={[s.avatarInitial, { color: avatarColor.text }]}>
+                    {profile.fullName.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
               {genderIcon && (
                 <View style={[s.genderBadge, { backgroundColor: genderColor }]}>
                   <MaterialIcons name={genderIcon} size={11} color="#fff" />
                 </View>
               )}
             </View>
-          </View>
-        </View>
 
-        {/* ── Profile detail section ── */}
-        <View style={s.profileSection}>
-          <View style={s.nameRow}>
             <View style={s.nameBlock}>
               <Text style={s.heroName}>{profile.fullName}</Text>
               <Text style={s.heroHandle}>@{profile.username}</Text>
-            </View>
-            <View style={s.actionButtons}>
-              <Pressable style={s.connectBtn}>
-                <Text style={s.connectBtnText}>Connect</Text>
-              </Pressable>
-              <Pressable style={s.messageBtn}>
-                <Text style={s.messageBtnText}>Message</Text>
-              </Pressable>
+              <View style={s.nameAccent} />
             </View>
           </View>
 
+          <View style={s.heroActions}>
+            <Pressable style={s.connectBtn}>
+              <Text style={s.connectBtnText}>Connect</Text>
+            </Pressable>
+            <Pressable style={s.messageBtn}>
+              <Text style={s.messageBtnText}>Message</Text>
+            </Pressable>
+          </View>
+
+          <View style={s.metaChips}>
+            <View style={s.metaChip}>
+              <MaterialIcons name="work" size={14} color={C.primary} />
+              <Text style={s.metaChipText}>{occupation}</Text>
+            </View>
+            {hasCurrentCity ? (
+              <View style={[s.metaChip, s.metaChipAlt]}>
+                <MaterialIcons name="location-on" size={14} color={C.onSecondaryFixed} />
+                <Text style={[s.metaChipText, { color: C.onSecondaryFixed }]} numberOfLines={1}>
+                  {currentLabel}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        </LinearGradient>
+
+        <View style={s.profileSection}>
           {!!profile.bio && (
-            <View style={s.bioSection}>
+            <View style={s.sectionCard}>
               <Text style={s.bioLabel}>BIO</Text>
               <Text style={s.bioText}>{profile.bio}</Text>
             </View>
           )}
 
-          <View style={s.statsBar}>
-            <StatItem value={profile.connectionsCount ?? '—'} label="Connections" />
-            <View style={s.statDivider} />
-            <StatItem value={profile.postsCount ?? '—'} label="Posts" />
-            <View style={s.statDivider} />
-            <StatItem value={profile.yaariCount ?? '—'} label="Yaaris" />
+          <View style={s.statsRow}>
+            <StatItem value={profile.postsCount ?? "—"} label="Posts" />
+            <StatItem value={profile.yaariCount ?? "—"} label="Yaaris" />
           </View>
 
-          <View style={s.bentoGrid}>
-            <View style={s.bentoRow}>
-              <BentoCard icon="work" iconColor={C.primary} label="OCCUPATION" value={occupationDetail} style={{ flex: 1, backgroundColor: C.surfaceLowest }} />
-              {hasHometown && (
-                <View style={[s.bentoCard, { flex: 1, backgroundColor: C.secondaryFixed }]}>
-                  <MaterialIcons name="location-city" size={28} color={C.onSecondaryFixed} />
-                  <View>
-                    <Text style={[s.bentoLabel, { color: C.onSecondaryFixed, opacity: 0.7 }]}>HOMETOWN</Text>
-                    <Text style={[s.bentoValue, { color: C.onSecondaryFixed }]}>{hometownLabel}</Text>
-                  </View>
-                </View>
-              )}
+          <View style={s.sectionCard}>
+            <View style={s.sectionHeader}>
+              <Text style={s.sectionTitle}>Profile Details</Text>
             </View>
-
-            {(hasCurrentCity || !!profile.gender) && (
-              <View style={s.bentoRow}>
-                {hasCurrentCity && (
-                  <BentoCard icon="near-me" iconColor={C.primary} label="CURRENT LOCATION" value={currentLabel} style={{ flex: 1, backgroundColor: C.surfaceLowest }} />
-                )}
-                {!!profile.gender && (
-                  <BentoCard icon={genderIcon ?? 'person'} iconColor={C.primary} label="GENDER" value={profile.gender} style={{ flex: 1, backgroundColor: C.surfaceLowest }} />
-                )}
-              </View>
-            )}
-
-            {hasHometown && (
-              <LinearGradient
-                colors={['#004AC6', '#2563EB']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[s.bentoCard, s.featuredCard]}
-              >
-                <View style={s.featuredText}>
-                  <Text style={s.featuredTitle}>Same Hometown!</Text>
-                  <Text style={s.featuredSubtitle}>
-                    {firstName} is also from {profile.hometownCity || profile.hometownState}.
-                    Connect and explore your roots together!
-                  </Text>
-                </View>
-                <MaterialIcons name="people" size={52} color="rgba(255,255,255,0.35)" />
-              </LinearGradient>
-            )}
+            <DetailRow icon="work-outline" label="Occupation" value={occupationDetail} />
+            <DetailRow icon="person-outline" label="Gender" value={profile.gender || "Not specified"} />
+            <DetailRow icon="home" label="Hometown" value={hometownLabel || "Not set"} />
+            <DetailRow
+              icon="location-city"
+              label="Current Location"
+              value={currentLabel || "Not set"}
+              last
+            />
           </View>
 
           {(hasHometown || hasCurrentCity) && (
-            <JourneyMap
-              hometownCity={profile.hometownCity}
-              hometownState={profile.hometownState}
-              currentCity={profile.city}
-              currentState={profile.state}
-            />
+            <View style={s.sectionCard}>
+              <View style={s.sectionHeader}>
+                <Text style={s.sectionTitle}>Journey Map</Text>
+                <Text style={s.sectionMeta}>From hometown to current city</Text>
+              </View>
+              <JourneyMap
+                hometownCity={profile.hometownCity}
+                hometownState={profile.hometownState}
+                currentCity={profile.city}
+                currentState={profile.state}
+              />
+            </View>
           )}
         </View>
       </ScrollView>
@@ -435,54 +424,88 @@ export default function UserProfileScreen({ route, navigation }) {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  screen:      { flex: 1, backgroundColor: '#F7F9FB' },
+  screen:      { flex: 1, backgroundColor: C.surfaceLow },
   center:      { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { fontSize: 14, color: C.outline, fontWeight: '500' },
-  errorText:   { fontSize: 16, color: C.outline, fontWeight: '600' },
-  scroll:      { paddingBottom: 120 },
+  loadingText: { fontSize: 14, color: C.onSurfaceVariant, fontWeight: '600' },
+  errorText:   { fontSize: 16, color: C.onSurfaceVariant, fontWeight: '700' },
+  scroll:      { paddingHorizontal: 20, paddingBottom: 120, gap: 16 },
 
-  // ── Hero ──
-  heroWrap: {
-    position: 'relative',
-  },
-
-  // Floating avatar
-  floatingAvatarOuter: {
-    position: 'absolute',
-    bottom: -(AVATAR_SIZE / 2 + 5),
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
-  floatingAvatarBorder: {
-    padding: 6,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 30,
+  heroCard: {
+    marginTop: 10,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: C.outline,
+    backgroundColor: C.surfaceLowest,
+    padding: 16,
+    gap: 14,
     ...CARD_SHADOW,
   },
-  floatingAvatarImg: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: 24,
+  heroTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  floatingAvatarFallback: {
+  memberPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1.2,
+    borderColor: C.secondary,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  memberDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: C.secondary,
+  },
+  memberText: {
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1,
+    color: C.secondary,
+    textTransform: "uppercase",
+  },
+  profileRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  avatarWrap: {
+    position: "relative",
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
-    borderRadius: 24,
+    borderRadius: 16,
+    padding: 3,
+    borderWidth: 2,
+    borderColor: C.primary,
+    backgroundColor: "#d7e3ff",
+  },
+  avatarImg: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: 12,
+  },
+  avatarFallback: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  floatingAvatarInitial: {
-    fontSize: 44,
-    fontWeight: '800',
+  avatarInitial: {
+    fontSize: 40,
+    fontWeight: '900',
   },
   genderBadge: {
     position: 'absolute',
-    bottom: 4,
-    right: 4,
+    bottom: -5,
+    right: -5,
     width: 24,
     height: 24,
-    borderRadius: 8,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2.5,
@@ -491,82 +514,157 @@ const s = StyleSheet.create({
 
   // ── Profile section ──
   profileSection: {
-    marginTop: AVATAR_SIZE / 2 + 18,
-    paddingHorizontal: 20,
-    gap: 28,
+    gap: 18,
   },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: 10,
-    flexWrap: 'wrap',
+  nameBlock:  { flex: 1, gap: 3 },
+  heroName:   { fontSize: 24, fontWeight: '900', color: C.onSurface, letterSpacing: -0.5 },
+  heroHandle: { fontSize: 13, fontWeight: '700', color: C.onSurfaceVariant },
+  nameAccent: {
+    width: 32,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: C.secondary,
+    marginTop: 6,
   },
-  nameBlock:  { flex: 1, gap: 4 },
-  heroName:   { fontSize: 26, fontWeight: '800', color: C.onSurface, letterSpacing: -0.5 },
-  heroHandle: { fontSize: 15, fontWeight: '500', color: C.onSurfaceVariant },
-  actionButtons: { flexDirection: 'row', gap: 10 },
+  heroActions: { flexDirection: 'row', gap: 10 },
   connectBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 11,
+    flex: 1,
+    paddingVertical: 10,
     backgroundColor: C.primary,
-    borderRadius: 14,
-    shadowColor: C.primary,
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.30,
-    shadowRadius: 10,
-    elevation: 5,
+    borderRadius: 8,
+    alignItems: "center",
   },
-  connectBtnText:  { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
+  connectBtnText:  { color: '#FFFFFF', fontWeight: '900', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' },
   messageBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 11,
+    flex: 1,
+    paddingVertical: 10,
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: 'rgba(0,74,198,0.20)',
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: C.outline,
+    alignItems: "center",
   },
-  messageBtnText: { color: C.primary, fontWeight: '800', fontSize: 13 },
+  messageBtnText: { color: C.onSurface, fontWeight: '900', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' },
+  metaChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  metaChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#eef2ff",
+    borderWidth: 1,
+    borderColor: "#c9d8ff",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    maxWidth: "100%",
+  },
+  metaChipAlt: {
+    backgroundColor: C.secondaryFixed,
+    borderColor: "#f0da9e",
+  },
+  metaChipText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: C.primary,
+  },
 
   // ── Bio ──
-  bioSection: {
-    marginVertical: 4,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: 'rgba(0,74,198,0.03)',
+  sectionCard: {
+    backgroundColor: C.surfaceLowest,
     borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: C.outline,
+    padding: 14,
+    ...CARD_SHADOW,
+  },
+  bioLabel: { fontSize: 9, fontWeight: '900', letterSpacing: 1.5, color: C.onSurfaceVariant },
+  bioText:  { fontSize: 14, lineHeight: 22, color: C.onSurface, fontWeight: '500', fontStyle: 'italic', marginTop: 6 },
+
+  // ── Stats ──
+  statsRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  statItem: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: C.outline,
+    backgroundColor: C.surfaceLowest,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignItems: "center",
     gap: 4,
+    ...CARD_SHADOW,
   },
-  bioLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 1.5, color: C.primary, opacity: 0.6 },
-  bioText:  { fontSize: 15, lineHeight: 22, color: C.onSurface, fontWeight: '500', fontStyle: 'italic' },
+  statValue:   { fontSize: 22, fontWeight: '900', color: C.onSurface },
+  statLabel:   { fontSize: 10, fontWeight: '900', color: C.onSurfaceVariant, textTransform: 'uppercase', letterSpacing: 1.1 },
 
-  // ── Stats bar ──
-  statsBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 20,
-    borderTopWidth: 1,
+  // ── Detail Rows ──
+  sectionHeader: {
+    marginBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: C.onSurface,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+  },
+  sectionMeta: {
+    marginTop: 4,
+    fontSize: 12,
+    color: C.onSurfaceVariant,
+    fontWeight: "600",
+  },
+  detailRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingVertical: 11,
+  },
+  detailRowBorder: {
     borderBottomWidth: 1,
-    borderColor: 'rgba(195,198,215,0.35)',
+    borderBottomColor: "#ece7e0",
   },
-  statItem:    { flex: 1, alignItems: 'center', gap: 3 },
-  statValue:   { fontSize: 22, fontWeight: '800', color: C.onSurface },
-  statLabel:   { fontSize: 12, fontWeight: '600', color: C.onSurfaceVariant },
-  statDivider: { width: 1, height: 34, backgroundColor: 'rgba(195,198,215,0.5)' },
-
-  // ── Bento grid ──
-  bentoGrid: { gap: 12 },
-  bentoRow:  { flexDirection: 'row', gap: 12 },
-  bentoCard: { borderRadius: 16, padding: 18, gap: 10, ...CARD_SHADOW },
-  bentoLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.9, color: C.outline },
-  bentoValue: { fontSize: 15, fontWeight: '700', color: C.onSurface, marginTop: 2 },
-  featuredCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  featuredText:    { flex: 1, gap: 6 },
-  featuredTitle:   { fontSize: 19, fontWeight: '800', color: '#FFFFFF' },
-  featuredSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.88)', lineHeight: 19 },
+  detailIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: "#eef2ff",
+    borderWidth: 1,
+    borderColor: "#c9d8ff",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  detailBody: { flex: 1 },
+  detailLabel: {
+    fontSize: 9,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    color: C.onSurfaceVariant,
+    marginBottom: 3,
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: C.onSurface,
+    lineHeight: 20,
+  },
 
   // ── Map ──
-  mapCard: { height: 260, borderRadius: 24, overflow: 'hidden', ...CARD_SHADOW },
+  mapCard: {
+    height: 220,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: "#d8d8d8",
+  },
   mapLoading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.surfaceLow },
   mapFallback: { flex: 1, backgroundColor: C.surfaceLow },
   fallbackImage: { ...StyleSheet.absoluteFillObject, opacity: 0.6 },
@@ -577,10 +675,10 @@ const s = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 14,
-    borderRadius: 20,
+    borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.85)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderColor: C.outline,
     ...CARD_SHADOW,
   },
   badgeCity: { gap: 2, alignItems: 'center', maxWidth: 100 },

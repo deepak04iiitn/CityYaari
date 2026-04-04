@@ -1,7 +1,15 @@
 import React, { useState, useRef } from 'react';
 import { View, TextInput, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { TAB_COLORS } from '../tabs/TabShared';
+
+const C = {
+  ink: "#0a0a0a",
+  muted: "#888888",
+  border: "#e0dbd4",
+  bg: "#f8f6f2",
+  blue: "#004ac6",
+  white: "#ffffff",
+};
 
 export default function SearchInput({ value, onChangeText, isSearching, placeholder }) {
   const [focused, setFocused] = useState(false);
@@ -15,13 +23,13 @@ export default function SearchInput({ value, onChangeText, isSearching, placehol
       <MaterialIcons
         name="search"
         size={22}
-        color={focused ? TAB_COLORS.blue : TAB_COLORS.inkFaint}
+        color={focused ? C.blue : C.muted}
       />
       <TextInput
         ref={inputRef}
         style={styles.input}
         placeholder={placeholder || "Search by name or @handle..."}
-        placeholderTextColor={TAB_COLORS.inkFaint}
+        placeholderTextColor={C.muted}
         value={value}
         onChangeText={onChangeText}
         onFocus={() => setFocused(true)}
@@ -36,7 +44,7 @@ export default function SearchInput({ value, onChangeText, isSearching, placehol
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           style={styles.clearBtn}
         >
-          <MaterialIcons name="close" size={20} color={TAB_COLORS.inkFaint} />
+          <MaterialIcons name="close" size={20} color={C.muted} />
         </TouchableOpacity>
       )}
     </Pressable>
@@ -45,37 +53,32 @@ export default function SearchInput({ value, onChangeText, isSearching, placehol
 
 const styles = StyleSheet.create({
   container: {
-    height: 54,
-    borderRadius: 18,
-    backgroundColor: '#F7FAFF',
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: C.bg,
     borderWidth: 1.5,
-    borderColor: 'rgba(226, 232, 240, 0.6)',
+    borderColor: C.border,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   containerFocused: {
-    borderColor: TAB_COLORS.blue,
-    backgroundColor: '#FFFFFF',
-    shadowColor: TAB_COLORS.blue,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 2,
+    borderColor: C.blue,
+    backgroundColor: C.white,
   },
   input: {
     flex: 1,
-    fontSize: 15,
-    color: TAB_COLORS.ink,
-    fontWeight: '500',
+    fontSize: 14,
+    color: C.ink,
+    fontWeight: '600',
     height: '100%',
   },
   clearBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(148, 163, 184, 0.1)',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#f0ece5',
     alignItems: 'center',
     justifyContent: 'center',
   },

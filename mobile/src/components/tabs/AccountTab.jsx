@@ -3,12 +3,14 @@ import {
   Alert,
   Animated,
   Image,
+  LayoutAnimation,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  UIManager,
   View,
   Platform,
 } from "react-native";
@@ -18,40 +20,39 @@ import { GetCity, GetCountries, GetState } from "react-country-state-city";
 import { useAuth } from "../../store/AuthContext";
 import { ScreenShell } from "./TabShared";
 
-// ─── Design Tokens ── Beige BG · White cards · Rich Blue · Gold touches ──────
+// ─── Design Tokens ── aligned with HomeTab visual language ───────────────────
 const T = {
-  // Beige — ONLY the page/screen background
-  bg:          "#F2EBE0",        // warm beige screen background
-  bgDeep:      "#EAE0D4",        // pressed states only
+  // Home-inspired base
+  bg:          "#f5f2ed",
+  bgDeep:      "#ede9e2",
 
-  // Cards & Surfaces — clean white so blue/gold pop
-  surface:     "#FFFFFF",        // card surface
-  surfaceAlt:  "#F8FBFD",        // sheet / modal surface (very faint blue tint)
+  // Surfaces
+  surface:     "#ffffff",
+  surfaceAlt:  "#f8f6f2",
 
-  // Ink / Text — neutral charcoal (not brown)
-  ink:         "#1A2333",        // deep neutral dark
-  inkMid:      "#3A4A5C",        // mid tone
-  soft:        "#6B7A8D",        // muted
-  mute:        "#A0AEBB",        // placeholder / disabled
+  // Typography
+  ink:         "#0a0a0a",
+  inkMid:      "#3d3d3d",
+  soft:        "#888888",
+  mute:        "#a6a6a6",
 
-  // Borders & Lines — cooler, less warm
-  line:        "#D8E4EE",        // cool-neutral border
-  lineLight:   "#E8F0F7",        // very subtle separator
+  // Borders
+  line:        "#e0dbd4",
+  lineLight:   "#ece7e0",
 
-  // Light Blue — MORE presence now
-  blue:        "#3A8FB5",        // primary blue (richer)
-  blueMid:     "#4DADD4",        // mid blue
-  blueLight:   "#72C3E0",        // light blue
-  bluePale:    "#C8E8F5",        // pale blue tint (used more)
-  blueGhost:   "#E8F5FC",        // ghost blue backgrounds (used more)
-  blueDark:    "#1F6A8A",        // deep blue for accents
+  // Accent family from HomeTab
+  blue:        "#004ac6",
+  blueMid:     "#2b66cd",
+  blueLight:   "#c7d8ff",
+  bluePale:    "#eef2ff",
+  blueGhost:   "#f3f6ff",
+  blueDark:    "#003996",
 
-  // Gold — MORE presence now
-  gold:        "#D4A832",        // richer gold
-  goldDeep:    "#B08A20",        // deep gold for text
-  goldPale:    "#F5E8B0",        // pale gold tint (used more)
-  goldGhost:   "#FDF7E0",        // ghost gold backgrounds
-  goldBorder:  "#E8D080",        // gold border
+  gold:        "#c9890a",
+  goldDeep:    "#8f6207",
+  goldPale:    "#fff4cf",
+  goldGhost:   "#fff8e6",
+  goldBorder:  "#f0da9e",
 
   // Utility
   white:       "#FFFFFF",
@@ -62,6 +63,13 @@ const T = {
 };
 
 const OTHER = { id: -1, name: "Other", isOther: true };
+
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 // ─── Tiny helpers ──────────────────────────────────────────────────────────
 function useFade(trigger) {
@@ -260,18 +268,48 @@ function ActionRow({ icon, label, sublabel, onPress, danger, last }) {
 }
 
 // ─── Section Card ──────────────────────────────────────────────────────────
-function SectionCard({ title, badge, children, style }) {
+function SectionCard({
+  title,
+  badge,
+  children,
+  style,
+  collapsible = false,
+  expanded = true,
+  onToggle,
+  preview,
+}) {
   return (
     <View style={[st.sectionCard, style]}>
-      <View style={st.sectionHead}>
-        <Text style={st.sectionTitle}>{title}</Text>
-        {badge ? (
-          <View style={st.sectionBadge}>
-            <Text style={st.sectionBadgeText}>{badge}</Text>
-          </View>
+      <Pressable
+        onPress={collapsible ? onToggle : undefined}
+        disabled={!collapsible}
+        style={({ pressed }) => [
+          st.sectionHead,
+          collapsible && st.sectionHeadPressable,
+          collapsible && pressed && { opacity: 0.78 },
+        ]}
+      >
+        <View style={st.sectionHeadLeft}>
+          <Text style={st.sectionTitle}>{title}</Text>
+          {badge ? (
+            <View style={st.sectionBadge}>
+              <Text style={st.sectionBadgeText}>{badge}</Text>
+            </View>
+          ) : null}
+        </View>
+        {collapsible ? (
+          <MaterialIcons
+            name={expanded ? "expand-less" : "expand-more"}
+            size={22}
+            color={T.soft}
+          />
         ) : null}
-      </View>
-      {children}
+      </Pressable>
+      {collapsible && !expanded ? (
+        <Text style={st.sectionPreviewText}>{preview || "Tap to view details"}</Text>
+      ) : (
+        children
+      )}
     </View>
   );
 }
@@ -327,6 +365,11 @@ export default function AccountTab({ navigation }) {
   });
   const [deletePwd, setDeletePwd] = useState("");
   const [deletePasswordVisible, setDeletePasswordVisible] = useState(false);
+  const [expandedSections, setExpandedSections] = useState({
+    personal: false,
+    location: false,
+    security: false,
+  });
 
   useEffect(() => {
     GetCountries()
@@ -541,9 +584,30 @@ export default function AccountTab({ navigation }) {
   const isProfileComplete = user?.hometownCountry && user?.country && user?.organization && user?.bio;
   const hometownStr = [user?.hometownCity, user?.hometownState, user?.hometownCountry].filter(Boolean).join(", ") || "Not set";
   const locationStr = [user?.city, user?.state, user?.country].filter(Boolean).join(", ") || "Not set";
+  const toggleSection = (key) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   return (
-    <ScreenShell navigation={navigation} routeName="Account">
+    <ScreenShell
+      navigation={navigation}
+      routeName="Account"
+      noPadding
+      background={T.bg}
+      contentContainerStyle={st.screenContent}
+    >
+      <View style={st.masthead}>
+        <View style={st.liveChip}>
+          <View style={st.liveDot} />
+          <Text style={st.liveLabel}>YOUR ACCOUNT</Text>
+        </View>
+        <Text style={st.heroTitle}>
+          <Text style={st.heroTitleLight}>Manage</Text>
+          {"\n"}
+          Your Profile<Text style={{ color: T.coral }}>.</Text>
+        </Text>
+      </View>
 
       {/* ── Hero Card ─────────────────────────────────────────────────── */}
       <View style={st.heroCard}>
@@ -610,7 +674,14 @@ export default function AccountTab({ navigation }) {
       </View>
 
       {/* ── Personal Info ───────────────────────────────────────────────── */}
-      <SectionCard title="Personal Information" badge="Individual">
+      <SectionCard
+        title="Personal Information"
+        badge="Individual"
+        collapsible
+        expanded={expandedSections.personal}
+        onToggle={() => toggleSection("personal")}
+        preview={`${user?.fullName || "No name"} · ${user?.email || "No email"}`}
+      >
         <InfoRow icon="person" label="Full Name" value={user?.fullName} />
         <InfoRow icon="alternate-email" label="Username" value={user?.username ? `@${user.username}` : null} />
         <InfoRow icon="mail-outline" label="Email" value={user?.email} />
@@ -620,13 +691,27 @@ export default function AccountTab({ navigation }) {
       </SectionCard>
 
       {/* ── Location Details ────────────────────────────────────────────── */}
-      <SectionCard title="Location Details" badge="Proximity">
+      <SectionCard
+        title="Location Details"
+        badge="Proximity"
+        collapsible
+        expanded={expandedSections.location}
+        onToggle={() => toggleSection("location")}
+        preview={locationStr}
+      >
         <InfoRow icon="home" label="Hometown" value={hometownStr} />
         <InfoRow icon="location-on" label="Current Location" value={locationStr} last />
       </SectionCard>
 
       {/* ── Security ──────────────────────────────────────────────────────── */}
-      <SectionCard title="Security" badge="Protected">
+      <SectionCard
+        title="Security"
+        badge="Protected"
+        collapsible
+        expanded={expandedSections.security}
+        onToggle={() => toggleSection("security")}
+        preview={user?.securityQuestion ? "Security question configured" : "Not configured"}
+      >
         <InfoRow
           icon="help-outline"
           label="Security Question"
@@ -936,31 +1021,83 @@ export default function AccountTab({ navigation }) {
 
 // ─── Styles ───────────────────────────────────────────────────────────────
 const st = StyleSheet.create({
+  screenContent: {
+    paddingHorizontal: 0,
+    paddingBottom: 140,
+    gap: 16,
+    backgroundColor: T.bg,
+  },
+  masthead: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 22,
+    borderBottomWidth: 2,
+    borderBottomColor: T.ink,
+    marginBottom: 4,
+  },
+  liveChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: T.coral,
+    borderRadius: 100,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    alignSelf: "flex-start",
+    marginBottom: 14,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: T.coral,
+  },
+  liveLabel: {
+    fontSize: 9,
+    fontWeight: "900",
+    color: T.coral,
+    letterSpacing: 1.4,
+  },
+  heroTitle: {
+    fontSize: 46,
+    fontWeight: "900",
+    color: T.ink,
+    lineHeight: 52,
+    letterSpacing: -1.8,
+  },
+  heroTitleLight: {
+    fontWeight: "300",
+    fontStyle: "italic",
+    fontSize: 38,
+    letterSpacing: -1,
+  },
 
   // ── Hero Card ──────────────────────────────────────────────────────────
   heroCard: {
     backgroundColor: T.surface,
-    borderRadius: 24,
-    borderWidth: 1,
+    borderRadius: 16,
+    borderWidth: 1.5,
     borderColor: T.line,
-    paddingTop: 0,           // top bar handles top spacing
+    paddingTop: 0,
     paddingBottom: 22,
     paddingHorizontal: 20,
     gap: 14,
     overflow: "hidden",
-    shadowColor: "#3A8FB5",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 14,
-    elevation: 3,
+    marginHorizontal: 20,
+    shadowColor: T.ink,
+    shadowOffset: { width: 3, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 5,
   },
   heroTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: T.blueGhost,
+    backgroundColor: T.surfaceAlt,
     borderBottomWidth: 1,
-    borderBottomColor: T.bluePale,
+    borderBottomColor: T.line,
     marginHorizontal: -20,
     paddingHorizontal: 20,
     paddingVertical: 12,
@@ -973,7 +1110,7 @@ const st = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     backgroundColor: T.goldGhost,
-    borderWidth: 1,
+    borderWidth: 1.2,
     borderColor: T.goldBorder,
     paddingHorizontal: 11,
     paddingVertical: 5,
@@ -986,10 +1123,11 @@ const st = StyleSheet.create({
     backgroundColor: T.gold,
   },
   memberText: {
-    fontSize: 11,
-    fontWeight: "700",
+    fontSize: 10,
+    fontWeight: "900",
     color: T.goldDeep,
-    letterSpacing: 0.6,
+    letterSpacing: 1,
+    textTransform: "uppercase",
   },
 
   // Edit button (blue)
@@ -998,11 +1136,11 @@ const st = StyleSheet.create({
     alignItems: "center",
     gap: 5,
     backgroundColor: T.blue,
-    paddingHorizontal: 13,
-    paddingVertical: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 999,
   },
-  heroEditText: { fontSize: 12, fontWeight: "700", color: T.white },
+  heroEditText: { fontSize: 11, fontWeight: "900", color: T.white, letterSpacing: 1 },
 
   // Avatar + name horizontal layout
   heroCenter: {
@@ -1051,10 +1189,10 @@ const st = StyleSheet.create({
 
   heroNameBlock: { flex: 1 },
   heroName: {
-    fontSize: 20,
-    fontWeight: "800",
+    fontSize: 22,
+    fontWeight: "900",
     color: T.ink,
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
   },
   heroHandle: {
     fontSize: 13,
@@ -1090,31 +1228,41 @@ const st = StyleSheet.create({
   // ── Section Card ────────────────────────────────────────────────────────
   sectionCard: {
     backgroundColor: T.surface,
-    borderRadius: 20,
-    borderWidth: 1,
+    borderRadius: 14,
+    borderWidth: 1.5,
     borderColor: T.line,
     overflow: "hidden",
-    shadowColor: "#3A8FB5",
-    shadowOffset: { width: 0, height: 2 },
+    marginHorizontal: 20,
+    shadowColor: T.ink,
+    shadowOffset: { width: 2, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 10,
-    elevation: 2,
+    elevation: 4,
   },
   sectionHead: {
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: T.lineLight,
+    backgroundColor: T.surfaceAlt,
+  },
+  sectionHeadPressable: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 18,
-    paddingTop: 16,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: T.lineLight,
+  },
+  sectionHeadLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 1,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: "800",
+    fontSize: 12,
+    fontWeight: "900",
     color: T.ink,
-    letterSpacing: 0.1,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
   },
   sectionBadge: {
     backgroundColor: T.goldGhost,
@@ -1125,10 +1273,18 @@ const st = StyleSheet.create({
     borderRadius: 999,
   },
   sectionBadgeText: {
-    fontSize: 10,
-    fontWeight: "800",
+    fontSize: 9,
+    fontWeight: "900",
     color: T.goldDeep,
-    letterSpacing: 0.5,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  sectionPreviewText: {
+    fontSize: 13,
+    color: T.soft,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    fontWeight: "600",
   },
 
   // ── Info Row ────────────────────────────────────────────────────────────
@@ -1136,7 +1292,7 @@ const st = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     paddingHorizontal: 18,
-    paddingVertical: 13,
+    paddingVertical: 12,
     gap: 12,
   },
   infoRowBorder: {
@@ -1156,15 +1312,15 @@ const st = StyleSheet.create({
   },
   infoBody: { flex: 1 },
   infoLabel: {
-    fontSize: 10,
-    fontWeight: "700",
+    fontSize: 9,
+    fontWeight: "900",
     color: T.mute,
     textTransform: "uppercase",
-    letterSpacing: 0.9,
+    letterSpacing: 1.2,
     marginBottom: 3,
   },
   infoValue: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
     color: T.ink,
     lineHeight: 21,
@@ -1175,7 +1331,7 @@ const st = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingVertical: 13,
     gap: 13,
   },
   actionRowBorder: { borderBottomWidth: 1, borderBottomColor: T.lineLight },
@@ -1202,8 +1358,9 @@ const st = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     gap: 6,
-    paddingVertical: 6,
+    paddingVertical: 2,
     paddingBottom: 24,
+    marginHorizontal: 20,
   },
   appInfoText: { fontSize: 11, color: T.mute },
   appInfoDot: { fontSize: 11, color: T.line },

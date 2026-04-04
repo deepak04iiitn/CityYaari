@@ -1,14 +1,21 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { TAB_COLORS } from '../tabs/TabShared';
+
+const C = {
+  ink: "#0a0a0a",
+  muted: "#888888",
+  blue: "#004ac6",
+  border: "#e0dbd4",
+  goldGhost: "#fff8e6",
+};
 
 export default function SearchEmptyState({ query }) {
   if (!query) {
     return (
       <View style={styles.container}>
         <View style={styles.iconWrap}>
-          <MaterialIcons name="person-search" size={32} color={TAB_COLORS.blue} />
+          <MaterialIcons name="person-search" size={32} color={C.blue} />
         </View>
         <Text style={styles.title}>Find People Near You</Text>
         <Text style={styles.subtitle}>
@@ -29,7 +36,7 @@ export default function SearchEmptyState({ query }) {
   return (
     <View style={styles.container}>
       <View style={[styles.iconWrap, styles.iconWrapMuted]}>
-        <MaterialIcons name="search-off" size={32} color={TAB_COLORS.inkFaint} />
+        <MaterialIcons name="search-off" size={32} color={C.muted} />
       </View>
       <Text style={styles.title}>No Results Found</Text>
       <Text style={styles.subtitle}>
@@ -51,34 +58,34 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 20,
-    backgroundColor: TAB_COLORS.blueXLight,
+    backgroundColor: C.goldGhost,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 22,
   },
   iconWrapMuted: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E2E8F0',
+    backgroundColor: '#f8f6f2',
+    borderWidth: 1.2,
+    borderColor: C.border,
   },
   title: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: TAB_COLORS.ink,
+    fontSize: 18,
+    fontWeight: '900',
+    color: C.ink,
     letterSpacing: -0.4,
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 13,
-    color: TAB_COLORS.inkFaint,
+    color: C.muted,
     textAlign: 'center',
     lineHeight: 20,
     maxWidth: 220,
   },
   queryHighlight: {
-    color: TAB_COLORS.ink,
-    fontWeight: '600',
+    color: C.ink,
+    fontWeight: '800',
   },
   hints: {
     marginTop: 28,
@@ -89,10 +96,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#F8FAFC',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
+    backgroundColor: '#f8f6f2',
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 10,
     paddingVertical: 11,
     paddingHorizontal: 14,
   },
@@ -100,12 +107,12 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: TAB_COLORS.blue,
+    backgroundColor: C.blue,
     flexShrink: 0,
   },
   hintText: {
     fontSize: 13,
-    color: TAB_COLORS.inkFaint,
-    fontWeight: '500',
+    color: C.muted,
+    fontWeight: '600',
   },
 });

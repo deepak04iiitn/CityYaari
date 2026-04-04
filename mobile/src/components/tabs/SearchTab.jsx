@@ -3,9 +3,9 @@ import {
   FlatList,
   Image,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
   ActivityIndicator,
 } from "react-native";
@@ -14,24 +14,25 @@ import { ScreenShell } from "./TabShared";
 import SearchResultItem from "../search/SearchResultItem";
 import SearchSkeleton from "../search/SearchSkeleton";
 import SearchInput from "../search/SearchInput";
+import SearchEmptyState from "../search/SearchEmptyState";
 import { searchUsers } from "../../services/users/userService";
 
-// ─── Design tokens (matching the HTML colour palette) ────────────────────────
+// ─── Design tokens aligned with HomeTab ───────────────────────────────────────
 const C = {
-  primary:                "#004AC6",
-  onPrimary:              "#FFFFFF",
-  secondary:              "#9D4300",
-  secondaryContainer:     "#FD761A",
-  onSecondaryContainer:   "#5C2400",
-  secondaryFixed:         "#FFDBCA",
-  onSecondaryFixed:       "#341100",
-  surfaceLowest:          "#FFFFFF",
-  surfaceLow:             "#F2F4F6",
-  surfaceHigh:            "#E6E8EA",
-  onSurface:              "#191C1E",
-  onSurfaceVariant:       "#434655",
-  outline:                "#737686",
-  cardShadow:             "rgba(0,74,198,0.08)",
+  primary:                "#004ac6",
+  onPrimary:              "#ffffff",
+  secondary:              "#e8380d",
+  secondaryContainer:     "#fff0ed",
+  onSecondaryContainer:   "#a13211",
+  secondaryFixed:         "#fff8e6",
+  onSecondaryFixed:       "#8f6207",
+  surfaceLowest:          "#ffffff",
+  surfaceLow:             "#f8f6f2",
+  surfaceHigh:            "#ede9e2",
+  onSurface:              "#0a0a0a",
+  onSurfaceVariant:       "#888888",
+  outline:                "#e0dbd4",
+  cardShadow:             "#0a0a0a",
 };
 
 // ─── Remote portrait URLs (from the original HTML design) ────────────────────
@@ -103,59 +104,64 @@ function SuggestionCard({ avatar, name, handle, hometown, currentCity, primaryAc
 function DiscoverView() {
   return (
     <>
-      {/* ── Trending Yaaris ── */}
       <View style={s.sectionHeader}>
-        <Text style={s.sectionTitle}>Trending Yaaris</Text>
+        <Text style={s.sectionLabel}>TRENDING YAARIS</Text>
         <Pressable>
-          <Text style={s.viewAllBtn}>View all</Text>
+          <Text style={s.viewAllBtn}>See all -></Text>
         </Pressable>
       </View>
-
-      {/* Grid row A: tall portrait  |  community card + meera card */}
-      <View style={s.gridRowA}>
-        {/* Card 1 — Ishaan Malik, tall portrait */}
-        <View style={[s.card, s.cardTall, { backgroundColor: C.surfaceLowest }]}>
-          <Image source={{ uri: IMG.ishaan }} style={s.portraitImg} resizeMode="cover" />
-          <View style={s.portraitMeta}>
-            <Text style={s.portraitName}>Ishaan Malik</Text>
-            <View style={s.hometownBadge}>
-              <Text style={s.hometownBadgeText}>FROM LUCKNOW</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={s.railRow}
+      >
+        <Pressable style={[s.railCard, s.railCardLarge]}>
+          <Image source={{ uri: IMG.ishaan }} style={s.railCardImage} resizeMode="cover" />
+          <View style={s.railCardBody}>
+            <Text style={s.railCardTitle}>Ishaan Malik</Text>
+            <Text style={s.railCardMeta}>Lucknow -> Bengaluru</Text>
+            <View style={s.railBadge}>
+              <Text style={s.railBadgeText}>TOP CONNECTOR</Text>
             </View>
           </View>
-        </View>
+        </Pressable>
 
-        {/* Right column */}
-        <View style={s.gridRightCol}>
-          {/* Card 2 — Join Jaipur community (blue) */}
-          <View style={[s.card, s.communityCard, { backgroundColor: C.primary }]}>
-            <MaterialIcons name="people" size={34} color="rgba(255,255,255,0.45)" />
-            <Text style={s.communityCardTitle}>Join the Jaipur Community</Text>
-            <Text style={s.communityCardMeta}>1.2k Yaaris active now</Text>
+        <Pressable style={s.railCard}>
+          <Image source={{ uri: IMG.meera }} style={s.railCardImage} resizeMode="cover" />
+          <View style={s.railCardBody}>
+            <Text style={s.railCardTitle}>Meera V.</Text>
+            <Text style={s.railCardMeta}>Jaipur -> Mumbai</Text>
+            <View style={[s.railBadge, { backgroundColor: C.secondaryContainer }]}>
+              <Text style={[s.railBadgeText, { color: C.onSecondaryContainer }]}>NEW HERE</Text>
+            </View>
           </View>
+        </Pressable>
 
-          {/* Card 3 — Meera V. */}
-          <View style={[s.card, s.meeraCard, { backgroundColor: C.surfaceLowest }]}>
-            <Image
-              source={{ uri: IMG.meera }}
-              style={s.meeraAvatar}
-              resizeMode="cover"
-            />
-            <Text style={s.meeraName}>Meera V.</Text>
-            <Text style={s.meeraHandle}>@meera_travels</Text>
+        <Pressable style={s.railCardPromo}>
+          <MaterialIcons name="people-alt" size={24} color={C.onPrimary} />
+          <Text style={s.railPromoTitle}>Join Jaipur Circle</Text>
+          <Text style={s.railPromoMeta}>1.2k active yaaris nearby</Text>
+          <View style={s.railPromoBtn}>
+            <Text style={s.railPromoBtnText}>JOIN NOW</Text>
           </View>
-        </View>
+        </Pressable>
+      </ScrollView>
+
+      <View style={s.sectionHeader}>
+        <Text style={s.sectionLabel}>DISCOVER IN YOUR CITY</Text>
       </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={s.railRow}
+      >
+        <Pressable style={[s.discoveryCard, { backgroundColor: C.secondaryContainer }]}>
+          <MaterialIcons name="location-on" size={22} color={C.onSecondaryContainer} />
+          <Text style={s.discoveryTitle}>Nearby Yaaris</Text>
+          <Text style={s.discoveryMeta}>People around your area right now</Text>
+        </Pressable>
 
-      {/* Grid row B: nearby card  |  new-in-area card */}
-      <View style={s.gridRowB}>
-        {/* Card 4 — Nearby Yaaris */}
-        <View style={[s.card, s.nearbyCard, { backgroundColor: C.secondaryContainer }]}>
-          <MaterialIcons name="location-on" size={30} color={C.onSecondaryContainer} />
-          <Text style={s.nearbyText}>Nearby{"\n"}Yaaris</Text>
-        </View>
-
-        {/* Card 5 — New in your area */}
-        <View style={[s.card, s.newInAreaCard, { backgroundColor: C.surfaceLow }]}>
+        <Pressable style={s.discoveryCard}>
           <View style={s.stackedAvatars}>
             {[IMG.group1, IMG.group2, IMG.group3].map((uri, i) => (
               <Image
@@ -169,17 +175,14 @@ function DiscoverView() {
               <Text style={s.stackedCountText}>+24</Text>
             </View>
           </View>
-          <View style={s.newInAreaText}>
-            <Text style={s.newInAreaTitle}>New in your area</Text>
-            <Text style={s.newInAreaSubtitle}>
-              Discover people who just moved from your city
-            </Text>
-          </View>
-        </View>
-      </View>
+          <Text style={s.discoveryTitle}>New in your area</Text>
+          <Text style={s.discoveryMeta}>Fresh movers from your hometown</Text>
+        </Pressable>
+      </ScrollView>
 
-      {/* ── Suggested for you ── */}
-      <Text style={[s.sectionTitle, { marginTop: 4 }]}>Suggested for you</Text>
+      <View style={s.sectionHeader}>
+        <Text style={s.sectionLabel}>SUGGESTED FOR YOU</Text>
+      </View>
 
       <SuggestionCard
         avatar={IMG.rahul}
@@ -282,122 +285,153 @@ export default function SearchTab({ navigation }) {
   const searching = query.trim().length > 0;
 
   return (
-    <ScreenShell navigation={navigation} routeName="Search">
-      {/* ── Hero header ── */}
-      <View style={s.hero}>
-        <Text style={s.heroTitle}>Find your people</Text>
-        <Text style={s.heroSubtitle}>
-          Connect with people from your hometown living in your current city.
+    <ScreenShell
+      navigation={navigation}
+      routeName="Search"
+      noPadding
+      background={C.surfaceLow}
+      contentContainerStyle={s.screenContent}
+    >
+      <View style={s.masthead}>
+        <View style={s.liveChip}>
+          <View style={s.liveDot} />
+          <Text style={s.liveLabel}>CITY CONNECTIONS</Text>
+        </View>
+        <Text style={s.headline}>
+          <Text style={s.headlineLight}>Find</Text>
+          {"\n"}
+          Your Yaari<Text style={{ color: C.secondary }}>.</Text>
         </Text>
       </View>
 
-      {/* ── Search input ── */}
-      <SearchInput
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Search for friends or usernames..."
-      />
+      <View style={s.main}>
+        <View style={s.sectionHeader}>
+          <Text style={s.sectionLabel}>SEARCH PEOPLE</Text>
+        </View>
 
-      {/* ── Content area ── */}
-      {searching ? (
-        <>
-          {total > 0 && !isLoading && (
-            <Text style={s.resultsTitle}>
-              {total} {total === 1 ? 'result' : 'results'} for "{query}"
-            </Text>
-          )}
+        <SearchInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search for friends or usernames..."
+        />
 
-          <View style={s.resultsCard}>
-            {isLoading ? (
-              <SearchSkeleton />
-            ) : results.length > 0 ? (
-              <>
-                <FlatList
-                  data={results}
-                  keyExtractor={(item) => item._id}
-                  renderItem={({ item, index }) => (
-                    <SearchResultItem 
-                      user={item} 
-                      onPress={handleUserPress} 
-                      isLast={index === results.length - 1}
-                    />
-                  )}
-                  showsVerticalScrollIndicator={false}
-                  scrollEnabled={false}
-                />
-                {hasMore && (
-                  <Pressable
-                    onPress={loadMore}
-                    style={({ pressed }) => [s.loadMoreBtn, pressed && { opacity: 0.7 }]}
-                    disabled={isMoreLoading}
-                  >
-                    {isMoreLoading ? (
-                      <ActivityIndicator size="small" color={C.primary} />
-                    ) : (
-                      <Text style={s.loadMoreText}>Show more</Text>
-                    )}
-                  </Pressable>
-                )}
-              </>
-            ) : (
-              <View style={s.noResults}>
-                <MaterialIcons name="search-off" size={32} color={C.outline} />
-                <Text style={s.noResultsText}>No results for "{query}"</Text>
-              </View>
+        {searching ? (
+          <>
+            {total > 0 && !isLoading && (
+              <Text style={s.resultsTitle}>
+                {total} {total === 1 ? 'result' : 'results'} for "{query}"
+              </Text>
             )}
-          </View>
-        </>
-      ) : (
-        <DiscoverView />
-      )}
+
+            <View style={s.resultsCard}>
+              {isLoading ? (
+                <SearchSkeleton />
+              ) : results.length > 0 ? (
+                <>
+                  <FlatList
+                    data={results}
+                    keyExtractor={(item) => item._id}
+                    renderItem={({ item, index }) => (
+                      <SearchResultItem
+                        user={item}
+                        onPress={handleUserPress}
+                        isLast={index === results.length - 1}
+                      />
+                    )}
+                    showsVerticalScrollIndicator={false}
+                    scrollEnabled={false}
+                  />
+                  {hasMore && (
+                    <Pressable
+                      onPress={loadMore}
+                      style={({ pressed }) => [s.loadMoreBtn, pressed && { opacity: 0.7 }]}
+                      disabled={isMoreLoading}
+                    >
+                      {isMoreLoading ? (
+                        <ActivityIndicator size="small" color={C.primary} />
+                      ) : (
+                        <Text style={s.loadMoreText}>Show more</Text>
+                      )}
+                    </Pressable>
+                  )}
+                </>
+              ) : (
+                <SearchEmptyState query={query} />
+              )}
+            </View>
+          </>
+        ) : (
+          <DiscoverView />
+        )}
+      </View>
     </ScreenShell>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const CARD_RADIUS = 24;
 const CARD_SHADOW = {
-  shadowColor: "#004AC6",
-  shadowOffset: { width: 0, height: 6 },
+  shadowColor: C.cardShadow,
+  shadowOffset: { width: 3, height: 6 },
   shadowOpacity: 0.08,
-  shadowRadius: 16,
-  elevation: 3,
+  shadowRadius: 12,
+  elevation: 5,
 };
 
 const s = StyleSheet.create({
-  // Hero
-  hero: {
-    gap: 6,
+  screenContent: {
+    backgroundColor: C.surfaceLow,
+    paddingHorizontal: 0,
+    paddingBottom: 120,
   },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: C.onSurface,
-    letterSpacing: -0.6,
+  masthead: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 22,
+    borderBottomWidth: 2,
+    borderBottomColor: C.onSurface,
+    marginBottom: 6,
   },
-  heroSubtitle: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: C.onSurfaceVariant,
-  },
-
-  // Search bar
-  searchBar: {
+  liveChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    height: 58,
-    paddingHorizontal: 18,
-    backgroundColor: C.surfaceLow,
-    borderRadius: CARD_RADIUS,
+    gap: 6,
     borderWidth: 1.5,
-    borderColor: "rgba(115, 118, 134, 0.2)",
+    borderColor: C.secondary,
+    borderRadius: 100,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    alignSelf: "flex-start",
+    marginBottom: 14,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: C.secondary,
+  },
+  liveLabel: {
+    fontSize: 9,
+    fontWeight: "900",
+    color: C.secondary,
+    letterSpacing: 1.4,
+  },
+  headline: {
+    fontSize: 46,
+    fontWeight: "900",
     color: C.onSurface,
+    lineHeight: 52,
+    letterSpacing: -1.8,
+  },
+  headlineLight: {
+    fontWeight: "300",
+    fontStyle: "italic",
+    fontSize: 38,
+    letterSpacing: -1,
+  },
+  main: {
+    paddingHorizontal: 20,
+    gap: 14,
   },
 
   // Section header
@@ -407,21 +441,140 @@ const s = StyleSheet.create({
     alignItems: "center",
     marginTop: 8,
   },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 2,
+    color: C.onSurfaceVariant,
+  },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "900",
     color: C.onSurface,
   },
   viewAllBtn: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "800",
     color: C.primary,
+    letterSpacing: 0.3,
+  },
+  railRow: {
+    paddingBottom: 6,
+    gap: 12,
+    paddingRight: 4,
+  },
+  railCard: {
+    width: 176,
+    backgroundColor: C.surfaceLowest,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: C.outline,
+    overflow: "hidden",
+    ...CARD_SHADOW,
+  },
+  railCardLarge: {
+    width: 228,
+  },
+  railCardImage: {
+    width: "100%",
+    height: 120,
+  },
+  railCardBody: {
+    padding: 12,
+    gap: 4,
+  },
+  railCardTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: C.onSurface,
+  },
+  railCardMeta: {
+    fontSize: 11,
+    color: C.onSurfaceVariant,
+    fontWeight: "700",
+  },
+  railBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: C.secondaryFixed,
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 2,
+  },
+  railBadgeText: {
+    fontSize: 8,
+    fontWeight: "900",
+    color: C.onSecondaryFixed,
+    letterSpacing: 1,
+  },
+  railCardPromo: {
+    width: 176,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: C.primary,
+    backgroundColor: C.primary,
+    padding: 14,
+    justifyContent: "space-between",
+    ...CARD_SHADOW,
+  },
+  railPromoTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: C.onPrimary,
+    letterSpacing: -0.3,
+    marginTop: 8,
+  },
+  railPromoMeta: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.8)",
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  railPromoBtn: {
+    marginTop: 12,
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.4)",
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  railPromoBtnText: {
+    color: C.onPrimary,
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+  discoveryCard: {
+    width: 220,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: C.outline,
+    backgroundColor: C.surfaceLowest,
+    padding: 14,
+    ...CARD_SHADOW,
+  },
+  discoveryTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: C.onSurface,
+    marginTop: 10,
+  },
+  discoveryMeta: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: C.onSurfaceVariant,
+    marginTop: 3,
+    lineHeight: 17,
   },
 
   // Base card
   card: {
-    borderRadius: CARD_RADIUS,
+    borderRadius: 16,
     overflow: "hidden",
+    borderWidth: 1.5,
+    borderColor: C.outline,
     ...CARD_SHADOW,
   },
 
@@ -585,7 +738,9 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 14,
     backgroundColor: C.surfaceLowest,
-    borderRadius: CARD_RADIUS,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: C.outline,
     padding: 16,
     ...CARD_SHADOW,
   },
@@ -675,19 +830,20 @@ const s = StyleSheet.create({
   },
 
   resultsTitle: {
-    fontSize: 14,
-    color: "#64748B",
-    marginBottom: 12,
-    marginLeft: 6,
-    fontWeight: "500",
+    fontSize: 12,
+    color: C.onSurfaceVariant,
+    marginTop: 4,
+    marginLeft: 2,
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
   resultsCard: {
     backgroundColor: C.surfaceLowest,
-    borderRadius: 28,
+    borderRadius: 16,
     paddingVertical: 4,
     minHeight: 180,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderWidth: 1.5,
+    borderColor: C.outline,
     ...CARD_SHADOW,
   },
   noResults: {
@@ -706,11 +862,13 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderTopWidth: 1,
-    borderTopColor: "rgba(0,74,198,0.06)",
+    borderTopColor: C.outline,
   },
   loadMoreText: {
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 12,
+    fontWeight: "900",
     color: C.primary,
+    letterSpacing: 1.1,
+    textTransform: "uppercase",
   },
 });
