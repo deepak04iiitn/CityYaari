@@ -7,8 +7,10 @@ import {
   Dimensions,
   Pressable,
   StyleSheet,
+  Text,
   View,
 } from "react-native";
+import { useUnreadMsg } from "../store/UnreadMsgContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import AccountTab from "../components/tabs/AccountTab";
@@ -45,11 +47,11 @@ const TAB_CONFIG = {
 };
 
 const SPRING = { tension: 200, friction: 18 };
-const BAR_HEIGHT = 68;
+export const BAR_HEIGHT = 68;
 const NOTCH_W = 88;
 const NOTCH_D = 32;
 const FAB_SIZE = 62;
-const FAB_LIFT = 22;
+export const FAB_LIFT = 22;
 
 function NotchedBar({ bottomPad }) {
   const totalH = BAR_HEIGHT + bottomPad;
@@ -72,7 +74,14 @@ function NotchedBar({ bottomPad }) {
   );
 }
 
-function TabIcon({ icon, label, focused }) {
+const formatBadge = (n) => {
+  if (n <= 0) return "";
+  if (n <= 9) return String(n);
+  const tens = Math.min(Math.floor(n / 10) * 10, 90);
+  return `${tens}+`;
+};
+
+function TabIcon({ icon, label, focused, badge }) {
   const animNative = useRef(new Animated.Value(focused ? 1 : 0)).current;
 
   useEffect(() => {
@@ -89,6 +98,8 @@ function TabIcon({ icon, label, focused }) {
   const labelOpacity = animNative.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1] });
   const labelTranslateY = animNative.interpolate({ inputRange: [0, 1], outputRange: [0, -1] });
 
+  const badgeLabel = formatBadge(badge || 0);
+
   return (
     <View style={ss.tabItem}>
       <View style={ss.pillArea}>
@@ -98,6 +109,11 @@ function TabIcon({ icon, label, focused }) {
         <Animated.View style={{ transform: [{ scale: iconScale }, { translateY: iconTranslateY }] }}>
           <MaterialIcons name={icon} size={24} color={focused ? C.blue : C.inkFaint} />
         </Animated.View>
+        {badgeLabel ? (
+          <View style={ss.badge}>
+            <Text style={ss.badgeText}>{badgeLabel}</Text>
+          </View>
+        ) : null}
       </View>
       <Animated.Text
         style={[
@@ -137,11 +153,16 @@ function PostFAB({ onPress }) {
   );
 }
 
-function CustomTabBar({ state, navigation }) {
+function CustomTabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
+  const { unreadMsgCount } = useUnreadMsg();
   const bottomPad = Math.max(insets.bottom, 0);
   const totalH = BAR_HEIGHT + bottomPad;
   const visibleRoutes = state.routes.filter((route) => TAB_CONFIG[route.name]);
+
+  const currentRoute = state.routes[state.index];
+  const currentOptions = descriptors?.[currentRoute?.key]?.options || {};
+  if (currentOptions.tabBarStyle?.display === "none") return null;
 
   return (
     <View style={[ss.outerWrap, { height: totalH + FAB_LIFT }]}>
@@ -172,6 +193,8 @@ function CustomTabBar({ state, navigation }) {
             );
           }
 
+          const tabBadge = route.name === "Messages" ? unreadMsgCount : 0;
+
           return (
             <Pressable
               key={route.key}
@@ -179,7 +202,7 @@ function CustomTabBar({ state, navigation }) {
               style={ss.tabTouchable}
               android_ripple={{ color: "transparent" }}
             >
-              <TabIcon icon={config.icon} label={config.label} focused={focused} />
+              <TabIcon icon={config.icon} label={config.label} focused={focused} badge={tabBadge} />
             </Pressable>
           );
         })}
@@ -282,6 +305,26 @@ const ss = StyleSheet.create({
     backgroundColor: C.blueXLight,
     borderWidth: 1,
     borderColor: "#cfddff",
+  },
+  badge: {
+    position: "absolute",
+    top: -2,
+    right: 0,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: C.orange,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: C.white,
+  },
+  badgeText: {
+    color: C.white,
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.2,
   },
   tabLabel: {
     marginTop: 1,

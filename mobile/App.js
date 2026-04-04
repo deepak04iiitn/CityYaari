@@ -10,6 +10,7 @@ import {
 } from "./src/screens";
 import { AuthProvider, useAuth } from './src/store/AuthContext';
 import { SnackbarProvider } from "./src/store/SnackbarContext";
+import { UnreadMsgProvider } from "./src/store/UnreadMsgContext";
 import { ActivityIndicator, View } from 'react-native';
 
 const Stack = createStackNavigator();
@@ -50,9 +51,11 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <SnackbarProvider>
-          <NavigationContainer>
-            <Navigation />
-          </NavigationContainer>
+          <UnreadMsgProvider>
+            <NavigationContainer>
+              <Navigation />
+            </NavigationContainer>
+          </UnreadMsgProvider>
         </SnackbarProvider>
       </AuthProvider>
     </SafeAreaProvider>
