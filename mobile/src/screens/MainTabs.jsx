@@ -18,6 +18,7 @@ import NotificationsTab from "../components/tabs/NotificationsTab";
 import PostTab from "../components/tabs/PostTab";
 import SearchTab from "../components/tabs/SearchTab";
 import UserProfileScreen from "./UserProfileScreen";
+import ActivityDetailScreen from "./ActivityDetailScreen";
 
 const { width } = Dimensions.get("window");
 const Tab = createBottomTabNavigator();
@@ -204,6 +205,11 @@ export default function MainTabs() {
       <Tab.Screen
         name="UserProfile"
         component={UserProfileScreen}
+        options={{ tabBarButton: () => null }}
+      />
+      <Tab.Screen
+        name="ActivityDetail"
+        component={ActivityDetailScreen}
         options={{ tabBarButton: () => null }}
       />
     </Tab.Navigator>

@@ -9,6 +9,7 @@ import {
   MainTabs,
 } from "./src/screens";
 import { AuthProvider, useAuth } from './src/store/AuthContext';
+import { SnackbarProvider } from "./src/store/SnackbarContext";
 import { ActivityIndicator, View } from 'react-native';
 
 const Stack = createStackNavigator();
@@ -48,9 +49,11 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <NavigationContainer>
-          <Navigation />
-        </NavigationContainer>
+        <SnackbarProvider>
+          <NavigationContainer>
+            <Navigation />
+          </NavigationContainer>
+        </SnackbarProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );

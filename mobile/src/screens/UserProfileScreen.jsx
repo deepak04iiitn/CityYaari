@@ -14,8 +14,16 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { getUserProfile } from "../services/users/userService";
+import { useFocusEffect } from "@react-navigation/native";
+import {
+  getUserProfile,
+  removeConnection,
+  respondToConnectionRequest,
+  sendConnectionRequest,
+} from "../services/users/userService";
+import { getUnreadNotificationsCount } from "../services/notifications/notificationService";
 import AppTopHeader from "../components/AppTopHeader";
+import { useSnackbar } from "../store/SnackbarContext";
 
 // ─── Avatar palette (preserved) ──────────────────────────────────────────────
 const AVATAR_PALETTE = [
@@ -237,9 +245,12 @@ function JourneyMap({ hometownCity, hometownState, currentCity, currentState }) 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function UserProfileScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
+  const { showSnackbar } = useSnackbar();
   const { username } = route.params;
   const [profile, setProfile]     = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isConnectBusy, setIsConnectBusy] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -251,6 +262,22 @@ export default function UserProfileScreen({ route, navigation }) {
     fetchProfile();
   }, [username]);
 
+  useFocusEffect(
+    React.useCallback(() => {
+      let mounted = true;
+      const loadUnread = async () => {
+        const result = await getUnreadNotificationsCount();
+        if (mounted && result.success) {
+          setUnreadNotifications(result.count || 0);
+        }
+      };
+      loadUnread();
+      return () => {
+        mounted = false;
+      };
+    }, [])
+  );
+
   const handleBack = () => {
     if (navigation.canGoBack()) navigation.goBack();
     else navigation.navigate('Search');
@@ -260,7 +287,7 @@ export default function UserProfileScreen({ route, navigation }) {
     return (
       <View style={s.screen}>
         <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
-        <AppTopHeader onBackPress={handleBack} onNotificationPress={() => navigation.navigate('Notifications')} notificationCount={3} />
+        <AppTopHeader onBackPress={handleBack} onNotificationPress={() => navigation.navigate('Notifications')} notificationCount={unreadNotifications} />
         <View style={s.center}>
           <ActivityIndicator size="large" color={C.primary} />
           <Text style={s.loadingText}>Loading profile…</Text>
@@ -273,7 +300,7 @@ export default function UserProfileScreen({ route, navigation }) {
     return (
       <View style={s.screen}>
         <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
-        <AppTopHeader onBackPress={handleBack} onNotificationPress={() => navigation.navigate('Notifications')} notificationCount={3} />
+        <AppTopHeader onBackPress={handleBack} onNotificationPress={() => navigation.navigate('Notifications')} notificationCount={unreadNotifications} />
         <View style={s.center}>
           <MaterialIcons name="error-outline" size={56} color={C.outline} />
           <Text style={s.errorText}>User not found</Text>
@@ -296,6 +323,44 @@ export default function UserProfileScreen({ route, navigation }) {
   const currentLabel  = [profile.city, profile.state].filter(Boolean).join(', ');
   const hasHometown    = !!hometownLabel;
   const hasCurrentCity = !!currentLabel;
+  const connectLabel =
+    profile.connectionStatus === "connected"
+      ? "Connected"
+      : profile.connectionStatus === "request_sent"
+      ? "Requested"
+      : profile.connectionStatus === "request_received"
+      ? "Accept"
+      : "Connect";
+
+  const onConnectPress = async () => {
+    if (!profile?._id || isConnectBusy) return;
+    setIsConnectBusy(true);
+    const result =
+      profile.connectionStatus === "connected"
+        ? await removeConnection(profile._id)
+        : profile.connectionStatus === "request_received"
+        ? await respondToConnectionRequest(profile._id, "accept")
+        : profile.connectionStatus === "request_sent"
+        ? { success: false, message: "Request already sent and pending response." }
+        : await sendConnectionRequest(profile._id);
+    setIsConnectBusy(false);
+
+    if (!result.success) {
+      showSnackbar(result.message || "Unable to perform this action", "error");
+      return;
+    }
+
+    const refreshed = await getUserProfile(username);
+    if (refreshed) setProfile(refreshed);
+    showSnackbar(
+      profile.connectionStatus === "connected"
+        ? "Connection removed."
+        : profile.connectionStatus === "request_received"
+        ? "Connection request accepted."
+        : "Connection request sent.",
+      "success"
+    );
+  };
 
   return (
     <View style={s.screen}>
@@ -303,7 +368,7 @@ export default function UserProfileScreen({ route, navigation }) {
       <AppTopHeader
         onBackPress={handleBack}
         onNotificationPress={() => navigation.navigate('Notifications')}
-        notificationCount={3}
+        notificationCount={unreadNotifications}
         absolute
       />
 
@@ -350,8 +415,16 @@ export default function UserProfileScreen({ route, navigation }) {
           </View>
 
           <View style={s.heroActions}>
-            <Pressable style={s.connectBtn}>
-              <Text style={s.connectBtnText}>Connect</Text>
+            <Pressable
+              style={[
+                s.connectBtn,
+                profile.connectionStatus === "connected" && s.connectedBtn,
+              ]}
+              onPress={onConnectPress}
+            >
+              <Text style={s.connectBtnText}>
+                {isConnectBusy ? "..." : connectLabel}
+              </Text>
             </Pressable>
             <Pressable style={s.messageBtn}>
               <Text style={s.messageBtnText}>Message</Text>
@@ -533,6 +606,9 @@ const s = StyleSheet.create({
     backgroundColor: C.primary,
     borderRadius: 8,
     alignItems: "center",
+  },
+  connectedBtn: {
+    backgroundColor: "#2d7a55",
   },
   connectBtnText:  { color: '#FFFFFF', fontWeight: '900', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' },
   messageBtn: {

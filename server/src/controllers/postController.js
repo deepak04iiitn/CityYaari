@@ -3,6 +3,7 @@ import Comment from '../models/Comment.js';
 import path from 'path';
 import fs from 'fs';
 import { postImageUploadDir } from '../middleware/uploadMiddleware.js';
+import { createNotification } from '../services/notificationService.js';
 
 // @desc    Create a new post
 // @route   POST /api/posts
@@ -178,6 +179,16 @@ export const toggleLikePost = async (req, res) => {
     }
 
     await post.save();
+    if (!hasLiked) {
+      await createNotification({
+        recipientId: post.user,
+        actorId: userId,
+        type: 'post_liked',
+        message: `${req.user.fullName} liked your post`,
+        entityType: 'post',
+        entityId: post._id,
+      });
+    }
     res.json({ message: hasLiked ? 'Post unliked' : 'Post liked', post });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -238,5 +249,48 @@ export const toggleSavePost = async (req, res) => {
     res.json({ message: hasSaved ? 'Post unsaved' : 'Post saved', post });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Update a post by owner
+// @route   PUT /api/posts/:id
+// @access  Private
+export const updatePost = async (req, res) => {
+  try {
+    const { title, details, category } = req.body;
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Post not found' });
+
+    if (post.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to edit this post' });
+    }
+
+    if (typeof title === 'string') post.title = title.trim();
+    if (typeof details === 'string') post.details = details.trim();
+    if (typeof category === 'string') post.category = category.trim();
+
+    const updated = await post.save();
+    return res.json({ message: 'Post updated', post: updated });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Delete a post by owner
+// @route   DELETE /api/posts/:id
+// @access  Private
+export const deletePost = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Post not found' });
+
+    if (post.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to delete this post' });
+    }
+
+    await Post.deleteOne({ _id: post._id });
+    return res.json({ message: 'Post deleted' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 };

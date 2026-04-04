@@ -40,6 +40,7 @@ const buildAuthUserPayload = (user) => ({
   bio: user.bio,
   securityQuestion: user.securityQuestion,
   hasSecurityAnswer: Boolean(user.securityAnswerHash || user.securityQuestion),
+  connectionsCount: user.connections?.length || 0,
   role: user.role,
 });
 

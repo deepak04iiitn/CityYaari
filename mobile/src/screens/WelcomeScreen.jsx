@@ -138,16 +138,6 @@ export default function WelcomeScreen({ navigation }) {
           pointerEvents="none"
         />
 
-
-
-        {/* Top status bar area — logo teaser */}
-        <View style={styles.topBar}>
-          <View style={styles.topBadge}>
-            <View style={styles.topBadgeDot} />
-            <Text style={styles.topBadgeText}>India's Hometown Network</Text>
-          </View>
-        </View>
-
         {/* Floating chips */}
         <FloatingChip
           icon="location-on"

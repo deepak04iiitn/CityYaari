@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -10,8 +10,10 @@ import {
   Text,
   View,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppTopHeader from "../AppTopHeader";
+import { getUnreadNotificationsCount } from "../../services/notifications/notificationService";
 
 export const TAB_COLORS = {
   blue: "#2563EB",
@@ -40,8 +42,11 @@ export function ScreenShell({
   contentContainerStyle,
   background,
   keyboardShouldPersistTaps = "handled",
+  notificationCount,
+  stickyHeaderIndices,
 }) {
   const canGoBack = navigation.canGoBack();
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const handleBack = () => {
     if (canGoBack) {
@@ -56,6 +61,23 @@ export function ScreenShell({
 
   const Container = absoluteHeader ? View : SafeAreaView;
 
+  useFocusEffect(
+    useCallback(() => {
+      let mounted = true;
+      const loadUnread = async () => {
+        if (typeof notificationCount === "number") return;
+        const result = await getUnreadNotificationsCount();
+        if (mounted && result.success) {
+          setUnreadCount(result.count || 0);
+        }
+      };
+      loadUnread();
+      return () => {
+        mounted = false;
+      };
+    }, [notificationCount])
+  );
+
   return (
     <Container style={[ss.screen, background && { backgroundColor: background }, style]}>
       <StatusBar style="dark" />
@@ -63,7 +85,7 @@ export function ScreenShell({
         onBackPress={handleBack}
         onNotificationPress={() => navigation.navigate("Notifications")}
         backDisabled={!canGoBack && routeName === "Home"}
-        notificationCount={3}
+        notificationCount={typeof notificationCount === "number" ? notificationCount : unreadCount}
         absolute={absoluteHeader}
       />
       <ScrollView
@@ -77,6 +99,7 @@ export function ScreenShell({
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+        stickyHeaderIndices={stickyHeaderIndices}
       >
         {(title || subtitle) && (
           <LinearGradient colors={["#EEF5FF", "#FFFFFF"]} style={ss.heroCard}>
@@ -102,6 +125,23 @@ export function InfoCard({ title, meta, body }) {
 
 export function NotificationsShell({ navigation, children }) {
   const canGoBack = navigation.canGoBack();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      let mounted = true;
+      const loadUnread = async () => {
+        const result = await getUnreadNotificationsCount();
+        if (mounted && result.success) {
+          setUnreadCount(result.count || 0);
+        }
+      };
+      loadUnread();
+      return () => {
+        mounted = false;
+      };
+    }, [])
+  );
 
   return (
     <SafeAreaView style={ss.screen}>
@@ -115,7 +155,7 @@ export function NotificationsShell({ navigation, children }) {
           navigation.navigate("Home");
         }}
         onNotificationPress={() => {}}
-        notificationCount={3}
+        notificationCount={unreadCount}
       />
       <ScrollView contentContainerStyle={ss.screenContent} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={["#FFF3EA", "#FFFFFF"]} style={ss.heroCard}>

@@ -97,6 +97,24 @@ const userSchema = new mongoose.Schema(
       enum: ['user', 'admin'],
       default: 'user',
     },
+    connections: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
+    connectionRequestsSent: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
+    connectionRequestsReceived: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
     isDeleted: {
       type: Boolean,
       default: false,

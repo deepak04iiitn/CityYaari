@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
+  Alert,
   View,
   Text,
   StyleSheet,
@@ -18,7 +19,13 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import { ScreenShell } from "./TabShared";
 import { fetchPosts, toggleLike, toggleDislike, toggleSave } from "../../services/posts/postService";
+import {
+  getMyConnections,
+  removeConnection,
+  sendConnectionRequest,
+} from "../../services/users/userService";
 import { useAuth } from "../../store/AuthContext";
+import { useSnackbar } from "../../store/SnackbarContext";
 import CommentsSheet from "./CommentsSheet";
 import FilterModal from "./FilterModal";
 
@@ -42,33 +49,6 @@ const COLORS = {
   border: "#e0dbd4",
 };
 
-const MEETUPS = [
-  {
-    id: "1",
-    title: "Weekend Filter Coffee Walk",
-    date: "SAT, 14 OCT",
-    time: "9:00 AM",
-    location: "Mylapore, Chennai",
-    spots: 5,
-    accent: COLORS.accentGold,
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuC8_g2w-QEsXHs-cOmHw-WV4op3I-ee2h9pSf4CxeuIvT6zO4S4ZTK2vaphasM0HmbINRcrzFu3AfGttGW_y_son3RGCF7E6zn7-qwgvdcp9efBCiw2X46SUnmU08ySElPRLCaWRn7vE6TWZ7OWqICCrA08fCegXb_OY3JYR855W4keHw9wy07UX0NxBPPYhDaAZGmHo7_9SPatOaZ5sAAiThhAXNWem3oALlNPg-DunmjJ9KTdcb7K2bNBBfxysDGD5v4w2uaqpZE",
-  },
-  {
-    id: "2",
-    title: "Sunset Rooftop Networking",
-    date: "SUN, 15 OCT",
-    time: "5:30 PM",
-    location: "Indiranagar, Bangalore",
-    spots: 2,
-    accent: COLORS.accent,
-    image:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuByRSVIfiUueLEPaDTI27TqYfuXB20gHq2hBlUTNyEap0KiR1wVCG8pbXgLkfeByZSW7qHWCwEdoq3dYmpQY00aju-kWzDJJbUun5aqGiDuvbFTrJdpWny09SZC57wcPD9F2aNIMaq5MSyEZkx5fan3RsHcJmqGLPqdKj5BLYa0l3UxseWYYPENiczUzAA5q3U0pDUkX4Q46DnqUJsTqItX2qjylQaxVBCahqgNFlmlPJoLhgEN4e5U1mHaxHUs7yzU226iiXGcE1Y",
-  },
-];
-
-
-
 if (
   Platform.OS === "android" &&
   UIManager.setLayoutAnimationEnabledExperimental
@@ -78,10 +58,14 @@ if (
 
 export default function HomeTab({ navigation }) {
   const { user } = useAuth();
+  const { showSnackbar } = useSnackbar();
   const [mode, setMode] = useState("Posts");
   const [posts, setPosts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [connectedUsers, setConnectedUsers] = useState({});
+  const [requestingUsers, setRequestingUsers] = useState({});
+  const [requestedUsers, setRequestedUsers] = useState({});
 
   const [expandedPosts, setExpandedPosts] = useState({});
   const [activeCommentPostId, setActiveCommentPostId] = useState(null);
@@ -114,6 +98,17 @@ export default function HomeTab({ navigation }) {
   }, [searchText, activeCategory, hasImageFilter, sortBy, activeGender, activeHometown, activeLocation]);
 
   useEffect(() => { loadPosts({}); }, []);
+  useEffect(() => { loadConnections(); }, [user?._id]);
+
+  const loadConnections = async () => {
+    const result = await getMyConnections();
+    if (!result.success) return;
+    const map = {};
+    (result.connections || []).forEach((u) => {
+      if (u?._id) map[u._id] = true;
+    });
+    setConnectedUsers(map);
+  };
 
   const loadPosts = async (filters) => {
     setIsLoading(true);
@@ -231,7 +226,8 @@ export default function HomeTab({ navigation }) {
   const handleToggleBookmark = async (postId) => {
     const currentUserId = user?._id;
     if (!currentUserId) return;
-    setPosts((prev) => 
+    const previousPosts = posts;
+    setPosts((prev) =>
       prev.map(p => {
         if (p._id !== postId) return p;
         const hasSaved = p.savedBy?.includes(currentUserId);
@@ -241,7 +237,47 @@ export default function HomeTab({ navigation }) {
         };
       })
     );
-    await toggleSave(postId);
+    const result = await toggleSave(postId);
+    if (!result.success) {
+      setPosts(previousPosts);
+      showSnackbar(result.message || "Unable to update saved post", "error");
+    }
+  };
+
+  const handleSendConnectionRequest = async (targetUser) => {
+    const currentUserId = user?._id;
+    const targetUserId = targetUser?._id;
+    if (!targetUserId) return;
+
+    if (targetUserId === currentUserId) {
+      showSnackbar("This is your own post.", "info");
+      return;
+    }
+
+    if (requestedUsers[targetUserId]) {
+      showSnackbar("Connection request already sent.", "info");
+      return;
+    }
+
+    setRequestingUsers((prev) => ({ ...prev, [targetUserId]: true }));
+    const result = connectedUsers[targetUserId]
+      ? await removeConnection(targetUserId)
+      : await sendConnectionRequest(targetUserId);
+    setRequestingUsers((prev) => ({ ...prev, [targetUserId]: false }));
+
+    if (!result.success) {
+      showSnackbar(result.message || "Unable to send request", "error");
+      return;
+    }
+
+    if (connectedUsers[targetUserId]) {
+      setConnectedUsers((prev) => ({ ...prev, [targetUserId]: false }));
+      setRequestedUsers((prev) => ({ ...prev, [targetUserId]: false }));
+      showSnackbar("Connection removed.", "success");
+    } else {
+      setRequestedUsers((prev) => ({ ...prev, [targetUserId]: true }));
+      showSnackbar("Connection request sent.", "success");
+    }
   };
 
   return (
@@ -302,110 +338,73 @@ export default function HomeTab({ navigation }) {
           </View>
         </View>
 
-        {/* ── MEETUPS ── */}
-        <View style={styles.sectionRow}>
-          <Text style={styles.sectionLabel}>UPCOMING MEETUPS</Text>
-          <Pressable>
-            <Text style={styles.seeAll}>See all →</Text>
-          </Pressable>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.cardScroll}
-          snapToInterval={270 + 16}
-          decelerationRate="fast"
-        >
-          {MEETUPS.map((m) => (
-            <Pressable key={m.id} style={styles.meetCard}>
-              {/* Image */}
-              <View style={styles.meetImgWrap}>
-                <Image source={{ uri: m.image }} style={styles.meetImg} />
-                {/* Date overlay */}
-                <View style={[styles.datePill, { backgroundColor: m.accent }]}>
-                  <Text style={styles.datePillText}>{m.date}</Text>
-                </View>
-                {/* Spots badge */}
-                <View style={styles.spotsBadge}>
-                  <MaterialIcons name="people" size={10} color={COLORS.ink} />
-                  <Text style={styles.spotsText}>{m.spots} left</Text>
-                </View>
+        {mode === "Meetups" ? (
+          <>
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionLabel}>UPCOMING MEETUPS</Text>
+            </View>
+            <View style={styles.comingSoonWrap}>
+              <View style={styles.comingSoonIcon}>
+                <MaterialIcons name="event-available" size={32} color={COLORS.accentBlue} />
               </View>
+              <Text style={styles.comingSoonTitle}>Meetups Coming Soon</Text>
+              <Text style={styles.comingSoonSubtitle}>
+                We are building a beautiful meetup experience for CityYaari. It will launch soon.
+              </Text>
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionLabel}>LATEST IN YOUR CITY</Text>
+            </View>
 
-              <View style={styles.meetBody}>
-                <Text style={styles.meetTime}>{m.time}</Text>
-                <Text style={styles.meetTitle} numberOfLines={2}>
-                  {m.title}
-                </Text>
-                <View style={styles.meetLoc}>
-                  <MaterialIcons
-                    name="location-on"
-                    size={12}
-                    color={COLORS.inkMuted}
-                  />
-                  <Text style={styles.meetLocText}>{m.location}</Text>
-                </View>
-                <Pressable
-                  style={[styles.rsvpBtn, { backgroundColor: m.accent }]}
-                >
-                  <Text style={styles.rsvpText}>RSVP NOW</Text>
-                </Pressable>
-              </View>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        <View style={styles.sectionRow}>
-          <Text style={styles.sectionLabel}>LATEST IN YOUR CITY</Text>
-        </View>
-
-        {/* ── SEARCH BAR ── */}
-        <View style={styles.searchRow}>
-          <Pressable 
-            style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}
-            onPress={() => searchInputRef.current?.focus()}
-          >
-            <MaterialIcons name="search" size={18} color={searchFocused ? COLORS.accentBlue : COLORS.inkMuted} />
-            <TextInput
-              ref={searchInputRef}
-              style={styles.searchInput}
-              placeholder="Search posts..."
-              placeholderTextColor={COLORS.inkMuted}
-              value={searchText}
-              onChangeText={onSearchChange}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-              returnKeyType="search"
-              onSubmitEditing={() => applyFilters()}
-            />
-            {searchText.length > 0 && (
-              <Pressable onPress={() => { setSearchText(""); onSearchChange(""); }}>
-                <MaterialIcons name="close" size={16} color={COLORS.inkMuted} />
+            {/* ── SEARCH BAR ── */}
+            <View style={styles.searchRow}>
+              <Pressable
+                style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}
+                onPress={() => searchInputRef.current?.focus()}
+              >
+                <MaterialIcons name="search" size={18} color={searchFocused ? COLORS.accentBlue : COLORS.inkMuted} />
+                <TextInput
+                  ref={searchInputRef}
+                  style={styles.searchInput}
+                  placeholder="Search posts..."
+                  placeholderTextColor={COLORS.inkMuted}
+                  value={searchText}
+                  onChangeText={onSearchChange}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setSearchFocused(false)}
+                  returnKeyType="search"
+                  onSubmitEditing={() => applyFilters()}
+                />
+                {searchText.length > 0 && (
+                  <Pressable onPress={() => { setSearchText(""); onSearchChange(""); }}>
+                    <MaterialIcons name="close" size={16} color={COLORS.inkMuted} />
+                  </Pressable>
+                )}
               </Pressable>
-            )}
-          </Pressable>
-          <Pressable
-            style={[styles.filterToggleBtn, (activeCategory || hasImageFilter || activeGender || activeHometown || activeLocation || sortBy !== "newest") && styles.filterToggleBtnActive]}
-            onPress={() => setIsFilterModalVisible(true)}
-          >
-            <MaterialIcons
-              name="tune"
-              size={18}
-              color={(activeCategory || hasImageFilter || activeGender || activeHometown || activeLocation || sortBy !== "newest") ? COLORS.white : COLORS.ink}
-            />
-          </Pressable>
-        </View>
+              <Pressable
+                style={[styles.filterToggleBtn, (activeCategory || hasImageFilter || activeGender || activeHometown || activeLocation || sortBy !== "newest") && styles.filterToggleBtnActive]}
+                onPress={() => setIsFilterModalVisible(true)}
+              >
+                <MaterialIcons
+                  name="tune"
+                  size={18}
+                  color={(activeCategory || hasImageFilter || activeGender || activeHometown || activeLocation || sortBy !== "newest") ? COLORS.white : COLORS.ink}
+                />
+              </Pressable>
+            </View>
 
-        <View style={styles.feed}>
-          {isLoading ? (
-            <ActivityIndicator style={{ marginTop: 20 }} size="large" color={COLORS.accent} />
-          ) : error ? (
-            <Text style={{ textAlign: 'center', marginTop: 20, color: COLORS.inkMuted }}>{error}</Text>
-          ) : posts.length === 0 ? (
-            <Text style={{ textAlign: 'center', marginTop: 20, color: COLORS.inkMuted }}>No posts found.</Text>
-          ) : (
-            posts.map((post, idx) => {
+            <View style={styles.feed}>
+              {isLoading ? (
+                <ActivityIndicator style={{ marginTop: 20 }} size="large" color={COLORS.accent} />
+              ) : error ? (
+                <Text style={{ textAlign: 'center', marginTop: 20, color: COLORS.inkMuted }}>{error}</Text>
+              ) : posts.length === 0 ? (
+                <Text style={{ textAlign: 'center', marginTop: 20, color: COLORS.inkMuted }}>No posts found.</Text>
+              ) : (
+                posts.map((post, idx) => {
               const theme = getCategoryTheme(post.category);
               return (
                 <View key={post._id || idx}>
@@ -428,17 +427,52 @@ export default function HomeTab({ navigation }) {
                         </View>
                       </View>
 
-                      <View
-                        style={[
-                          styles.catTag,
-                          { backgroundColor: theme.bg },
-                        ]}
-                      >
-                        <Text
-                          style={[styles.catText, { color: theme.color }]}
+                      <View style={styles.postHeaderRight}>
+                        <View
+                          style={[
+                            styles.catTag,
+                            { backgroundColor: theme.bg },
+                          ]}
                         >
-                          {(post.category || 'General').toUpperCase()}
-                        </Text>
+                          <Text
+                            style={[styles.catText, { color: theme.color }]}
+                          >
+                            {(post.category || 'General').toUpperCase()}
+                          </Text>
+                        </View>
+                        <Pressable
+                          onPress={() => handleSendConnectionRequest(post.user)}
+                          disabled={
+                            post.user?._id === user?._id ||
+                            !!requestingUsers[post.user?._id]
+                          }
+                          style={[
+                            styles.connectBtn,
+                            connectedUsers[post.user?._id] && styles.connectBtnConnected,
+                            requestedUsers[post.user?._id] && styles.connectBtnSent,
+                            post.user?._id === user?._id && styles.connectBtnDisabled,
+                          ]}
+                        >
+                          <MaterialIcons
+                            name={
+                              requestingUsers[post.user?._id]
+                                ? "hourglass-top"
+                                : connectedUsers[post.user?._id]
+                                ? "person-remove-alt-1"
+                                : requestedUsers[post.user?._id]
+                                ? "check"
+                                : "person-add-alt-1"
+                            }
+                            size={15}
+                            color={
+                              connectedUsers[post.user?._id]
+                                ? COLORS.accent
+                                : requestedUsers[post.user?._id]
+                                ? COLORS.accentMint
+                                : COLORS.accentBlue
+                            }
+                          />
+                        </Pressable>
                       </View>
                     </View>
 
@@ -542,9 +576,11 @@ export default function HomeTab({ navigation }) {
                   </View>
                 </View>
               );
-            })
-          )}
-        </View>
+                })
+              )}
+            </View>
+          </>
+        )}
 
         <CommentsSheet
           visible={!!activeCommentPostId}
@@ -686,6 +722,39 @@ const styles = StyleSheet.create({
     color: COLORS.accentBlue,
     letterSpacing: 0.3,
   },
+  comingSoonWrap: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    paddingVertical: 28,
+    paddingHorizontal: 22,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardBg,
+    alignItems: "center",
+    gap: 10,
+  },
+  comingSoonIcon: {
+    width: 66,
+    height: 66,
+    borderRadius: 33,
+    backgroundColor: COLORS.tagBlue,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  comingSoonTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: COLORS.ink,
+    letterSpacing: -0.4,
+  },
+  comingSoonSubtitle: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: COLORS.inkMuted,
+    fontWeight: "600",
+    textAlign: "center",
+  },
 
   /* ── MEETUP CARDS ── */
   cardScroll: {
@@ -808,6 +877,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 14,
   },
+  postHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   authorRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -846,6 +920,27 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: "900",
     letterSpacing: 1.2,
+  },
+  connectBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.tagBlue,
+    borderWidth: 1,
+    borderColor: "#c9d8ff",
+  },
+  connectBtnSent: {
+    backgroundColor: "#e6f7ef",
+    borderColor: "#c4ead7",
+  },
+  connectBtnConnected: {
+    backgroundColor: "#fff0ed",
+    borderColor: "#f4c4b8",
+  },
+  connectBtnDisabled: {
+    opacity: 0.45,
   },
   postTitle: {
     fontSize: 20,

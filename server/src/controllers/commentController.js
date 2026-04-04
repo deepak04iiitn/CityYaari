@@ -1,4 +1,6 @@
 import Comment from '../models/Comment.js';
+import Post from '../models/Post.js';
+import { createNotification } from '../services/notificationService.js';
 
 // @desc    Add a comment to a post
 // @route   POST /api/comments/post/:postId
@@ -16,6 +18,17 @@ export const addComment = async (req, res) => {
     });
 
     const populatedComment = await comment.populate('user', 'fullName username profileImageUri');
+    const post = await Post.findById(req.params.postId).select('user');
+    if (post) {
+      await createNotification({
+        recipientId: post.user,
+        actorId: req.user._id,
+        type: 'post_commented',
+        message: `${req.user.fullName} commented on your post`,
+        entityType: 'post',
+        entityId: post._id,
+      });
+    }
     res.status(201).json({ message: 'Comment added', comment: populatedComment });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -41,6 +54,14 @@ export const replyToComment = async (req, res) => {
     });
 
     const populatedComment = await comment.populate('user', 'fullName username profileImageUri');
+    await createNotification({
+      recipientId: parentComment.user,
+      actorId: req.user._id,
+      type: 'comment_replied',
+      message: `${req.user.fullName} replied to your comment`,
+      entityType: 'comment',
+      entityId: parentComment._id,
+    });
     res.status(201).json({ message: 'Reply added', comment: populatedComment });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -131,6 +152,16 @@ export const toggleLikeComment = async (req, res) => {
     }
 
     await comment.save();
+    if (!hasLiked) {
+      await createNotification({
+        recipientId: comment.user,
+        actorId: req.user._id,
+        type: 'comment_liked',
+        message: `${req.user.fullName} liked your comment`,
+        entityType: 'comment',
+        entityId: comment._id,
+      });
+    }
     res.json({ message: hasLiked ? 'Comment unliked' : 'Comment liked', comment });
   } catch (error) {
     res.status(500).json({ message: error.message });

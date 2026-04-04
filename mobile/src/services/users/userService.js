@@ -35,3 +35,140 @@ export const getUserProfile = async (username) => {
     return null;
   }
 };
+
+export const sendConnectionRequest = async (userId) => {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await axios.post(
+      `${API_BASE_URL}/users/${userId}/connection-request`,
+      {},
+      { headers }
+    );
+    return { success: true, ...response.data };
+  } catch (error) {
+    return {
+      success: false,
+      message: error?.response?.data?.message || 'Failed to send connection request',
+    };
+  }
+};
+
+export const respondToConnectionRequest = async (userId, action) => {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await axios.post(
+      `${API_BASE_URL}/users/${userId}/connection-request/respond`,
+      { action },
+      { headers }
+    );
+    return { success: true, ...response.data };
+  } catch (error) {
+    return {
+      success: false,
+      message: error?.response?.data?.message || 'Failed to respond to request',
+    };
+  }
+};
+
+export const getConnectionRequests = async () => {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await axios.get(`${API_BASE_URL}/users/me/connection-requests`, { headers });
+    return { success: true, ...response.data };
+  } catch (error) {
+    return {
+      success: false,
+      incoming: [],
+      count: 0,
+      message: error?.response?.data?.message || 'Failed to fetch connection requests',
+    };
+  }
+};
+
+export const getUnreadNotificationsCount = async () => {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await axios.get(`${API_BASE_URL}/notifications/unread-count`, { headers });
+    return { success: true, count: response.data?.count || 0 };
+  } catch (error) {
+    return {
+      success: false,
+      count: 0,
+      message: error?.response?.data?.message || 'Failed to fetch unread notifications count',
+    };
+  }
+};
+
+export const getMyConnections = async () => {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await axios.get(`${API_BASE_URL}/users/me/connections`, { headers });
+    return { success: true, ...response.data };
+  } catch (error) {
+    return {
+      success: false,
+      connections: [],
+      count: 0,
+      message: error?.response?.data?.message || 'Failed to fetch connections',
+    };
+  }
+};
+
+export const removeConnection = async (userId) => {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await axios.delete(`${API_BASE_URL}/users/${userId}/connections`, { headers });
+    return { success: true, ...response.data };
+  } catch (error) {
+    return {
+      success: false,
+      message: error?.response?.data?.message || 'Failed to remove connection',
+    };
+  }
+};
+
+export const getMyPosts = async () => {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await axios.get(`${API_BASE_URL}/users/me/posts`, { headers });
+    return { success: true, ...response.data };
+  } catch (error) {
+    return {
+      success: false,
+      posts: [],
+      count: 0,
+      message: error?.response?.data?.message || 'Failed to fetch your posts',
+    };
+  }
+};
+
+export const getMySavedPosts = async () => {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await axios.get(`${API_BASE_URL}/users/me/saved-posts`, { headers });
+    return { success: true, ...response.data };
+  } catch (error) {
+    return {
+      success: false,
+      posts: [],
+      count: 0,
+      message: error?.response?.data?.message || 'Failed to fetch saved posts',
+    };
+  }
+};
+
+export const getMyActivitySummary = async () => {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await axios.get(`${API_BASE_URL}/users/me/activity-summary`, { headers });
+    return { success: true, ...response.data };
+  } catch (error) {
+    return {
+      success: false,
+      connections: 0,
+      posts: 0,
+      savedPosts: 0,
+      message: error?.response?.data?.message || 'Failed to fetch activity summary',
+    };
+  }
+};

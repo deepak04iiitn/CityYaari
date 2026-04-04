@@ -25,6 +25,7 @@ import {
   editComment,
 } from "../../services/posts/commentService";
 import { useAuth } from "../../store/AuthContext";
+import { useSnackbar } from "../../store/SnackbarContext";
 
 // ─── TOKENS ──────────────────────────────────────────────────────────────────
 const T = {
@@ -289,6 +290,7 @@ function CommentRow({ item, user, onLike, onDislike, onReply, onEdit, onDelete, 
 // ─── MAIN ────────────────────────────────────────────────────────────────────
 export default function CommentsSheet({ visible, postId, onClose }) {
   const { user } = useAuth();
+  const { showSnackbar } = useSnackbar();
   const fade = useFadeIn(visible);
   const slide = useSlideUp(visible);
 
@@ -325,15 +327,20 @@ export default function CommentsSheet({ visible, postId, onClose }) {
       if (res.success) {
         setComments((p) => p.map((c) => c._id === editingComment.id ? res.comment : c));
         setText(""); setEditingComment(null);
-      } else Alert.alert("Error", res.message);
+        showSnackbar("Comment updated.", "success");
+      } else showSnackbar(res.message || "Unable to edit comment", "error");
     } else if (replyingTo) {
       const res = await replyToComment(replyingTo.id, text.trim());
-      if (res.success) { loadComments(); setText(""); setReplyingTo(null); }
-      else Alert.alert("Error", res.message);
+      if (res.success) {
+        loadComments(); setText(""); setReplyingTo(null);
+        showSnackbar("Reply posted.", "success");
+      } else showSnackbar(res.message || "Unable to reply", "error");
     } else {
       const res = await addComment(postId, text.trim());
-      if (res.success) { setComments((p) => [...p, res.comment]); setText(""); }
-      else Alert.alert("Error", res.message);
+      if (res.success) {
+        setComments((p) => [...p, res.comment]); setText("");
+        showSnackbar("Comment added.", "success");
+      } else showSnackbar(res.message || "Unable to add comment", "error");
     }
     setSubmitting(false);
   };
@@ -360,7 +367,13 @@ export default function CommentsSheet({ visible, postId, onClose }) {
       {
         text: "Delete", style: "destructive", onPress: async () => {
           setComments((p) => p.filter((c) => c._id !== id && c.parentComment !== id));
-          await deleteComment(id);
+          const result = await deleteComment(id);
+          if (!result.success) {
+            showSnackbar(result.message || "Unable to delete comment", "error");
+            loadComments();
+            return;
+          }
+          showSnackbar("Comment deleted.", "success");
         },
       },
     ]);

@@ -17,8 +17,11 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { MaterialIcons } from "@expo/vector-icons";
 import { GetCity, GetCountries, GetState } from "react-country-state-city";
+import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "../../store/AuthContext";
 import { ScreenShell } from "./TabShared";
+import { getMyActivitySummary } from "../../services/users/userService";
+import { useSnackbar } from "../../store/SnackbarContext";
 
 // ─── Design Tokens ── aligned with HomeTab visual language ───────────────────
 const T = {
@@ -323,6 +326,7 @@ function Divider() {
 export default function AccountTab({ navigation }) {
   const { user, logout, updateProfile, updateProfileImage, deleteAccount } =
     useAuth();
+  const { showSnackbar } = useSnackbar();
 
   const [editOpen, setEditOpen] = useState(false);
   const [sheetMode, setSheetMode] = useState("edit");
@@ -365,6 +369,11 @@ export default function AccountTab({ navigation }) {
   });
   const [deletePwd, setDeletePwd] = useState("");
   const [deletePasswordVisible, setDeletePasswordVisible] = useState(false);
+  const [activitySummary, setActivitySummary] = useState({
+    connections: 0,
+    posts: 0,
+    savedPosts: 0,
+  });
   const [expandedSections, setExpandedSections] = useState({
     personal: false,
     location: false,
@@ -376,6 +385,26 @@ export default function AccountTab({ navigation }) {
       .then((d) => setCountries(Array.isArray(d) ? d : []))
       .catch(() => setCountries([]));
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      let isMounted = true;
+      const loadSummary = async () => {
+        const result = await getMyActivitySummary();
+        if (isMounted && result.success) {
+          setActivitySummary({
+            connections: result.connections || 0,
+            posts: result.posts || 0,
+            savedPosts: result.savedPosts || 0,
+          });
+        }
+      };
+      loadSummary();
+      return () => {
+        isMounted = false;
+      };
+    }, [])
+  );
 
   const initials = useMemo(
     () =>
@@ -473,7 +502,7 @@ export default function AccountTab({ navigation }) {
   const pickPhoto = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted)
-      return Alert.alert("Permission required", "Allow photo access to update your profile picture.");
+      return showSnackbar("Allow photo access to update your profile picture.", "info");
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       allowsEditing: true,
@@ -482,7 +511,8 @@ export default function AccountTab({ navigation }) {
     });
     if (result.canceled || !result.assets?.[0]?.uri) return;
     const res = await updateProfileImage(result.assets[0]);
-    if (!res.success) Alert.alert("Update failed", res.message);
+    if (!res.success) return showSnackbar(res.message || "Profile photo update failed.", "error");
+    showSnackbar("Profile photo updated.", "success");
   };
 
   const openPicker = async (type) => {
@@ -538,7 +568,7 @@ export default function AccountTab({ navigation }) {
 
   const saveProfile = async () => {
     if (!edit.fullName.trim() || !edit.email.trim() || !edit.gender)
-      return Alert.alert("Missing fields", "Please complete Full Name, Email, and Gender.");
+      return showSnackbar("Please complete Full Name, Email, and Gender.", "info");
     setBusy("profile");
     const res = await updateProfile({
       fullName: edit.fullName.trim(),
@@ -556,25 +586,27 @@ export default function AccountTab({ navigation }) {
       bio: edit.bio.trim(),
     });
     setBusy("");
-    if (!res.success) return Alert.alert("Update failed", res.message);
+    if (!res.success) return showSnackbar(res.message || "Profile update failed.", "error");
     setEditOpen(false);
+    showSnackbar("Profile updated successfully.", "success");
   };
 
   const removeAccount = async () => {
     if (!deletePwd)
-      return Alert.alert("Password required", "Enter your password to continue.");
+      return showSnackbar("Enter your password to continue.", "info");
     setBusy("delete");
     const res = await deleteAccount(deletePwd);
     setBusy("");
-    if (!res.success) return Alert.alert("Delete failed", res.message);
+    if (!res.success) return showSnackbar(res.message || "Delete account failed.", "error");
     setDeleteOpen(false);
     setDeletePwd("");
     setDeletePasswordVisible(false);
-    Alert.alert(
-      "Account scheduled for deletion",
+    showSnackbar(
       res.permanentDeletionAt
-        ? `Permanent deletion on ${new Date(res.permanentDeletionAt).toLocaleString()}.`
-        : "Your account is scheduled for deletion."
+        ? `Account deletion scheduled for ${new Date(res.permanentDeletionAt).toLocaleDateString()}.`
+        : "Your account is scheduled for deletion.",
+      "success",
+      3600
     );
   };
 
@@ -584,6 +616,11 @@ export default function AccountTab({ navigation }) {
   const isProfileComplete = user?.hometownCountry && user?.country && user?.organization && user?.bio;
   const hometownStr = [user?.hometownCity, user?.hometownState, user?.hometownCountry].filter(Boolean).join(", ") || "Not set";
   const locationStr = [user?.city, user?.state, user?.country].filter(Boolean).join(", ") || "Not set";
+  const activityCounts = {
+    connections: activitySummary.connections,
+    posts: activitySummary.posts,
+    saved: activitySummary.savedPosts,
+  };
   const toggleSection = (key) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -723,6 +760,85 @@ export default function AccountTab({ navigation }) {
           value={user?.hasSecurityAnswer ? "••••••••  (hidden for your safety)" : "Not configured"}
           last
         />
+      </SectionCard>
+
+      <SectionCard title="My Activity" badge="Manage">
+        <View style={st.activityMenuWrap}>
+          <Pressable
+            onPress={() =>
+              navigation.navigate("ActivityDetail", {
+                type: "connections",
+                title: "Connections",
+                count: activityCounts.connections,
+              })
+            }
+            style={({ pressed }) => [st.activityMenuRow, pressed && { opacity: 0.8 }]}
+          >
+            <View style={st.activityMenuLeft}>
+              <View style={st.activityMenuIcon}>
+                <MaterialIcons name="people-outline" size={16} color={T.blue} />
+              </View>
+              <View>
+                <Text style={st.activityMenuTitle}>Connections</Text>
+                <Text style={st.activityMenuSub}>View and manage your connections</Text>
+              </View>
+            </View>
+            <View style={st.activityCountWrap}>
+              <Text style={st.activityCountText}>{activityCounts.connections}</Text>
+              <MaterialIcons name="chevron-right" size={18} color={T.mute} />
+            </View>
+          </Pressable>
+
+          <Pressable
+            onPress={() =>
+              navigation.navigate("ActivityDetail", {
+                type: "posts",
+                title: "Posts",
+                count: activityCounts.posts,
+              })
+            }
+            style={({ pressed }) => [st.activityMenuRow, st.activityMenuBorder, pressed && { opacity: 0.8 }]}
+          >
+            <View style={st.activityMenuLeft}>
+              <View style={st.activityMenuIcon}>
+                <MaterialIcons name="description" size={16} color={T.blue} />
+              </View>
+              <View>
+                <Text style={st.activityMenuTitle}>Posts</Text>
+                <Text style={st.activityMenuSub}>Posts + meetups in one place</Text>
+              </View>
+            </View>
+            <View style={st.activityCountWrap}>
+              <Text style={st.activityCountText}>{activityCounts.posts}</Text>
+              <MaterialIcons name="chevron-right" size={18} color={T.mute} />
+            </View>
+          </Pressable>
+
+          <Pressable
+            onPress={() =>
+              navigation.navigate("ActivityDetail", {
+                type: "saved",
+                title: "Saved Posts",
+                count: activityCounts.saved,
+              })
+            }
+            style={({ pressed }) => [st.activityMenuRow, st.activityMenuBorder, pressed && { opacity: 0.8 }]}
+          >
+            <View style={st.activityMenuLeft}>
+              <View style={st.activityMenuIcon}>
+                <MaterialIcons name="bookmark-border" size={16} color={T.blue} />
+              </View>
+              <View>
+                <Text style={st.activityMenuTitle}>Saved Posts</Text>
+                <Text style={st.activityMenuSub}>Your bookmarked posts collection</Text>
+              </View>
+            </View>
+            <View style={st.activityCountWrap}>
+              <Text style={st.activityCountText}>{activityCounts.saved}</Text>
+              <MaterialIcons name="chevron-right" size={18} color={T.mute} />
+            </View>
+          </Pressable>
+        </View>
       </SectionCard>
 
       {/* ── Quick Actions ─────────────────────────────────────────────────── */}
@@ -1351,6 +1467,58 @@ const st = StyleSheet.create({
   },
   actionLabel: { fontSize: 14, fontWeight: "700", color: T.ink },
   actionSublabel: { fontSize: 12, color: T.mute, marginTop: 1 },
+  activityMenuWrap: {
+    paddingHorizontal: 14,
+    paddingBottom: 8,
+  },
+  activityMenuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+  },
+  activityMenuBorder: {
+    borderTopWidth: 1,
+    borderTopColor: T.lineLight,
+  },
+  activityMenuLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  activityMenuIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: T.bluePale,
+    borderWidth: 1,
+    borderColor: T.blueLight,
+  },
+  activityMenuTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: T.ink,
+  },
+  activityMenuSub: {
+    marginTop: 2,
+    fontSize: 11,
+    color: T.soft,
+    fontWeight: "600",
+  },
+  activityCountWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  activityCountText: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: T.ink,
+    letterSpacing: -0.3,
+  },
 
   // ── App Info ────────────────────────────────────────────────────────────
   appInfo: {

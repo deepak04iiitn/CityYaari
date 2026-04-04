@@ -16,6 +16,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import axios from "axios";
 import { useAuth } from "../../store/AuthContext";
+import { useSnackbar } from "../../store/SnackbarContext";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { ScreenShell } from "./TabShared";
@@ -41,6 +42,7 @@ const COLORS = {
 export default function PostTab({ navigation }) {
   
   const { token, user } = useAuth();
+  const { showSnackbar } = useSnackbar();
   const [mode, setMode] = useState("Post"); // Post or Meetup
   const [category, setCategory] = useState("General");
   const [title, setTitle] = useState("");
@@ -70,7 +72,7 @@ export default function PostTab({ navigation }) {
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission needed", "Please allow access to your photos.");
+      showSnackbar("Please allow access to your photos.", "info");
       return;
     }
 
@@ -94,6 +96,7 @@ export default function PostTab({ navigation }) {
   const showErrorMsg = (msg) => {
     setErrorMsg(msg);
     setShowError(true);
+    showSnackbar(msg, "error");
     Animated.spring(errorAnim, {
       toValue: 1,
       useNativeDriver: true,
@@ -115,13 +118,8 @@ export default function PostTab({ navigation }) {
   };
 
   const handleShareYaari = async () => {
-    if (mode === "Meetup") {
-      Alert.alert("Coming Soon", "Meetup posting will be available shortly.");
-      return;
-    }
-
     if (!title.trim() || !details.trim()) {
-      Alert.alert("Missing Information", "Please provide both a title and details.");
+      showSnackbar("Please provide both a title and details.", "info");
       return;
     }
 
@@ -135,6 +133,11 @@ export default function PostTab({ navigation }) {
         tension: 40,
         friction: 7,
       }).start();
+      return;
+    }
+
+    if (mode === "Meetup") {
+      showErrorMsg("Meetups are coming soon. Stay tuned for the full launch.");
       return;
     }
 
@@ -167,6 +170,7 @@ export default function PostTab({ navigation }) {
 
       // Show animated success
       setShowSuccess(true);
+      showSnackbar("Post shared successfully.", "success");
       Animated.spring(successAnim, {
         toValue: 1,
         useNativeDriver: true,
@@ -270,122 +274,141 @@ export default function PostTab({ navigation }) {
 
           {/* Form Content */}
           <View style={styles.form}>
-
-            {/* Category Selector */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>CHOOSE CATEGORY</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chipScroll}
+            {mode === "Meetup" ? (
+              <LinearGradient
+                colors={["#eef2ff", "#ffffff"]}
+                style={styles.comingSoonCard}
               >
-                {categories.map((cat) => (
-                  <Pressable
-                    key={cat.name}
-                    onPress={() => setCategory(cat.name)}
-                    style={[
-                      styles.chip,
-                      category === cat.name
-                        ? styles.chipActive
-                        : styles.chipInactive,
-                    ]}
+                <View style={styles.comingSoonIcon}>
+                  <MaterialIcons name="celebration" size={30} color={COLORS.primary} />
+                </View>
+                <Text style={styles.comingSoonTitle}>Meetups Coming Soon</Text>
+                <Text style={styles.comingSoonSub}>
+                  We are crafting a richer meetup experience for CityYaari. The feature will be available shortly.
+                </Text>
+                <Pressable style={styles.comingSoonBtn} onPress={handleShareYaari}>
+                  <Text style={styles.comingSoonBtnText}>Notify Me</Text>
+                </Pressable>
+              </LinearGradient>
+            ) : (
+              <>
+                {/* Category Selector */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>CHOOSE CATEGORY</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipScroll}
                   >
-                    <MaterialIcons
-                      name={cat.icon}
-                      size={18}
-                      color={
-                        category === cat.name
-                          ? COLORS.onSecondaryFixed
-                          : COLORS.onSurfaceVariant
-                      }
-                    />
-                    <Text
-                      style={[
-                        styles.chipText,
-                        category === cat.name
-                          ? styles.chipTextActive
-                          : styles.chipTextInactive,
-                      ]}
-                    >
-                      {cat.name}
-                    </Text>
+                    {categories.map((cat) => (
+                      <Pressable
+                        key={cat.name}
+                        onPress={() => setCategory(cat.name)}
+                        style={[
+                          styles.chip,
+                          category === cat.name
+                            ? styles.chipActive
+                            : styles.chipInactive,
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={cat.icon}
+                          size={18}
+                          color={
+                            category === cat.name
+                              ? COLORS.onSecondaryFixed
+                              : COLORS.onSurfaceVariant
+                          }
+                        />
+                        <Text
+                          style={[
+                            styles.chipText,
+                            category === cat.name
+                              ? styles.chipTextActive
+                              : styles.chipTextInactive,
+                          ]}
+                        >
+                          {cat.name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+
+                {/* Title Input */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>WHAT'S THE YAARI ABOUT?</Text>
+                  <TextInput
+                    style={styles.mainInput}
+                    placeholder="Ex. - Looking for Travel partner to Jaipur"
+                    placeholderTextColor={COLORS.outline}
+                    value={title}
+                    onChangeText={setTitle}
+                  />
+                </View>
+
+                {/* Description Textarea */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>DETAILS</Text>
+                  <TextInput
+                    style={[styles.textArea, { height: 120 }]}
+                    placeholder="Share details about your yaari..."
+                    placeholderTextColor={COLORS.outline}
+                    multiline
+                    textAlignVertical="top"
+                    value={details}
+                    onChangeText={setDetails}
+                  />
+                </View>
+
+                {/* Media Upload Zone */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>ADD IMAGE (optional)</Text>
+                  <Pressable
+                    style={[
+                      styles.uploadZone,
+                      image && { paddingVertical: 0, borderStyle: "solid", overflow: "hidden" }
+                    ]}
+                    onPress={pickImage}
+                  >
+                    {image ? (
+                      <>
+                        <Image source={{ uri: image.uri }} style={styles.previewImage} resizeMode="cover" />
+                        <Pressable style={styles.removeImageIcon} onPress={removeImage}>
+                          <MaterialIcons name="close" size={20} color={COLORS.onPrimary} />
+                        </Pressable>
+                      </>
+                    ) : (
+                      <>
+                        <View style={styles.uploadIconCircle}>
+                          <MaterialIcons name="add-a-photo" size={24} color={COLORS.primary} />
+                        </View>
+                        <Text style={styles.uploadMainText}>Drop your image here</Text>
+                        <Text style={styles.uploadSubText}>
+                          High quality JPEGs or PNGs (max 2MB)
+                        </Text>
+                      </>
+                    )}
                   </Pressable>
-                ))}
-              </ScrollView>
-            </View>
+                </View>
 
-            {/* Title Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>WHAT'S THE YAARI ABOUT?</Text>
-              <TextInput
-                style={styles.mainInput}
-                placeholder="Ex. - Looking for Travel partner to Jaipur"
-                placeholderTextColor={COLORS.outline}
-                value={title}
-                onChangeText={setTitle}
-              />
-            </View>
+                {/* Submission Button */}
+                <Pressable
+                  style={[styles.submitButton, isSubmitting && { opacity: 0.7 }]}
+                  onPress={handleShareYaari}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator color={COLORS.onPrimary} />
+                  ) : (
+                    <Text style={styles.submitButtonText}>Share Yaari</Text>
+                  )}
+                </Pressable>
 
-            {/* Description Textarea */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>DETAILS</Text>
-              <TextInput
-                style={[styles.textArea, { height: 120 }]}
-                placeholder="Share details about your yaari..."
-                placeholderTextColor={COLORS.outline}
-                multiline
-                textAlignVertical="top"
-                value={details}
-                onChangeText={setDetails}
-              />
-            </View>
-
-            {/* Media Upload Zone */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>ADD IMAGE (optional)</Text>
-              <Pressable 
-                style={[
-                  styles.uploadZone, 
-                  image && { paddingVertical: 0, borderStyle: "solid", overflow: "hidden" }
-                ]} 
-                onPress={pickImage}
-              >
-                {image ? (
-                  <>
-                    <Image source={{ uri: image.uri }} style={styles.previewImage} resizeMode="cover" />
-                    <Pressable style={styles.removeImageIcon} onPress={removeImage}>
-                      <MaterialIcons name="close" size={20} color={COLORS.onPrimary} />
-                    </Pressable>
-                  </>
-                ) : (
-                  <>
-                    <View style={styles.uploadIconCircle}>
-                      <MaterialIcons name="add-a-photo" size={24} color={COLORS.primary} />
-                    </View>
-                    <Text style={styles.uploadMainText}>Drop your image here</Text>
-                    <Text style={styles.uploadSubText}>
-                      High quality JPEGs or PNGs (max 2MB)
-                    </Text>
-                  </>
-                )}
-              </Pressable>
-            </View>
-
-            {/* Submission Button */}
-            <Pressable
-              style={[styles.submitButton, isSubmitting && { opacity: 0.7 }]}
-              onPress={handleShareYaari}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color={COLORS.onPrimary} />
-              ) : (
-                <Text style={styles.submitButtonText}>Share Yaari</Text>
-              )}
-            </Pressable>
-
-            {/* Bottom Spacer to ensure button visibility above bottom bar */}
-            <View style={{ height: 120 }} />
+                {/* Bottom Spacer to ensure button visibility above bottom bar */}
+                <View style={{ height: 120 }} />
+              </>
+            )}
           </View>
         </View>
       </View>
@@ -940,6 +963,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "900",
     letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  comingSoonCard: {
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "#dbe5ff",
+    alignItems: "center",
+    gap: 12,
+  },
+  comingSoonIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#dbe7ff",
+  },
+  comingSoonTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: COLORS.onSurface,
+    letterSpacing: -0.3,
+  },
+  comingSoonSub: {
+    fontSize: 13,
+    color: COLORS.onSurfaceVariant,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  comingSoonBtn: {
+    marginTop: 4,
+    backgroundColor: COLORS.primary,
+    borderRadius: 100,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  comingSoonBtnText: {
+    color: COLORS.onPrimary,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 1.1,
     textTransform: "uppercase",
   },
 });
