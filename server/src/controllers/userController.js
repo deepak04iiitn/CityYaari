@@ -75,10 +75,20 @@ export const getUserProfile = async (req, res) => {
       .select(`${userSummarySelect} connections`);
 
     if (user) {
+      const [postsCount, meetupsCount] = await Promise.all([
+        Post.countDocuments({ user: user._id }),
+        Meetup.countDocuments({ user: user._id }),
+      ]);
+      const totalPosts = postsCount + meetupsCount;
+      const totalYaaris = user.connections?.length || 0;
+
       res.json({
         ...user.toObject(),
         connectionStatus: connectionStatusBetween(currentUser, user._id),
-        connectionsCount: user.connections?.length || 0,
+        postsCount: totalPosts,
+        yaariCount: totalYaaris,
+        // Keep old key for backward compatibility
+        connectionsCount: totalYaaris,
       });
     } else {
       res.status(404).json({ message: 'User not found' });

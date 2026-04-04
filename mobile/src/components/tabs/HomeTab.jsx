@@ -28,6 +28,9 @@ import { useAuth } from "../../store/AuthContext";
 import { useSnackbar } from "../../store/SnackbarContext";
 import CommentsSheet from "./CommentsSheet";
 import FilterModal from "./FilterModal";
+import ProfileCompletionGateModal, {
+  isProfileCompleteForConnections,
+} from "../common/ProfileCompletionGateModal";
 
 const { width } = Dimensions.get("window");
 
@@ -66,6 +69,7 @@ export default function HomeTab({ navigation }) {
   const [connectedUsers, setConnectedUsers] = useState({});
   const [requestingUsers, setRequestingUsers] = useState({});
   const [requestedUsers, setRequestedUsers] = useState({});
+  const [showProfileGateModal, setShowProfileGateModal] = useState(false);
 
   const [expandedPosts, setExpandedPosts] = useState({});
   const [activeCommentPostId, setActiveCommentPostId] = useState(null);
@@ -251,6 +255,11 @@ export default function HomeTab({ navigation }) {
 
     if (targetUserId === currentUserId) {
       showSnackbar("This is your own post.", "info");
+      return;
+    }
+
+    if (!isProfileCompleteForConnections(user)) {
+      setShowProfileGateModal(true);
       return;
     }
 
@@ -599,6 +608,15 @@ export default function HomeTab({ navigation }) {
             gender: activeGender,
             hometown: activeHometown,
             location: activeLocation,
+          }}
+        />
+
+        <ProfileCompletionGateModal
+          visible={showProfileGateModal}
+          onClose={() => setShowProfileGateModal(false)}
+          onCompleteProfile={() => {
+            setShowProfileGateModal(false);
+            navigation.navigate("Account");
           }}
         />
         </View>

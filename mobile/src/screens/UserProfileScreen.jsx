@@ -24,6 +24,10 @@ import {
 import { getUnreadNotificationsCount } from "../services/notifications/notificationService";
 import AppTopHeader from "../components/AppTopHeader";
 import { useSnackbar } from "../store/SnackbarContext";
+import { useAuth } from "../store/AuthContext";
+import ProfileCompletionGateModal, {
+  isProfileCompleteForConnections,
+} from "../components/common/ProfileCompletionGateModal";
 
 // ─── Avatar palette (preserved) ──────────────────────────────────────────────
 const AVATAR_PALETTE = [
@@ -246,11 +250,13 @@ function JourneyMap({ hometownCity, hometownState, currentCity, currentState }) 
 export default function UserProfileScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { showSnackbar } = useSnackbar();
+  const { user } = useAuth();
   const { username } = route.params;
   const [profile, setProfile]     = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnectBusy, setIsConnectBusy] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [showProfileGateModal, setShowProfileGateModal] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -323,6 +329,14 @@ export default function UserProfileScreen({ route, navigation }) {
   const currentLabel  = [profile.city, profile.state].filter(Boolean).join(', ');
   const hasHometown    = !!hometownLabel;
   const hasCurrentCity = !!currentLabel;
+  const statsPosts =
+    profile.postsCount ?? profile.posts ?? profile.postCount ?? 0;
+  const statsYaaris =
+    profile.yaariCount ??
+    profile.connectionsCount ??
+    profile.connectionCount ??
+    profile.connections?.length ??
+    0;
   const connectLabel =
     profile.connectionStatus === "connected"
       ? "Connected"
@@ -334,6 +348,16 @@ export default function UserProfileScreen({ route, navigation }) {
 
   const onConnectPress = async () => {
     if (!profile?._id || isConnectBusy) return;
+    const isSendingNewRequest =
+      profile.connectionStatus !== "connected" &&
+      profile.connectionStatus !== "request_received" &&
+      profile.connectionStatus !== "request_sent";
+
+    if (isSendingNewRequest && !isProfileCompleteForConnections(user)) {
+      setShowProfileGateModal(true);
+      return;
+    }
+
     setIsConnectBusy(true);
     const result =
       profile.connectionStatus === "connected"
@@ -456,8 +480,8 @@ export default function UserProfileScreen({ route, navigation }) {
           )}
 
           <View style={s.statsRow}>
-            <StatItem value={profile.postsCount ?? "—"} label="Posts" />
-            <StatItem value={profile.yaariCount ?? "—"} label="Yaaris" />
+            <StatItem value={statsPosts} label="Posts" />
+            <StatItem value={statsYaaris} label="Yaaris" />
           </View>
 
           <View style={s.sectionCard}>
@@ -491,6 +515,15 @@ export default function UserProfileScreen({ route, navigation }) {
           )}
         </View>
       </ScrollView>
+
+      <ProfileCompletionGateModal
+        visible={showProfileGateModal}
+        onClose={() => setShowProfileGateModal(false)}
+        onCompleteProfile={() => {
+          setShowProfileGateModal(false);
+          navigation.navigate("Account");
+        }}
+      />
     </View>
   );
 }
