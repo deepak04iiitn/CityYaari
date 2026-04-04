@@ -52,6 +52,31 @@ const COLORS = {
   border: "#e0dbd4",
 };
 
+const MEETUPS = [
+  {
+    id: "1",
+    title: "Weekend Filter Coffee Walk",
+    date: "SAT, 14 OCT",
+    time: "9:00 AM",
+    location: "Mylapore, Chennai",
+    spots: 5,
+    accent: COLORS.accentGold,
+    image:
+      "https://images.unsplash.com/photo-1511578314322-379afb476865?w=900&q=80",
+  },
+  {
+    id: "2",
+    title: "Sunset Rooftop Networking",
+    date: "SUN, 15 OCT",
+    time: "5:30 PM",
+    location: "Indiranagar, Bangalore",
+    spots: 2,
+    accent: COLORS.accent,
+    image:
+      "https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=900&q=80",
+  },
+];
+
 if (
   Platform.OS === "android" &&
   UIManager.setLayoutAnimationEnabledExperimental
@@ -351,6 +376,9 @@ export default function HomeTab({ navigation }) {
           <>
             <View style={styles.sectionRow}>
               <Text style={styles.sectionLabel}>UPCOMING MEETUPS</Text>
+              <Pressable>
+                <Text style={styles.seeAll}>See all →</Text>
+              </Pressable>
             </View>
             <View style={styles.comingSoonWrap}>
               <View style={styles.comingSoonIcon}>
@@ -365,7 +393,59 @@ export default function HomeTab({ navigation }) {
         ) : (
           <>
             <View style={styles.sectionRow}>
-              <Text style={styles.sectionLabel}>LATEST IN YOUR CITY</Text>
+              <Text style={styles.sectionLabel}>UPCOMING MEETUPS</Text>
+              <Pressable>
+                <Text style={styles.seeAll}>See all →</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.cardScroll}
+              snapToInterval={270 + 16}
+              decelerationRate="fast"
+            >
+              {MEETUPS.map((m) => (
+                <Pressable key={m.id} style={styles.meetCard}>
+                  <View style={styles.meetImgWrap}>
+                    <Image source={{ uri: m.image }} style={styles.meetImg} />
+                    <View style={[styles.datePill, { backgroundColor: m.accent }]}>
+                      <Text style={styles.datePillText}>{m.date}</Text>
+                    </View>
+                    <View style={styles.spotsBadge}>
+                      <MaterialIcons name="people" size={10} color={COLORS.ink} />
+                      <Text style={styles.spotsText}>{m.spots} left</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.meetBody}>
+                    <Text style={styles.meetTime}>{m.time}</Text>
+                    <Text style={styles.meetTitle} numberOfLines={2}>
+                      {m.title}
+                    </Text>
+                    <View style={styles.meetLoc}>
+                      <MaterialIcons name="location-on" size={12} color={COLORS.inkMuted} />
+                      <Text style={styles.meetLocText}>{m.location}</Text>
+                    </View>
+                    <Pressable style={[styles.rsvpBtn, { backgroundColor: m.accent }]}>
+                      <Text style={styles.rsvpText}>RSVP NOW</Text>
+                    </Pressable>
+                  </View>
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            <View style={styles.feedDivider} />
+
+            <View style={styles.sectionRow}>
+              <View>
+                <Text style={styles.feedSectionTitle}>
+                  <Text style={styles.feedSectionTitleLight}>Your </Text>
+                  Yaari Feed
+                </Text>
+                <View style={styles.feedSectionAccent} />
+              </View>
             </View>
 
             {/* ── SEARCH BAR ── */}
@@ -734,6 +814,28 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     color: COLORS.inkMuted,
   },
+  feedSectionTitle: {
+    fontSize: 24,
+    fontWeight: "900",
+    letterSpacing: -0.4,
+    color: COLORS.ink,
+    lineHeight: 28,
+    marginTop: 18
+  },
+  feedSectionTitleLight: {
+    fontSize: 22,
+    fontWeight: "300",
+    fontStyle: "italic",
+    letterSpacing: -0.2,
+    color: COLORS.inkLight,
+  },
+  feedSectionAccent: {
+    width: 34,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: COLORS.accentBlue,
+    marginTop: 6,
+  },
   seeAll: {
     fontSize: 12,
     fontWeight: "700",
@@ -780,6 +882,13 @@ const styles = StyleSheet.create({
     paddingRight: 20,
     paddingBottom: 28,
     gap: 16,
+  },
+  feedDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    opacity: 0.65,
+    marginHorizontal: 20,
+    marginBottom: 14,
   },
   meetCard: {
     width: 270,
@@ -1026,7 +1135,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginTop: 14,
+    marginTop: 6,
     paddingHorizontal: 20,
   },
   searchBox: {
