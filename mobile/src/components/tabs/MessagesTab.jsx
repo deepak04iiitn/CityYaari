@@ -12,7 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -449,16 +449,37 @@ export default function MessagesTab({ navigation }) {
               }
               renderItem={({ item }) => {
                 const mine = String(item.sender) === String(user?._id);
+                const isTemp = String(item._id).startsWith("tmp-");
+                const isRead = !!item.readAt;
+
                 return (
                   <View style={[st.bubbleRow, mine ? st.bubbleRowMine : st.bubbleRowPeer]}>
                     <View style={[st.bubble, mine ? st.bubbleMine : st.bubblePeer]}>
                       <Text style={[st.bubbleText, mine && st.bubbleTextMine]}>
                         {item.text || "Encrypted message"}
                       </Text>
-                      <Text style={[st.bubbleMeta, mine && st.bubbleMetaMine]}>
-                        {toRelative(item.createdAt)}
-                        {mine && (item.readAt ? "  ✓✓" : "  ✓")}
-                      </Text>
+                      <View style={st.bubbleMetaRow}>
+                        <Text style={[st.bubbleTime, mine && st.bubbleTimeMine]}>
+                          {toRelative(item.createdAt)}
+                        </Text>
+                        {mine && (
+                          <View style={st.statusIconWrap}>
+                            {isTemp ? (
+                              <MaterialCommunityIcons 
+                                name="clock-outline" 
+                                size={12} 
+                                color={COLORS.inkMuted} 
+                              />
+                            ) : (
+                              <MaterialCommunityIcons
+                                name={isRead ? "check-all" : "check"}
+                                size={15}
+                                color={isRead ? COLORS.accentBlue : COLORS.inkMuted}
+                              />
+                            )}
+                          </View>
+                        )}
+                      </View>
                     </View>
                   </View>
                 );
@@ -990,48 +1011,66 @@ const st = StyleSheet.create({
     fontWeight: "600",
   },
   bubbleRow: {
-    marginBottom: 6,
-    maxWidth: "82%",
+    flexDirection: "row",
+    marginBottom: 10,
+    paddingHorizontal: 16,
+    width: "100%",
   },
   bubbleRowMine: {
-    alignSelf: "flex-end",
+    justifyContent: "flex-end",
   },
   bubbleRowPeer: {
-    alignSelf: "flex-start",
+    justifyContent: "flex-start",
   },
   bubble: {
-    borderRadius: 18,
+    maxWidth: "80%",
     paddingHorizontal: 14,
     paddingVertical: 10,
+    borderRadius: 20,
+    shadowColor: COLORS.ink,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
   },
   bubbleMine: {
-    backgroundColor: COLORS.accentBlue,
-    borderBottomRightRadius: 6,
+    backgroundColor: COLORS.tagBlue,
+    borderBottomRightRadius: 4,
+    borderWidth: 1,
+    borderColor: "rgba(0, 74, 198, 0.15)", // Subtle brand blue border
   },
   bubblePeer: {
-    backgroundColor: COLORS.cardBg,
+    backgroundColor: COLORS.white,
+    borderBottomLeftRadius: 4,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderBottomLeftRadius: 6,
   },
   bubbleText: {
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
     color: COLORS.ink,
+    fontWeight: "500",
   },
   bubbleTextMine: {
-    color: COLORS.white,
+    color: COLORS.ink,
   },
-  bubbleMeta: {
-    marginTop: 4,
+  bubbleMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    marginTop: 2,
+    gap: 4,
+  },
+  bubbleTime: {
     fontSize: 10,
-    fontWeight: "700",
     color: COLORS.inkMuted,
-    textAlign: "right",
+    fontWeight: "600",
   },
-  bubbleMetaMine: {
-    color: "rgba(255,255,255,0.7)",
+  bubbleTimeMine: {
+    color: COLORS.inkMuted,
+  },
+  statusIconWrap: {
+    marginLeft: 1,
   },
   composerWrap: {
     paddingHorizontal: 10,
