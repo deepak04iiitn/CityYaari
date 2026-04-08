@@ -63,7 +63,7 @@ export default function OnboardingScreen({ navigation }) {
       {/* Header with safe area padding */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <Image 
-          source={require("../../assets/logo_only.png")} 
+          source={require("../../assets/Logo.png")} 
           style={styles.logo} 
           resizeMode="contain" 
         />
@@ -145,9 +145,9 @@ const styles = StyleSheet.create({
     zIndex: 10
   },
   logo: {
-    width: 120,
+    width: 80,
     height: 30,
-    marginLeft: -15
+    marginLeft: 10
   },
   skipText: {
     fontSize: 16,

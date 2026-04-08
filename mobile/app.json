@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "CityYaari",
-    "slug": "cityyaari",
+    "name": "bandhuu",
+    "slug": "bandhuu",
     "version": "1.0.0",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "icon": "./assets/Logo.png",
+    "icon": "./assets/temp_logo.png",
     "assetBundlePatterns": [
       "**/*"
     ],

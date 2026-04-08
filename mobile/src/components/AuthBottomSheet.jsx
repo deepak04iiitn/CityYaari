@@ -531,7 +531,7 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
   const isForgot = flowType === 'forgot';
 
   const signupMeta = [
-    { eyebrow: 'New to CityYaari', title: 'Create your\nprofile', button: 'Continue' },
+    { eyebrow: 'New to bandhuu', title: 'Create your\nprofile', button: 'Continue' },
     { eyebrow: 'Set your login', title: 'Add your\ncredentials', button: 'Continue' },
     { eyebrow: 'A bit more', title: 'Choose your\ncurrent stage', button: 'Continue' },
     { eyebrow: 'A bit more', title: 'Tell us your\ngender', button: 'Continue' },
@@ -545,9 +545,9 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
   ][forgotStep - 1];
 
   const eyebrow = isLogin ? 'Welcome back' : isSignup ? signupMeta.eyebrow : forgotMeta.eyebrow;
-  const title = isLogin ? 'Log in to\nCityYaari' : isSignup ? signupMeta.title : forgotMeta.title;
+  const title = isLogin ? 'Log in to\nbandhuu' : isSignup ? signupMeta.title : forgotMeta.title;
   const btnLabel = isLogin
-    ? 'Continue to CityYaari'
+    ? 'Continue to bandhuu'
     : isSignup
       ? signupMeta.button
       : forgotMeta.button;

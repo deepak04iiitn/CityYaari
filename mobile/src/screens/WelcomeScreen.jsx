@@ -387,8 +387,8 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   logo: {
-    width: 160,
-    height: 52,
+    width: 200,
+    height: 40,
   },
 
   /* Divider */

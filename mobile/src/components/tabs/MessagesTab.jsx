@@ -400,8 +400,8 @@ export default function MessagesTab({ navigation }) {
           <View style={st.watermarkWrap} pointerEvents="none">
             <View style={st.wmBadge}>
               <Text style={st.wmMain}>
-                <Text style={st.wmCity}>City</Text>
-                <Text style={st.wmYaari}>Yaari</Text>
+                <Text style={st.wmCity}>ban</Text>
+                <Text style={st.wmYaari}>dhuu</Text>
               </Text>
               <View style={st.wmLineRow}>
                 <View style={st.wmLineLeft} />

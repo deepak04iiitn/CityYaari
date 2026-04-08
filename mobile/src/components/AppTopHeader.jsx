@@ -1,8 +1,10 @@
 import React from "react";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const Logo = require("../../assets/Logo.png");
 
 const C = {
   blue: "#004ac6",
@@ -53,11 +55,7 @@ export default function AppTopHeader({
         </Pressable>
 
         <View style={styles.brandWrap}>
-          <Text style={styles.brandText}>
-            <Text style={styles.brandCity}>City</Text>
-            <Text style={styles.brandYaari}>Yaari</Text>
-          </Text>
-          <View style={styles.brandUnderline} />
+          <Image source={Logo} style={styles.logo} resizeMode="contain" />
         </View>
 
         <Pressable onPress={onNotificationPress} style={styles.notificationButton}>
@@ -133,24 +131,11 @@ const styles = StyleSheet.create({
   brandWrap: {
     alignItems: "center",
     justifyContent: "center",
+    flex: 1,
   },
-  brandText: {
-    fontSize: 21,
-    fontWeight: "900",
-    letterSpacing: -0.5,
-  },
-  brandCity: {
-    color: C.ink,
-  },
-  brandYaari: {
-    color: C.blue,
-  },
-  brandUnderline: {
-    marginTop: 4,
-    width: 30,
-    height: 3,
-    borderRadius: 999,
-    backgroundColor: C.accent,
+  logo: {
+    width: 120,
+    height: 40,
   },
   notificationButton: {
     width: 50,

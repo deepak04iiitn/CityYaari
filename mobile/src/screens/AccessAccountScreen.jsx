@@ -141,7 +141,7 @@ const AccessAccountScreen = () => {
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.wordmarkRow}>
             <View style={styles.wordmarkDot} />
-            <Text style={styles.wordmark}>CityYaari</Text>
+            <Text style={styles.wordmark}>bandhuu</Text>
           </View>
           <View style={styles.heroContent}>
             <Text style={styles.heroHeadline}>
