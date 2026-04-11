@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Image,
   Keyboard,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -11,9 +13,11 @@ import {
   Text,
   TextInput,
   View,
+  Modal,
 } from "react-native";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useAuth } from "../../store/AuthContext";
@@ -26,8 +30,11 @@ import {
   fetchConversations,
   fetchMessages,
   markConversationRead,
-  sendEncryptedMessageHttp,
   setChatHandlers,
+  clearConversationMessages,
+  getChatSocket,
+  sendMessageViaSocket,
+  emitReadReceipt,
 } from "../../services/chat/chatService";
 import { decryptMessageText, encryptMessageText } from "../../services/chat/chatCrypto";
 import { BAR_HEIGHT, FAB_LIFT } from "../../screens/MainTabs";
@@ -61,6 +68,30 @@ const toRelative = (dateString) => {
   return `${Math.floor(hrs / 24)}d`;
 };
 
+const formatLastSeen = (dateString) => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const now = new Date();
+  const timeStr = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  if (target.getTime() === today.getTime()) return `last seen today at ${timeStr}`;
+  if (target.getTime() === yesterday.getTime()) return `last seen yesterday at ${timeStr}`;
+
+  const daysDiff = Math.floor((today - target) / 86400000);
+  if (daysDiff < 7) {
+    const dayName = date.toLocaleDateString([], { weekday: "long" });
+    return `last seen ${dayName} at ${timeStr}`;
+  }
+
+  const dateStr = date.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+  return `last seen ${dateStr} at ${timeStr}`;
+};
+
 function Avatar({ uri, name, size = 48 }) {
   const initials = (name || "U")
     .split(" ")
@@ -85,6 +116,129 @@ function Avatar({ uri, name, size = 48 }) {
   );
 }
 
+const SwipeReplyIcon = React.memo(({ progress }) => {
+  const scale = progress.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0.2, 0.9, 1], extrapolate: "clamp" });
+  const opacity = progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 0.7, 1], extrapolate: "clamp" });
+  return (
+    <View style={st.swipeAction}>
+      <Animated.View style={{ transform: [{ scale }], opacity }}>
+        <MaterialIcons name="reply" size={22} color={COLORS.accentBlue} />
+      </Animated.View>
+    </View>
+  );
+});
+
+const MessageBubble = React.memo(({ item, mine, user, activePeer, onReply, onJump, isHighlighted, decrypt }) => {
+  const swiperRef = useRef(null);
+  const isTemp = String(item._id).startsWith("tmp-");
+  const isRead = !!item.readAt;
+
+  const renderLeftActions = useCallback((progress) => (
+    <SwipeReplyIcon progress={progress} />
+  ), []);
+
+  const handleSwipeOpen = useCallback((direction) => {
+    if (direction === "left") {
+      onReply(item);
+      swiperRef.current?.close();
+    }
+  }, [onReply, item]);
+
+  return (
+    <Swipeable
+      ref={swiperRef}
+      renderLeftActions={renderLeftActions}
+      onSwipeableWillOpen={handleSwipeOpen}
+      friction={1.5}
+      leftThreshold={35}
+      overshootLeft={false}
+      overshootFriction={8}
+      enableTrackpadTwoFingerGesture
+    >
+      <View style={[st.bubbleRow, mine ? st.bubbleRowMine : st.bubbleRowPeer]}>
+        <View 
+          style={[
+            st.bubble, 
+            mine ? st.bubbleMine : st.bubblePeer,
+            item.replyTo && st.bubbleWithReply,
+            isHighlighted && { backgroundColor: COLORS.accentBlue + '22', borderWidth: 1, borderColor: COLORS.accentBlue }
+          ]}
+        >
+          {item.replyTo && (
+            <Pressable 
+              style={[st.replyInBubble, mine ? st.replyInBubbleMine : st.replyInBubblePeer]}
+              onPress={() => onJump(item.replyTo)}
+            >
+              <View style={st.replyIndicator} />
+              <View style={st.replyContent}>
+                <Text style={st.replyUser} numberOfLines={1}>
+                  {String(item.sender) === String(user?._id) ? "You" : (activePeer?.fullName || "They")}
+                </Text>
+                <Text style={st.replyText} numberOfLines={2}>
+                  {item.replySnippet ? decrypt(item.replySnippet, null, activePeer._id) : "Original message"}
+                </Text>
+              </View>
+            </Pressable>
+          )}
+          <Text style={[st.bubbleText, mine && st.bubbleTextMine]}>
+            {item.text || "Encrypted message"}
+          </Text>
+          <View style={st.bubbleMetaRow}>
+            <Text style={[st.bubbleTime, mine && st.bubbleTimeMine]}>
+              {toRelative(item.createdAt)}
+            </Text>
+            {mine && (
+              <View style={st.statusIconWrap}>
+                {isTemp ? (
+                  <MaterialCommunityIcons 
+                    name="clock-outline" 
+                    size={12} 
+                    color={COLORS.inkMuted} 
+                  />
+                ) : (
+                  <MaterialCommunityIcons
+                    name={isRead ? "check-all" : "check"}
+                    size={15}
+                    color={isRead ? COLORS.accentBlue : COLORS.inkMuted}
+                  />
+                )}
+              </View>
+            )}
+          </View>
+        </View>
+      </View>
+    </Swipeable>
+  );
+});
+
+const TypingDot = ({ delay }) => {
+  const anim = useRef(new Animated.Value(0.3)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(anim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0.3, duration: 300, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [anim, delay]);
+  return <Animated.View style={[st.typingDot, { opacity: anim }]} />;
+};
+
+const TypingBubble = React.memo(() => (
+  <View style={[st.bubbleRow, st.bubbleRowPeer]}>
+    <View style={[st.bubble, st.bubblePeer, st.typingBubble]}>
+      <View style={st.typingDotsRow}>
+        <TypingDot delay={0} />
+        <TypingDot delay={150} />
+        <TypingDot delay={300} />
+      </View>
+    </View>
+  </View>
+));
+
 export default function MessagesTab({ navigation }) {
   const insets = useSafeAreaInsets();
   const { user, token } = useAuth();
@@ -102,29 +256,47 @@ export default function MessagesTab({ navigation }) {
   const [input, setInput] = useState("");
   const [search, setSearch] = useState("");
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null);
+  const [isPeerTyping, setIsPeerTyping] = useState(false);
+  const [showChatMenu, setShowChatMenu] = useState(false);
+  const [showClearModal, setShowClearModal] = useState(false);
 
   const connectionsRef = useRef([]);
   const conversationsRef = useRef([]);
   const activePeerRef = useRef(null);
   const flatListRef = useRef(null);
-  const [kbHeight, setKbHeight] = useState(0);
+  const typingTimeoutRef = useRef(null);
+  const isLocalTypingRef = useRef(false);
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const onShow = (e) => setKbHeight(e.endCoordinates.height);
-    const onHide = () => setKbHeight(0);
-    const s1 = Keyboard.addListener(showEvent, onShow);
-    const s2 = Keyboard.addListener(hideEvent, onHide);
-    return () => { s1.remove(); s2.remove(); };
+    const sub = Keyboard.addListener(showEvent, () => {
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    });
+    return () => sub.remove();
   }, []);
+
+  useEffect(() => {
+    if (isPeerTyping) {
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  }, [isPeerTyping]);
 
   useEffect(() => { connectionsRef.current = connections; }, [connections]);
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
   useEffect(() => { activePeerRef.current = activePeer; }, [activePeer]);
 
   const decrypt = useCallback(
-    (ct, iv, peerId) => decryptMessageText(ct, iv, user?._id, peerId),
+    (ct, iv, peerId) => {
+      if (!ct) return "";
+      // Handle snippet format `iv:ciphertext`
+      if (!iv && ct.includes(":")) {
+        const [ivPart, ctPart] = ct.split(":");
+        return decryptMessageText(ctPart, ivPart, user?._id, peerId);
+      }
+      return decryptMessageText(ct, iv, user?._id, peerId);
+    },
     [user?._id]
   );
 
@@ -170,6 +342,7 @@ export default function MessagesTab({ navigation }) {
           }))
         );
         if ((rows || []).length < PAGE_SIZE) setHasMore(false);
+        emitReadReceipt(peer._id);
         markConversationRead(peer._id).catch(() => {});
       } catch (_e) {
         showSnackbar("Could not load chat", "error");
@@ -232,6 +405,7 @@ export default function MessagesTab({ navigation }) {
     setChatHandlers(
       (payload) => {
         const msg = payload?.message;
+        const clientTempId = payload?.clientTempId;
         if (!msg?._id) return;
 
         const senderId = String(msg.sender);
@@ -246,22 +420,32 @@ export default function MessagesTab({ navigation }) {
         if (peer?._id) upsertConversation(msg, peer);
 
         if (activePeerRef.current?._id && String(activePeerRef.current._id) === peerId) {
+          const decryptedText = decrypt(msg.ciphertext, msg.iv, peerId);
+
           setMessages((prev) => {
+            if (clientTempId && senderId === me) {
+              const tempIdx = prev.findIndex((m) => String(m._id) === clientTempId);
+              if (tempIdx !== -1) {
+                const updated = [...prev];
+                updated[tempIdx] = { ...msg, text: decryptedText };
+                return updated;
+              }
+            }
             if (prev.some((m) => String(m._id) === String(msg._id))) return prev;
-            return [
-              ...prev,
-              { ...msg, text: decrypt(msg.ciphertext, msg.iv, peerId) },
-            ];
+            return [...prev, { ...msg, text: decryptedText }];
           });
 
+          setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 150);
+
           if (receiverId === me) {
-            markConversationRead(peerId).then(() => refreshUnreadMsgCount()).catch(() => {});
+            emitReadReceipt(peerId);
+            refreshUnreadMsgCount();
           }
         } else if (receiverId === me) {
           refreshUnreadMsgCount();
         }
       },
-      ({ conversationKey }) => {
+      ({ conversationKey, byUserId }) => {
         setMessages((prev) =>
           prev.map((m) =>
             m.conversationKey === conversationKey && String(m.sender) === String(user?._id)
@@ -269,6 +453,33 @@ export default function MessagesTab({ navigation }) {
               : m
           )
         );
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.conversationKey === conversationKey
+              ? { ...c, lastMessage: { ...c.lastMessage, readAt: new Date().toISOString() } }
+              : c
+          )
+        );
+      },
+      ({ userId, isOnline, lastSeenAt }) => {
+        setConnections((prev) =>
+          prev.map((c) => (String(c._id) === String(userId) ? { ...c, isOnline, lastSeenAt } : c))
+        );
+        setConversations((prev) =>
+          prev.map((c) =>
+            String(c.peer?._id) === String(userId)
+              ? { ...c, peer: { ...c.peer, isOnline, lastSeenAt } }
+              : c
+          )
+        );
+        if (activePeerRef.current?._id && String(activePeerRef.current._id) === String(userId)) {
+          setActivePeer((prev) => (prev ? { ...prev, isOnline, lastSeenAt } : prev));
+        }
+      },
+      ({ userId, isTyping }) => {
+        if (activePeerRef.current?._id && String(activePeerRef.current._id) === String(userId)) {
+          setIsPeerTyping(isTyping);
+        }
       }
     );
   }, [token, user?._id, decrypt, upsertConversation, refreshUnreadMsgCount]);
@@ -294,15 +505,28 @@ export default function MessagesTab({ navigation }) {
 
   const openChat = async (peer) => {
     setActivePeer(peer);
+    setIsPeerTyping(false);
     setConversations((prev) =>
       prev.map((c) =>
         String(c.peer?._id) === String(peer?._id) ? { ...c, unreadCount: 0 } : c
       )
     );
     await loadMessages(peer);
+    emitReadReceipt(peer._id);
     refreshUnreadMsgCount();
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 200);
   };
+
+  const scrollToMessage = useCallback((msgId) => {
+    const index = messages.findIndex((m) => String(m._id) === String(msgId));
+    if (index !== -1) {
+      flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+      setHighlightedMessageId(String(msgId));
+      setTimeout(() => setHighlightedMessageId(null), 1500);
+    } else {
+      showSnackbar("Original message not found in recent history", "info");
+    }
+  }, [messages, showSnackbar]);
 
   const sendNow = async () => {
     const text = input.trim();
@@ -312,6 +536,12 @@ export default function MessagesTab({ navigation }) {
 
     const peerId = activePeer._id;
     setInput("");
+    
+    if (isLocalTypingRef.current) {
+      isLocalTypingRef.current = false;
+      getChatSocket()?.emit("chat:typing", { to: peerId, isTyping: false });
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    }
 
     let encrypted;
     try {
@@ -320,6 +550,9 @@ export default function MessagesTab({ navigation }) {
       showSnackbar("Encryption error", "error");
       return;
     }
+
+    const replyData = replyingTo ? encryptMessageText(replyingTo.text.slice(0, 100), user._id, peerId) : null;
+    const replySnippet = replyData ? `${replyData.iv}:${replyData.ciphertext}` : null;
 
     const tempId = `tmp-${Date.now()}`;
     const optimistic = {
@@ -330,25 +563,44 @@ export default function MessagesTab({ navigation }) {
       text,
       ciphertext: encrypted.ciphertext,
       iv: encrypted.iv,
+      replyTo: replyingTo?._id || null,
+      replySnippet,
       createdAt: new Date().toISOString(),
       readAt: null,
     };
 
     setMessages((prev) => [...prev, optimistic]);
+    setReplyingTo(null);
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 150);
 
     try {
-      const saved = await sendEncryptedMessageHttp(peerId, encrypted);
-      if (saved?._id) {
-        setMessages((prev) =>
-          prev.map((m) => (m._id === tempId ? { ...saved, text } : m))
-        );
-      }
+      await sendMessageViaSocket({
+        to: peerId,
+        ciphertext: encrypted.ciphertext,
+        iv: encrypted.iv,
+        clientTempId: tempId,
+        replyTo: optimistic.replyTo,
+        replySnippet: optimistic.replySnippet,
+      });
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m._id !== tempId));
       showSnackbar("Message failed to send", "error");
+    }
+  };
+
+  const handleClearChat = async () => {
+    if (!activePeer?._id) return;
+    try {
+      await clearConversationMessages(activePeer._id);
+      setMessages([]);
+      setShowClearModal(false);
+      setShowChatMenu(false);
+      showSnackbar("Chat cleared successfully", "success");
+      loadConversations();
+    } catch (err) {
+      showSnackbar("Failed to clear chat", "error");
     }
   };
 
@@ -378,7 +630,10 @@ export default function MessagesTab({ navigation }) {
   /* ─── CHAT VIEW ─── */
   if (activePeer?._id) {
     return (
-      <View style={st.root}>
+      <KeyboardAvoidingView
+        style={st.root}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
         <StatusBar style="dark" />
         <View style={[st.chatHeader, { paddingTop: insets.top + 14 }]}>
           <Pressable onPress={() => setActivePeer(null)} style={st.chatBackArrow}>
@@ -389,14 +644,90 @@ export default function MessagesTab({ navigation }) {
             <Text style={st.chatHeaderName} numberOfLines={1}>
               {activePeer.fullName || activePeer.username}
             </Text>
-            <View style={st.chatEncRow}>
-              <MaterialIcons name="lock" size={11} color={COLORS.accentMint} />
-              <Text style={st.chatEncText}>End-to-end encrypted</Text>
-            </View>
+            {isPeerTyping ? (
+              <Text style={[st.chatStatusText, { color: COLORS.accentMint, fontWeight: "900" }]}>typing...</Text>
+            ) : activePeer.isOnline ? (
+              <View style={st.chatEncRow}>
+                <View style={st.onlineDotSmall} />
+                <Text style={[st.chatStatusText, { color: COLORS.accentMint }]}>Online</Text>
+              </View>
+            ) : (
+              <Text style={st.chatStatusText} numberOfLines={1}>
+                {formatLastSeen(activePeer.lastSeenAt)}
+              </Text>
+            )}
           </View>
+          <Pressable 
+            onPress={() => setShowChatMenu(true)} 
+            style={st.chatHeaderDots}
+          >
+            <MaterialIcons name="more-vert" size={24} color={COLORS.ink} />
+          </Pressable>
         </View>
 
-        <View style={[st.chatBody, kbHeight > 0 && { paddingBottom: kbHeight + 16 }]}>
+        {/* ── CHAT DROPDOWN MENU ── */}
+        <Modal
+          visible={showChatMenu}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowChatMenu(false)}
+        >
+          <Pressable 
+            style={st.menuOverlay} 
+            onPress={() => setShowChatMenu(false)}
+          >
+            <View style={[st.menuContent, { top: insets.top + 60 }]}>
+              <Pressable 
+                style={st.menuItem} 
+                onPress={() => {
+                  setShowChatMenu(false);
+                  setShowClearModal(true);
+                }}
+              >
+                <MaterialIcons name="delete-outline" size={20} color={COLORS.accent} />
+                <Text style={st.menuItemText}>Clear chat</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Modal>
+
+        {/* ── CONFIRMATION MODAL ── */}
+        <Modal
+          visible={showClearModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowClearModal(false)}
+        >
+          <View style={st.modalOverlay}>
+            <View style={st.modalContent}>
+              <View style={st.modalHeader}>
+                <View style={st.warningCircle}>
+                  <MaterialIcons name="warning" size={32} color={COLORS.accent} />
+                </View>
+                <Text style={st.modalTitle}>Clear chat?</Text>
+              </View>
+              <Text style={st.modalText}>
+                Are you sure you want to clear the chat? You will not be able to restore the messages once deleted.
+              </Text>
+              <View style={st.modalActions}>
+                <Pressable 
+                  style={[st.modalBtn, st.modalBtnCancel]} 
+                  onPress={() => setShowClearModal(false)}
+                >
+                  <Text style={st.modalBtnTextCancel}>Cancel</Text>
+                </Pressable>
+                <Pressable 
+                  style={[st.modalBtn, st.modalBtnConfirm]} 
+                  onPress={handleClearChat}
+                >
+                  <Text style={st.modalBtnTextConfirm}>Clear</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        <View style={st.chatBody}>
           <View style={st.watermarkWrap} pointerEvents="none">
             <View style={st.wmBadge}>
               <Text style={st.wmMain}>
@@ -441,57 +772,64 @@ export default function MessagesTab({ navigation }) {
                   <ActivityIndicator style={st.olderLoader} color={COLORS.accentBlue} size="small" />
                 ) : null
               }
+              ListFooterComponent={isPeerTyping ? <TypingBubble /> : null}
               ListEmptyComponent={
                 <View style={st.chatEmptyWrap}>
                   <MaterialIcons name="chat-bubble-outline" size={32} color={COLORS.border} />
                   <Text style={st.chatEmptyText}>Say hello to start the conversation</Text>
                 </View>
               }
-              renderItem={({ item }) => {
-                const mine = String(item.sender) === String(user?._id);
-                const isTemp = String(item._id).startsWith("tmp-");
-                const isRead = !!item.readAt;
-
-                return (
-                  <View style={[st.bubbleRow, mine ? st.bubbleRowMine : st.bubbleRowPeer]}>
-                    <View style={[st.bubble, mine ? st.bubbleMine : st.bubblePeer]}>
-                      <Text style={[st.bubbleText, mine && st.bubbleTextMine]}>
-                        {item.text || "Encrypted message"}
-                      </Text>
-                      <View style={st.bubbleMetaRow}>
-                        <Text style={[st.bubbleTime, mine && st.bubbleTimeMine]}>
-                          {toRelative(item.createdAt)}
-                        </Text>
-                        {mine && (
-                          <View style={st.statusIconWrap}>
-                            {isTemp ? (
-                              <MaterialCommunityIcons 
-                                name="clock-outline" 
-                                size={12} 
-                                color={COLORS.inkMuted} 
-                              />
-                            ) : (
-                              <MaterialCommunityIcons
-                                name={isRead ? "check-all" : "check"}
-                                size={15}
-                                color={isRead ? COLORS.accentBlue : COLORS.inkMuted}
-                              />
-                            )}
-                          </View>
-                        )}
-                      </View>
-                    </View>
-                  </View>
-                );
-              }}
+              renderItem={({ item }) => (
+                <MessageBubble
+                  item={item}
+                  mine={String(item.sender) === String(user?._id)}
+                  user={user}
+                  activePeer={activePeer}
+                  onReply={(msg) => setReplyingTo(msg)}
+                  onJump={(msgId) => scrollToMessage(msgId)}
+                  isHighlighted={highlightedMessageId === String(item._id)}
+                  decrypt={decrypt}
+                />
+              )}
             />
           )}
 
-          <View style={[st.composerWrap, { paddingBottom: kbHeight > 0 ? 4 : Math.max(insets.bottom, 8) }]}>
+          {replyingTo && (
+            <View style={st.replyPreviewWrap}>
+              <View style={st.replyPreviewContent}>
+                <View style={st.replyIndicator} />
+                <View style={st.replyMain}>
+                  <Text style={st.replyUserLabel}>Replying to {String(replyingTo.sender) === String(user?._id) ? "yourself" : (activePeer?.fullName || "Yaari")}</Text>
+                  <Text style={st.replyTextLabel} numberOfLines={1}>{replyingTo.text}</Text>
+                </View>
+              </View>
+              <Pressable onPress={() => setReplyingTo(null)} style={st.replyCloseBtn}>
+                <MaterialIcons name="close" size={20} color={COLORS.inkMuted} />
+              </Pressable>
+            </View>
+          )}
+          <View style={[st.composerWrap, { paddingBottom: Math.max(insets.bottom, 8) }]}>
             <View style={st.composer}>
               <TextInput
                 value={input}
-                onChangeText={setInput}
+                onChangeText={(val) => {
+                  setInput(val);
+                  if (!activePeer?._id) return;
+                  
+                  if (!isLocalTypingRef.current && val.trim().length > 0) {
+                    isLocalTypingRef.current = true;
+                    getChatSocket()?.emit("chat:typing", { to: activePeer._id, isTyping: true });
+                  }
+                  
+                  if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                  
+                  typingTimeoutRef.current = setTimeout(() => {
+                    if (isLocalTypingRef.current) {
+                      isLocalTypingRef.current = false;
+                      getChatSocket()?.emit("chat:typing", { to: activePeer._id, isTyping: false });
+                    }
+                  }, 2000);
+                }}
                 placeholder="Type a message..."
                 placeholderTextColor={COLORS.inkMuted}
                 style={st.composerInput}
@@ -507,7 +845,7 @@ export default function MessagesTab({ navigation }) {
             </View>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -606,7 +944,7 @@ export default function MessagesTab({ navigation }) {
               >
                 <View style={st.convAvatarWrap}>
                   <Avatar uri={item.peer?.profileImageUri} name={item.peer?.fullName} size={50} />
-                  {!!item.unreadCount && <View style={st.convOnline} />}
+                  {item.peer?.isOnline && <View style={st.convOnline} />}
                 </View>
                 <View style={st.convMid}>
                   <View style={st.convNameRow}>
@@ -904,6 +1242,7 @@ const st = StyleSheet.create({
     backgroundColor: COLORS.paperDark,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+    flexShrink: 0,
   },
   chatBackArrow: {
     padding: 4,
@@ -928,6 +1267,17 @@ const st = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: COLORS.accentMint,
+  },
+  onlineDotSmall: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.accentMint,
+  },
+  chatStatusText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.inkMuted,
   },
   chatBody: {
     flex: 1,
@@ -1010,6 +1360,21 @@ const st = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
+  typingBubble: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  typingDotsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  typingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.inkMuted,
+  },
   bubbleRow: {
     flexDirection: "row",
     marginBottom: 10,
@@ -1045,6 +1410,9 @@ const st = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  bubbleWithReply: {
+    minWidth: "60%",
+  },
   bubbleText: {
     fontSize: 15,
     lineHeight: 22,
@@ -1070,7 +1438,7 @@ const st = StyleSheet.create({
     color: COLORS.inkMuted,
   },
   statusIconWrap: {
-    marginLeft: 1,
+    marginLeft: 4,
   },
   composerWrap: {
     paddingHorizontal: 10,
@@ -1078,6 +1446,7 @@ const st = StyleSheet.create({
     backgroundColor: COLORS.paper,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
+    flexShrink: 0,
   },
   composer: {
     flexDirection: "row",
@@ -1123,5 +1492,199 @@ const st = StyleSheet.create({
   avatarInitials: {
     fontWeight: "900",
     color: COLORS.accentBlue,
+  },
+
+  /* ── REPLY UI ── */
+  swipeAction: {
+    width: 60,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  replyPreviewWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.cardBg,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  replyPreviewContent: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.tagBlue,
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  replyIndicator: {
+    width: 4,
+    height: "100%",
+    backgroundColor: COLORS.accentBlue,
+  },
+  replyMain: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  replyUserLabel: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: COLORS.accentBlue,
+  },
+  replyTextLabel: {
+    fontSize: 12,
+    color: COLORS.inkMuted,
+    marginTop: 2,
+  },
+  replyCloseBtn: {
+    padding: 8,
+    marginLeft: 8,
+  },
+
+  /* ── REPLY IN BUBBLE ── */
+  replyInBubble: {
+    flexDirection: "row",
+    borderRadius: 6,
+    overflow: "hidden",
+    marginBottom: 6,
+    borderWidth: 1,
+  },
+  replyInBubbleMine: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  replyInBubblePeer: {
+    backgroundColor: COLORS.tagBlue,
+    borderColor: "#dbeafe",
+  },
+  replyContent: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  replyUser: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: COLORS.accentBlue,
+  },
+  replyText: {
+    fontSize: 11,
+    color: COLORS.inkMuted,
+    marginTop: 1,
+  },
+
+  /* ── CLEAR CHAT UI ── */
+  chatHeaderDots: {
+    padding: 8,
+    marginLeft: 4,
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.02)",
+  },
+  menuContent: {
+    position: "absolute",
+    right: 16,
+    backgroundColor: COLORS.cardBg,
+    borderRadius: 12,
+    padding: 6,
+    minWidth: 160,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 12,
+  },
+  menuItemText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: COLORS.accent,
+  },
+
+  /* ── CLEAR MODAL ── */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: COLORS.white,
+    borderRadius: 24,
+    padding: 24,
+    width: "100%",
+    maxWidth: 340,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHeader: {
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  warningCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: COLORS.accent + "15",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: COLORS.ink,
+  },
+  modalText: {
+    fontSize: 16,
+    color: COLORS.inkMuted,
+    textAlign: "center",
+    lineHeight: 24,
+    marginBottom: 32,
+    paddingHorizontal: 8,
+  },
+  modalActions: {
+    flexDirection: "row",
+    width: "100%",
+    gap: 12,
+  },
+  modalBtn: {
+    flex: 1,
+    height: 52,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalBtnCancel: {
+    backgroundColor: COLORS.paperDark,
+  },
+  modalBtnConfirm: {
+    backgroundColor: COLORS.accent,
+  },
+  modalBtnTextCancel: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: COLORS.inkLight,
+  },
+  modalBtnTextConfirm: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: COLORS.white,
   },
 });

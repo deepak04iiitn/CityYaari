@@ -386,7 +386,7 @@ export default function HomeTab({ navigation }) {
               </View>
               <Text style={styles.comingSoonTitle}>Meetups Coming Soon</Text>
               <Text style={styles.comingSoonSubtitle}>
-                We are building a beautiful meetup experience for CityYaari. It will launch soon.
+                We are building a beautiful meetup experience for Bandhuu. It will launch soon.
               </Text>
             </View>
           </>

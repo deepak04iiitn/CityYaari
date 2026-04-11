@@ -683,8 +683,8 @@ export default function AccountTab({ navigation }) {
           </Pressable>
 
           <View style={st.heroNameBlock}>
-            <Text style={st.heroName}>{user?.fullName || "CityYaari Member"}</Text>
-            <Text style={st.heroHandle}>@{user?.username || "cityyaari"}</Text>
+            <Text style={st.heroName}>{user?.fullName || "Bandhuu Member"}</Text>
+            <Text style={st.heroHandle}>@{user?.username || "bandhuu"}</Text>
 
             {/* Gold accent underline */}
             <View style={st.goldAccentLine} />
@@ -886,7 +886,7 @@ export default function AccountTab({ navigation }) {
 
       {/* ── App Info ──────────────────────────────────────────────────────── */}
       <View style={st.appInfo}>
-        <Text style={st.appInfoText}>CityYaari · v1.0.0</Text>
+        <Text style={st.appInfoText}>Bandhuu · v1.0.0</Text>
         <Text style={st.appInfoDot}>·</Text>
         <Text style={st.appInfoText}>Privacy Policy</Text>
         <Text style={st.appInfoDot}>·</Text>

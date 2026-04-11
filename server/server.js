@@ -15,5 +15,5 @@ const httpServer = http.createServer(app);
 initSocketServer(httpServer);
 
 httpServer.listen(PORT, () => {
-  console.log(`CityYaari server running on port ${PORT}`);
+  console.log(`Bandhuu server running on port ${PORT}`);
 });

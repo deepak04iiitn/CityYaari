@@ -1,6 +1,6 @@
-# CityYaari
+# Bandhuu
 
-CityYaari monorepo containing the Expo mobile app and Node.js backend.
+Bandhuu monorepo containing the Expo mobile app and Node.js backend.
 
 ## Apps
 

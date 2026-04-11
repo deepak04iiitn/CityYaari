@@ -4,6 +4,7 @@ import {
   getTotalUnreadCount,
   markConversationRead,
   sendEncryptedMessage,
+  clearChatForUser,
 } from '../services/chatService.js';
 
 const mapMessage = (msg) => ({
@@ -15,6 +16,8 @@ const mapMessage = (msg) => ({
   conversationKey: msg.conversationKey,
   readAt: msg.readAt,
   createdAt: msg.createdAt,
+  replyTo: msg.replyTo,
+  replySnippet: msg.replySnippet,
 });
 
 const withError = (res, error, fallbackMessage) => {
@@ -53,7 +56,7 @@ export const listConversationMessages = async (req, res) => {
 export const sendMessage = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { ciphertext, iv } = req.body;
+    const { ciphertext, iv, replyTo, replySnippet } = req.body;
 
     if (!ciphertext || !iv) {
       return res.status(400).json({ message: 'ciphertext and iv are required' });
@@ -64,11 +67,26 @@ export const sendMessage = async (req, res) => {
       receiverId: userId,
       ciphertext,
       iv,
+      replyTo,
+      replySnippet,
     });
 
     res.status(201).json({ message: mapMessage(message) });
   } catch (error) {
     withError(res, error, 'Failed to send message');
+  }
+};
+
+export const clearChat = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    await clearChatForUser({
+      userId: req.user._id,
+      targetUserId: userId,
+    });
+    res.json({ message: 'Chat cleared' });
+  } catch (error) {
+    withError(res, error, 'Failed to clear chat');
   }
 };
 

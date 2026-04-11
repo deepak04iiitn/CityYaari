@@ -115,6 +115,14 @@ const userSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    isOnline: {
+      type: Boolean,
+      default: false,
+    },
+    lastSeenAt: {
+      type: Date,
+      default: null,
+    },
     isDeleted: {
       type: Boolean,
       default: false,

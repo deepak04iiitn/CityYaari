@@ -4,7 +4,7 @@ import Meetup from '../models/Meetup.js';
 import { createNotification } from '../services/notificationService.js';
 
 const userSummarySelect =
-  '_id fullName username profileImageUri occupationType gender city state country hometownCity hometownState hometownCountry organization studyOrPost bio';
+  '_id fullName username profileImageUri occupationType gender city state country hometownCity hometownState hometownCountry organization studyOrPost bio isOnline lastSeenAt';
 
 const includesId = (list = [], id) =>
   list.some((item) => item?.toString() === id?.toString());
@@ -238,7 +238,7 @@ export const getMyConnections = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).populate({
       path: 'connections',
-      select: '_id fullName username profileImageUri city state hometownCity hometownState occupationType',
+      select: '_id fullName username profileImageUri city state hometownCity hometownState occupationType isOnline lastSeenAt',
     });
 
     if (!user) return res.status(404).json({ message: 'User not found' });

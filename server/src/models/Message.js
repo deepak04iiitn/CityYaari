@@ -39,6 +39,21 @@ const messageSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    replyTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Message',
+      default: null,
+    },
+    replySnippet: {
+      type: String,
+      default: null,
+    },
+    deletedFor: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
   },
   {
     timestamps: true,

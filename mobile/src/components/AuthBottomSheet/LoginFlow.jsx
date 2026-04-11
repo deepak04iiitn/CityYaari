@@ -112,7 +112,7 @@ export default function LoginFlow({
           <>
             <Text style={styles.submitText}>
               {isLogin
-                ? 'Continue to CityYaari'
+                ? 'Continue to bandhuu'
                 : forgotStep === 1
                   ? 'Continue'
                   : forgotStep === 2

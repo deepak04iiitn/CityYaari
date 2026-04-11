@@ -1,7 +1,7 @@
 import * as ExpoCrypto from 'expo-crypto';
 import CryptoJS from 'crypto-js';
 
-const APP_CHAT_SECRET = process.env.EXPO_PUBLIC_CHAT_E2E_SECRET || 'cityyaari-chat-v1';
+const APP_CHAT_SECRET = process.env.EXPO_PUBLIC_CHAT_E2E_SECRET || 'bandhuu-chat-v1';
 
 const buildConversationSecret = (myUserId, peerUserId) => {
   return [String(myUserId), String(peerUserId)].sort().join(':') + ':' + APP_CHAT_SECRET;

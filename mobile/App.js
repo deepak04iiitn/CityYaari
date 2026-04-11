@@ -46,18 +46,22 @@ const Navigation = () => {
   );
 };
 
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <SnackbarProvider>
-          <UnreadMsgProvider>
-            <NavigationContainer>
-              <Navigation />
-            </NavigationContainer>
-          </UnreadMsgProvider>
-        </SnackbarProvider>
-      </AuthProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <SnackbarProvider>
+            <UnreadMsgProvider>
+              <NavigationContainer>
+                <Navigation />
+              </NavigationContainer>
+            </UnreadMsgProvider>
+          </SnackbarProvider>
+        </AuthProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

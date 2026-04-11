@@ -5,6 +5,7 @@ import {
   markConversationRead,
   sendEncryptedMessage,
 } from '../services/chatService.js';
+import User from '../models/User.js';
 
 const mapSocketMessage = (message) => ({
   _id: message._id,
@@ -15,6 +16,8 @@ const mapSocketMessage = (message) => ({
   conversationKey: message.conversationKey,
   createdAt: message.createdAt,
   readAt: message.readAt,
+  replyTo: message.replyTo,
+  replySnippet: message.replySnippet,
 });
 
 const getTokenFromHandshake = (socket) => {
@@ -43,13 +46,21 @@ export const initSocketServer = (httpServer) => {
     }
   });
 
-  io.on('connection', (socket) => {
+  io.on('connection', async (socket) => {
     console.log(`[Socket] User connected: ${socket.userId}`);
     socket.join(`user:${socket.userId}`);
 
+    // Update status to online
+    try {
+      await User.findByIdAndUpdate(socket.userId, { isOnline: true });
+      io.emit('user:status', { userId: socket.userId, isOnline: true });
+    } catch (err) {
+      console.error('[Socket Connection Status Error]', err.message);
+    }
+
     socket.on('chat:send', async (payload = {}, callback) => {
       try {
-        const { to, ciphertext, iv, clientTempId } = payload;
+        const { to, ciphertext, iv, clientTempId, replyTo, replySnippet } = payload;
         if (!to || !ciphertext || !iv) {
           throw new Error('to, ciphertext and iv are required');
         }
@@ -59,6 +70,8 @@ export const initSocketServer = (httpServer) => {
           receiverId: to,
           ciphertext,
           iv,
+          replyTo,
+          replySnippet,
         });
 
         console.log(`[Socket] Message saved: ${saved._id} from ${socket.userId} to ${to}`);
@@ -110,8 +123,25 @@ export const initSocketServer = (httpServer) => {
       }
     });
 
-    socket.on('disconnect', () => {
+    socket.on('chat:typing', (payload = {}) => {
+      const { to, isTyping } = payload;
+      if (!to) return;
+      io.to(`user:${to}`).emit('chat:typing', {
+        userId: socket.userId,
+        isTyping,
+      });
+    });
+
+    socket.on('disconnect', async () => {
       console.log(`[Socket] User disconnected: ${socket.userId}`);
+      // Update status to offline
+      try {
+        const lastSeenAt = new Date();
+        await User.findByIdAndUpdate(socket.userId, { isOnline: false, lastSeenAt });
+        io.emit('user:status', { userId: socket.userId, isOnline: false, lastSeenAt });
+      } catch (err) {
+        console.error('[Socket Disconnect Status Error]', err.message);
+      }
     });
   });
 

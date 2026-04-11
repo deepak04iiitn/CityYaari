@@ -104,7 +104,7 @@ async function geocodePlace(city, state) {
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`,
-      { headers: { 'User-Agent': 'CityYaari/1.0' } }
+      { headers: { 'User-Agent': 'Bandhuu/1.0' } }
     );
     const data = await res.json();
     if (data.length > 0) {
@@ -409,7 +409,7 @@ export default function UserProfileScreen({ route, navigation }) {
           <View style={s.heroTop}>
             <View style={s.memberPill}>
               <View style={s.memberDot} />
-              <Text style={s.memberText}>CityYaari Member</Text>
+              <Text style={s.memberText}>Bandhuu Member</Text>
             </View>
           </View>
 

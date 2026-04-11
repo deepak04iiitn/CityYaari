@@ -5,6 +5,7 @@ import {
   listMyConversations,
   readConversation,
   sendMessage,
+  clearChat,
 } from '../controllers/chatController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -17,5 +18,6 @@ router.get('/conversations', listMyConversations);
 router.get('/:userId/messages', listConversationMessages);
 router.post('/:userId/messages', sendMessage);
 router.put('/:userId/read', readConversation);
+router.delete('/:userId', clearChat);
 
 export default router;

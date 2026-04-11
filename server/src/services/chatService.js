@@ -21,7 +21,14 @@ export const assertConnected = async (userId, targetUserId) => {
   }
 };
 
-export const sendEncryptedMessage = async ({ senderId, receiverId, ciphertext, iv }) => {
+export const sendEncryptedMessage = async ({
+  senderId,
+  receiverId,
+  ciphertext,
+  iv,
+  replyTo = null,
+  replySnippet = null,
+}) => {
   await assertConnected(senderId, receiverId);
 
   const senderOid = new mongoose.Types.ObjectId(toIdString(senderId));
@@ -35,6 +42,8 @@ export const sendEncryptedMessage = async ({ senderId, receiverId, ciphertext, i
     receiver: receiverOid,
     ciphertext,
     iv,
+    replyTo: replyTo ? new mongoose.Types.ObjectId(replyTo) : null,
+    replySnippet,
   });
 
   return message;
@@ -44,7 +53,8 @@ export const getConversationMessages = async ({ userId, targetUserId, before, li
   await assertConnected(userId, targetUserId);
 
   const conversationKey = buildConversationKey(userId, targetUserId);
-  const query = { conversationKey };
+  const userOid = new mongoose.Types.ObjectId(toIdString(userId));
+  const query = { conversationKey, deletedFor: { $ne: userOid } };
   if (before) {
     query.createdAt = { $lt: new Date(before) };
   }
@@ -52,7 +62,6 @@ export const getConversationMessages = async ({ userId, targetUserId, before, li
   const safeLimit = Math.max(1, Math.min(100, Number(limit) || 50));
   const messages = await Message.find(query).sort({ createdAt: -1 }).limit(safeLimit);
 
-  const userOid = new mongoose.Types.ObjectId(toIdString(userId));
   await Message.updateMany(
     { conversationKey, receiver: userOid, readAt: null },
     { $set: { readAt: new Date() } }
@@ -72,19 +81,24 @@ export const markConversationRead = async ({ userId, targetUserId }) => {
 
 export const getTotalUnreadCount = async (userId) => {
   const userOid = new mongoose.Types.ObjectId(toIdString(userId));
-  const result = await Message.countDocuments({ receiver: userOid, readAt: null });
+  const result = await Message.countDocuments({ 
+    receiver: userOid, 
+    readAt: null,
+    deletedFor: { $ne: userOid }
+  });
   return result;
 };
 
 export const getConversationList = async (userId) => {
   const userOid = new mongoose.Types.ObjectId(toIdString(userId));
   const userIdStr = toIdString(userId);
+  const query = { participants: userOid, deletedFor: { $ne: userOid } };
 
-  const latestMessages = await Message.find({ participants: userOid })
+  const latestMessages = await Message.find(query)
     .sort({ createdAt: -1 })
     .limit(500)
-    .populate('sender', 'fullName username profileImageUri city')
-    .populate('receiver', 'fullName username profileImageUri city');
+    .populate('sender', 'fullName username profileImageUri city isOnline lastSeenAt')
+    .populate('receiver', 'fullName username profileImageUri city isOnline lastSeenAt');
 
   const seen = new Set();
   const list = [];
@@ -103,6 +117,8 @@ export const getConversationList = async (userId) => {
         username: peer.username,
         profileImageUri: peer.profileImageUri || '',
         city: peer.city || '',
+        isOnline: peer.isOnline,
+        lastSeenAt: peer.lastSeenAt,
       },
       lastMessage: {
         _id: msg._id,
@@ -117,7 +133,7 @@ export const getConversationList = async (userId) => {
   }
 
   const unreadRows = await Message.aggregate([
-    { $match: { receiver: userOid, readAt: null } },
+    { $match: { receiver: userOid, readAt: null, deletedFor: { $ne: userOid } } },
     { $group: { _id: '$conversationKey', count: { $sum: 1 } } },
   ]);
 
@@ -130,4 +146,14 @@ export const getConversationList = async (userId) => {
     ...item,
     unreadCount: unreadMap[item.conversationKey] || 0,
   }));
+};
+
+export const clearChatForUser = async ({ userId, targetUserId }) => {
+  const conversationKey = buildConversationKey(userId, targetUserId);
+  const userOid = new mongoose.Types.ObjectId(toIdString(userId));
+
+  await Message.updateMany(
+    { conversationKey, deletedFor: { $ne: userOid } },
+    { $addToSet: { deletedFor: userOid } }
+  );
 };

@@ -33,10 +33,17 @@ export const fetchUnreadMessageCount = async () => {
   return response.data?.count || 0;
 };
 
+export const clearConversationMessages = async (userId) => {
+  const response = await apiClient.delete(`/chats/${userId}`);
+  return response.data;
+};
+
 let socketRef = null;
 let activeToken = null;
 let messageHandler = null;
 let readReceiptHandler = null;
+let statusHandler = null;
+let typingHandler = null;
 
 export const ensureChatSocket = (token) => {
   if (!token) return null;
@@ -75,15 +82,46 @@ export const ensureChatSocket = (token) => {
     readReceiptHandler?.(payload);
   });
 
+  socketRef.on('user:status', (payload) => {
+    statusHandler?.(payload);
+  });
+
+  socketRef.on('chat:typing', (payload) => {
+    typingHandler?.(payload);
+  });
+
   return socketRef;
 };
 
-export const setChatHandlers = (onMessage, onReadReceipt) => {
+export const setChatHandlers = (onMessage, onReadReceipt, onStatus, onTyping) => {
   messageHandler = onMessage;
   readReceiptHandler = onReadReceipt;
+  statusHandler = onStatus;
+  typingHandler = onTyping;
 };
 
 export const getChatSocket = () => socketRef;
+
+export const sendMessageViaSocket = (payload) => {
+  return new Promise((resolve, reject) => {
+    if (!socketRef?.connected) {
+      reject(new Error('Socket not connected'));
+      return;
+    }
+    socketRef.emit('chat:send', payload, (response) => {
+      if (response?.success) {
+        resolve(response);
+      } else {
+        reject(new Error(response?.message || 'Failed to send message'));
+      }
+    });
+  });
+};
+
+export const emitReadReceipt = (peerUserId) => {
+  if (!socketRef?.connected || !peerUserId) return;
+  socketRef.emit('chat:read', { peerUserId });
+};
 
 export const destroyChatSocket = () => {
   if (socketRef) {

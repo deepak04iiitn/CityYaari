@@ -284,7 +284,7 @@ export default function PostTab({ navigation }) {
                 </View>
                 <Text style={styles.comingSoonTitle}>Meetups Coming Soon</Text>
                 <Text style={styles.comingSoonSub}>
-                  We are crafting a richer meetup experience for CityYaari. The feature will be available shortly.
+                  We are crafting a richer meetup experience for Bandhuu. The feature will be available shortly.
                 </Text>
                 <Pressable style={styles.comingSoonBtn} onPress={handleShareYaari}>
                   <Text style={styles.comingSoonBtnText}>Notify Me</Text>
