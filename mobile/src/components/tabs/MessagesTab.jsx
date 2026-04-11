@@ -770,6 +770,15 @@ export default function MessagesTab({ navigation, route }) {
   }, [route?.params?.openGroupMeetup]);
 
   useEffect(() => {
+    const peer = route?.params?.openDmPeer;
+    if (peer?._id) {
+      setMsgMode("yaaris");
+      setTimeout(() => openChat(peer), 300);
+      navigation.setParams({ openDmPeer: undefined });
+    }
+  }, [route?.params?.openDmPeer]);
+
+  useEffect(() => {
     navigation.setOptions({
       tabBarStyle: (activePeer || activeGroupMeetup) ? { display: "none" } : undefined,
     });

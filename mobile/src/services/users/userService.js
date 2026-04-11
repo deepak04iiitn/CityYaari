@@ -157,6 +157,49 @@ export const getMySavedPosts = async () => {
   }
 };
 
+export const blockUser = async (userId) => {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await axios.post(`${API_BASE_URL}/users/${userId}/block`, {}, { headers });
+    return { success: true, ...response.data };
+  } catch (error) {
+    return {
+      success: false,
+      message: error?.response?.data?.message || 'Failed to block user',
+    };
+  }
+};
+
+export const unblockUser = async (userId) => {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await axios.delete(`${API_BASE_URL}/users/${userId}/block`, { headers });
+    return { success: true, ...response.data };
+  } catch (error) {
+    return {
+      success: false,
+      message: error?.response?.data?.message || 'Failed to unblock user',
+    };
+  }
+};
+
+export const reportUser = async (userId, reason, details = '') => {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await axios.post(
+      `${API_BASE_URL}/users/${userId}/report`,
+      { reason, details },
+      { headers }
+    );
+    return { success: true, ...response.data };
+  } catch (error) {
+    return {
+      success: false,
+      message: error?.response?.data?.message || 'Failed to report user',
+    };
+  }
+};
+
 export const getMyActivitySummary = async () => {
   try {
     const headers = await getAuthHeaders();

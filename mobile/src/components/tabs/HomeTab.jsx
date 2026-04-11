@@ -13,7 +13,6 @@ import {
   UIManager,
   ActivityIndicator,
   TextInput,
-  Keyboard,
   Modal,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -178,7 +177,7 @@ export default function HomeTab({ navigation }) {
     return true;
   });
 
-  const upcomingMeetups = meetups.filter((m) => m.status === "upcoming").slice(0, 6);
+  const upcomingMeetups = meetups.filter((m) => m.status === "upcoming").slice(0, 3);
 
   const formatMeetupDate = (d) => {
     const date = new Date(d);
@@ -387,8 +386,9 @@ export default function HomeTab({ navigation }) {
       noPadding
       background={COLORS.paper}
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
     >
-      <Pressable onPress={() => Keyboard.dismiss()} accessible={false} style={styles.container}>
+      <View style={styles.container}>
         {/* ── MASTHEAD ── */}
         <View style={styles.masthead}>
           {/* <View style={styles.mastheadTop}>
@@ -1000,7 +1000,7 @@ export default function HomeTab({ navigation }) {
             navigation.navigate("Account");
           }}
         />
-      </Pressable>
+      </View>
     </ScreenShell>
   );
 }
@@ -1104,7 +1104,7 @@ const styles = StyleSheet.create({
   sectionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     paddingHorizontal: 20,
     marginBottom: 14,
     marginTop: -10
@@ -1444,6 +1444,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: COLORS.accentBlue,
     letterSpacing: 0.2,
+    marginTop: 24,
   },
   upcomingScroll: {
     paddingHorizontal: 20,

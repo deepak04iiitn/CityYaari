@@ -49,3 +49,15 @@ export const admin = (req, res, next) => {
     res.status(403).json({ message: 'Not authorized as an admin' });
   }
 };
+
+// Require complete profile (hometown, current location, organization, bio)
+export const requireCompleteProfile = (req, res, next) => {
+  const u = req.user;
+  if (!u?.hometownCountry || !u?.country || !u?.organization || !u?.bio) {
+    return res.status(403).json({
+      message: 'Please complete your profile before performing this action.',
+      code: 'PROFILE_INCOMPLETE',
+    });
+  }
+  next();
+};

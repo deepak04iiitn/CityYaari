@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import Post from '../models/Post.js';
 import Meetup from '../models/Meetup.js';
 import { createNotification } from '../services/notificationService.js';
+import { getBlockedIdSet } from './blockReportController.js';
 
 const userSummarySelect =
   '_id fullName username profileImageUri occupationType gender city state country hometownCity hometownState hometownCountry organization studyOrPost bio isOnline lastSeenAt';
@@ -31,6 +32,9 @@ export const searchUsers = async (req, res) => {
       return res.json({ users: [], hasMore: false });
     }
 
+    const blockedIds = await getBlockedIdSet(req.user._id);
+    const excludeIds = [req.user._id.toString(), ...blockedIds];
+
     const keyword = {
       $or: [
         { username: { $regex: query, $options: 'i' } },
@@ -38,17 +42,17 @@ export const searchUsers = async (req, res) => {
       ],
     };
 
-    // Do not return self in search results
     const currentUser = await User.findById(req.user._id).select(
       '_id connections connectionRequestsSent connectionRequestsReceived'
     );
 
-    const users = await User.find({ ...keyword, _id: { $ne: req.user._id } })
+    const filter = { ...keyword, _id: { $nin: excludeIds } };
+    const users = await User.find(filter)
       .select(userSummarySelect)
       .skip((page - 1) * limit)
       .limit(limit);
 
-    const total = await User.countDocuments({ ...keyword, _id: { $ne: req.user._id } });
+    const total = await User.countDocuments(filter);
     const hasMore = total > page * limit;
 
     const usersWithStatus = users.map((user) => ({
@@ -74,25 +78,29 @@ export const getUserProfile = async (req, res) => {
     const user = await User.findOne({ username: req.params.username })
       .select(`${userSummarySelect} connections`);
 
-    if (user) {
-      const [postsCount, meetupsCount] = await Promise.all([
-        Post.countDocuments({ user: user._id }),
-        Meetup.countDocuments({ user: user._id }),
-      ]);
-      const totalPosts = postsCount + meetupsCount;
-      const totalYaaris = user.connections?.length || 0;
-
-      res.json({
-        ...user.toObject(),
-        connectionStatus: connectionStatusBetween(currentUser, user._id),
-        postsCount: totalPosts,
-        yaariCount: totalYaaris,
-        // Keep old key for backward compatibility
-        connectionsCount: totalYaaris,
-      });
-    } else {
-      res.status(404).json({ message: 'User not found' });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
     }
+
+    const blockedIds = await getBlockedIdSet(req.user._id);
+    if (blockedIds.has(user._id.toString())) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const [postsCount, meetupsCount] = await Promise.all([
+      Post.countDocuments({ user: user._id }),
+      Meetup.countDocuments({ user: user._id }),
+    ]);
+    const totalPosts = postsCount + meetupsCount;
+    const totalYaaris = user.connections?.length || 0;
+
+    res.json({
+      ...user.toObject(),
+      connectionStatus: connectionStatusBetween(currentUser, user._id),
+      postsCount: totalPosts,
+      yaariCount: totalYaaris,
+      connectionsCount: totalYaaris,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server Error' });
@@ -292,11 +300,12 @@ export const getMyPosts = async (req, res) => {
   try {
     const [posts, meetups] = await Promise.all([
       Post.find({ user: req.user._id })
-        .sort({ createdAt: -1 })
-        .select('_id title details category imageUri createdAt'),
+        .populate('user', '_id username fullName profileImageUri')
+        .sort({ createdAt: -1 }),
       Meetup.find({ user: req.user._id })
-        .sort({ createdAt: -1 })
-        .select('_id title details category imageUri createdAt'),
+        .populate('user', '_id username fullName profileImageUri')
+        .populate('members', '_id username fullName profileImageUri')
+        .sort({ createdAt: -1 }),
     ]);
 
     const normalizedPosts = posts.map((p) => ({
@@ -327,9 +336,8 @@ export const getMyPosts = async (req, res) => {
 export const getMySavedPosts = async (req, res) => {
   try {
     const savedPosts = await Post.find({ savedBy: req.user._id })
-      .populate('user', '_id username fullName')
-      .sort({ createdAt: -1 })
-      .select('_id title details category imageUri createdAt user');
+      .populate('user', '_id username fullName profileImageUri')
+      .sort({ createdAt: -1 });
 
     return res.json({
       posts: savedPosts,

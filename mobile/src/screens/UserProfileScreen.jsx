@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
+  Alert,
   View,
   Text,
   StyleSheet,
@@ -20,6 +21,8 @@ import {
   removeConnection,
   respondToConnectionRequest,
   sendConnectionRequest,
+  blockUser,
+  reportUser,
 } from "../services/users/userService";
 import { getUnreadNotificationsCount } from "../services/notifications/notificationService";
 import AppTopHeader from "../components/AppTopHeader";
@@ -28,6 +31,8 @@ import { useAuth } from "../store/AuthContext";
 import ProfileCompletionGateModal, {
   isProfileCompleteForConnections,
 } from "../components/common/ProfileCompletionGateModal";
+import UserActionsMenu from "../components/common/UserActionsMenu";
+import ReportSheet from "../components/common/ReportSheet";
 
 // ─── Avatar palette (preserved) ──────────────────────────────────────────────
 const AVATAR_PALETTE = [
@@ -257,6 +262,9 @@ export default function UserProfileScreen({ route, navigation }) {
   const [isConnectBusy, setIsConnectBusy] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [showProfileGateModal, setShowProfileGateModal] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [reportVisible, setReportVisible] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -386,6 +394,43 @@ export default function UserProfileScreen({ route, navigation }) {
     );
   };
 
+  const handleBlock = () => {
+    Alert.alert(
+      "Block User",
+      `Are you sure you want to block ${profile.fullName}? They won't be able to find or message you, and your connection will be removed.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Block",
+          style: "destructive",
+          onPress: async () => {
+            const res = await blockUser(profile._id);
+            if (res.success) {
+              showSnackbar("User blocked.", "success");
+              navigation.goBack();
+            } else {
+              showSnackbar(res.message || "Failed to block user", "error");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleReport = async (reason, details) => {
+    setReportBusy(true);
+    const res = await reportUser(profile._id, reason, details);
+    setReportBusy(false);
+    if (res.success) {
+      setReportVisible(false);
+      showSnackbar("Report submitted. Our team will review it.", "success");
+    } else {
+      showSnackbar(res.message || "Failed to submit report", "error");
+    }
+  };
+
+  const isSelf = user?._id === profile?._id;
+
   return (
     <View style={s.screen}>
       <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
@@ -411,6 +456,15 @@ export default function UserProfileScreen({ route, navigation }) {
               <View style={s.memberDot} />
               <Text style={s.memberText}>Bandhuu Member</Text>
             </View>
+            {!isSelf && (
+              <Pressable
+                onPress={() => setMenuVisible(true)}
+                style={s.moreBtn}
+                hitSlop={8}
+              >
+                <MaterialIcons name="more-vert" size={20} color={C.onSurfaceVariant} />
+              </Pressable>
+            )}
           </View>
 
           <View style={s.profileRow}>
@@ -450,8 +504,41 @@ export default function UserProfileScreen({ route, navigation }) {
                 {isConnectBusy ? "..." : connectLabel}
               </Text>
             </Pressable>
-            <Pressable style={s.messageBtn}>
-              <Text style={s.messageBtnText}>Message</Text>
+            <Pressable
+              style={[
+                s.messageBtn,
+                profile.connectionStatus !== "connected" && s.messageBtnDisabled,
+              ]}
+              onPress={() => {
+                if (profile.connectionStatus !== "connected") {
+                  showSnackbar("You can only message your connections.", "info");
+                  return;
+                }
+                navigation.navigate("Messages", {
+                  openDmPeer: {
+                    _id: profile._id,
+                    fullName: profile.fullName,
+                    username: profile.username,
+                    profileImageUri: profile.profileImageUri || "",
+                    city: profile.city || "",
+                  },
+                });
+              }}
+            >
+              <MaterialIcons
+                name={profile.connectionStatus === "connected" ? "chat-bubble-outline" : "lock-outline"}
+                size={13}
+                color={profile.connectionStatus === "connected" ? C.onSurface : C.onSurfaceVariant}
+                style={{ marginRight: 4 }}
+              />
+              <Text
+                style={[
+                  s.messageBtnText,
+                  profile.connectionStatus !== "connected" && s.messageBtnTextDisabled,
+                ]}
+              >
+                Message
+              </Text>
             </Pressable>
           </View>
 
@@ -524,6 +611,21 @@ export default function UserProfileScreen({ route, navigation }) {
           navigation.navigate("Account");
         }}
       />
+
+      <UserActionsMenu
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        onBlock={handleBlock}
+        onReport={() => setReportVisible(true)}
+      />
+
+      <ReportSheet
+        visible={reportVisible}
+        onClose={() => setReportVisible(false)}
+        onSubmit={handleReport}
+        userName={profile?.fullName}
+        busy={reportBusy}
+      />
     </View>
   );
 }
@@ -573,6 +675,16 @@ const s = StyleSheet.create({
     letterSpacing: 1,
     color: C.secondary,
     textTransform: "uppercase",
+  },
+  moreBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: C.surfaceLow,
+    borderWidth: 1.5,
+    borderColor: C.outline,
+    alignItems: "center",
+    justifyContent: "center",
   },
   profileRow: {
     flexDirection: "row",
@@ -646,14 +758,24 @@ const s = StyleSheet.create({
   connectBtnText:  { color: '#FFFFFF', fontWeight: '900', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' },
   messageBtn: {
     flex: 1,
+    flexDirection: "row",
     paddingVertical: 10,
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
     borderWidth: 1.5,
     borderColor: C.outline,
     alignItems: "center",
+    justifyContent: "center",
   },
   messageBtnText: { color: C.onSurface, fontWeight: '900', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' },
+  messageBtnDisabled: {
+    borderColor: '#e8e4de',
+    backgroundColor: '#f5f2ed',
+    opacity: 0.7,
+  },
+  messageBtnTextDisabled: {
+    color: C.onSurfaceVariant,
+  },
   metaChips: {
     flexDirection: "row",
     flexWrap: "wrap",

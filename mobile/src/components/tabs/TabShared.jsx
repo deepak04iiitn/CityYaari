@@ -42,6 +42,7 @@ export function ScreenShell({
   contentContainerStyle,
   background,
   keyboardShouldPersistTaps = "handled",
+  keyboardDismissMode,
   notificationCount,
   stickyHeaderIndices,
 }) {
@@ -99,6 +100,7 @@ export function ScreenShell({
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+        keyboardDismissMode={keyboardDismissMode}
         stickyHeaderIndices={stickyHeaderIndices}
       >
         {(title || subtitle) && (

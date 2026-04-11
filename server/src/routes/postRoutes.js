@@ -8,14 +8,14 @@ import {
   updatePost,
   deletePost,
 } from '../controllers/postController.js';
-import { protect } from '../middleware/authMiddleware.js';
+import { protect, requireCompleteProfile } from '../middleware/authMiddleware.js';
 import { handlePostImageUpload } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
 router.route('/')
   .get(getPosts)
-  .post(protect, handlePostImageUpload, createPost);
+  .post(protect, requireCompleteProfile, handlePostImageUpload, createPost);
 router.route('/:id')
   .put(protect, updatePost)
   .delete(protect, deletePost);
