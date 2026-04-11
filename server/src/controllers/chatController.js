@@ -24,6 +24,11 @@ const mapMessage = (msg) => ({
   imageUri: msg.imageUri || null,
   isOneTimeView: msg.isOneTimeView || false,
   oneTimeViewedAt: msg.oneTimeViewedAt || null,
+  reactions: (msg.reactions || []).map((r) => ({
+    userId: String(r.userId),
+    emoji: r.emoji,
+    createdAt: r.createdAt,
+  })),
 });
 
 const withError = (res, error, fallbackMessage) => {

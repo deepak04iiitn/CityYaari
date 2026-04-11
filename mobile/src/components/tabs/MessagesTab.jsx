@@ -24,6 +24,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as ImagePicker from "expo-image-picker";
 import * as ScreenCapture from "expo-screen-capture";
+import * as Haptics from "expo-haptics";
+import EmojiPicker from "rn-emoji-keyboard";
 import { useAuth } from "../../store/AuthContext";
 import { useSnackbar } from "../../store/SnackbarContext";
 import { getMyConnections } from "../../services/users/userService";
@@ -39,6 +41,7 @@ import {
   getChatSocket,
   sendMessageViaSocket,
   emitReadReceipt,
+  emitReaction,
   sendImageMessageHttp,
   markOneTimeViewed,
   getServerBaseUrl,
@@ -47,9 +50,11 @@ import { decryptMessageText, encryptMessageText } from "../../services/chat/chat
 import { BAR_HEIGHT, FAB_LIFT } from "../../screens/MainTabs";
 import { useUnreadMsg } from "../../store/UnreadMsgContext";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const IMAGE_BUBBLE_WIDTH = SCREEN_WIDTH * 0.6;
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
+
+const QUICK_EMOJIS = ["❤️", "😂", "😮", "😢", "😡", "👍"];
 
 const COLORS = {
   ink: "#0a0a0a",
@@ -139,13 +144,46 @@ const SwipeReplyIcon = React.memo(({ progress }) => {
   );
 });
 
-const MessageBubble = React.memo(({ item, mine, user, activePeer, onReply, onJump, isHighlighted, decrypt, onViewOneTime }) => {
+const ReactionPills = React.memo(({ reactions, userId, onPress, mine }) => {
+  if (!reactions?.length) return null;
+
+  const grouped = {};
+  for (const r of reactions) {
+    if (!grouped[r.emoji]) grouped[r.emoji] = [];
+    grouped[r.emoji].push(r.userId);
+  }
+
+  return (
+    <View style={[st.reactionPillsRow, mine ? st.reactionPillsRowMine : st.reactionPillsRowPeer]}>
+      {Object.entries(grouped).map(([emoji, userIds]) => {
+        const iReacted = userIds.includes(String(userId));
+        return (
+          <Pressable
+            key={emoji}
+            style={[st.reactionPill, iReacted && st.reactionPillMine]}
+            onPress={() => onPress(emoji)}
+          >
+            <Text style={st.reactionPillEmoji}>{emoji}</Text>
+            {userIds.length > 1 && (
+              <Text style={[st.reactionPillCount, iReacted && st.reactionPillCountMine]}>
+                {userIds.length}
+              </Text>
+            )}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+});
+
+const MessageBubble = React.memo(({ item, mine, user, activePeer, onReply, onJump, isHighlighted, decrypt, onViewOneTime, onLongPress, onQuickReact }) => {
   const swiperRef = useRef(null);
   const isTemp = String(item._id).startsWith("tmp-");
   const isRead = !!item.readAt;
   const isImage = item.messageType === "image";
   const isOneTime = item.isOneTimeView;
   const wasViewed = !!item.oneTimeViewedAt;
+  const hasReactions = item.reactions?.length > 0;
 
   const renderLeftActions = useCallback((progress) => (
     <SwipeReplyIcon progress={progress} />
@@ -153,6 +191,7 @@ const MessageBubble = React.memo(({ item, mine, user, activePeer, onReply, onJum
 
   const handleSwipeOpen = useCallback((direction) => {
     if (direction === "left") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       onReply(item);
       swiperRef.current?.close();
     }
@@ -223,69 +262,82 @@ const MessageBubble = React.memo(({ item, mine, user, activePeer, onReply, onJum
       overshootFriction={8}
       enableTrackpadTwoFingerGesture
     >
-      <View style={[st.bubbleRow, mine ? st.bubbleRowMine : st.bubbleRowPeer]}>
-        <View 
-          style={[
-            st.bubble, 
-            mine ? st.bubbleMine : st.bubblePeer,
-            isImage && !isOneTime && st.imageBubble,
-            item.replyTo && st.bubbleWithReply,
-            isHighlighted && { backgroundColor: COLORS.accentBlue + '22', borderWidth: 1, borderColor: COLORS.accentBlue }
-          ]}
-        >
-          {item.replyTo && (
-            <Pressable 
-              style={[st.replyInBubble, mine ? st.replyInBubbleMine : st.replyInBubblePeer]}
-              onPress={() => onJump(item.replyTo)}
-            >
-              <View style={st.replyIndicator} />
-              <View style={st.replyContent}>
-                <Text style={st.replyUser} numberOfLines={1}>
-                  {String(item.sender) === String(user?._id) ? "You" : (activePeer?.fullName || "They")}
-                </Text>
-                <Text style={st.replyText} numberOfLines={2}>
-                  {item.replySnippet ? decrypt(item.replySnippet, null, activePeer._id) : "Original message"}
-                </Text>
-              </View>
-            </Pressable>
-          )}
-          {isImage ? renderImageContent() : (
-            <Text style={[st.bubbleText, mine && st.bubbleTextMine]}>
-              {item.text || "Encrypted message"}
-            </Text>
-          )}
-          <View style={st.bubbleMetaRow}>
-            {isImage && isOneTime && (
-              <MaterialCommunityIcons
-                name="timer-outline"
-                size={12}
-                color={mine ? COLORS.inkMuted : COLORS.inkMuted}
-                style={{ marginRight: 4 }}
-              />
+      <Pressable
+        onLongPress={() => !isTemp && onLongPress(item)}
+        delayLongPress={300}
+        style={[st.bubbleRow, mine ? st.bubbleRowMine : st.bubbleRowPeer]}
+      >
+        <View style={{ maxWidth: "80%" }}>
+          <View 
+            style={[
+              st.bubble, 
+              mine ? st.bubbleMine : st.bubblePeer,
+              isImage && !isOneTime && st.imageBubble,
+              item.replyTo && st.bubbleWithReply,
+              isHighlighted && { backgroundColor: COLORS.accentBlue + '22', borderWidth: 1, borderColor: COLORS.accentBlue },
+              hasReactions && { marginBottom: 14 },
+            ]}
+          >
+            {item.replyTo && (
+              <Pressable 
+                style={[st.replyInBubble, mine ? st.replyInBubbleMine : st.replyInBubblePeer]}
+                onPress={() => onJump(item.replyTo)}
+              >
+                <View style={st.replyIndicator} />
+                <View style={st.replyContent}>
+                  <Text style={st.replyUser} numberOfLines={1}>
+                    {String(item.sender) === String(user?._id) ? "You" : (activePeer?.fullName || "They")}
+                  </Text>
+                  <Text style={st.replyText} numberOfLines={2}>
+                    {item.replySnippet ? decrypt(item.replySnippet, null, activePeer._id) : "Original message"}
+                  </Text>
+                </View>
+              </Pressable>
             )}
-            <Text style={[st.bubbleTime, mine && st.bubbleTimeMine]}>
-              {toRelative(item.createdAt)}
-            </Text>
-            {mine && (
-              <View style={st.statusIconWrap}>
-                {isTemp ? (
-                  <MaterialCommunityIcons 
-                    name="clock-outline" 
-                    size={12} 
-                    color={COLORS.inkMuted} 
-                  />
-                ) : (
-                  <MaterialCommunityIcons
-                    name={isRead ? "check-all" : "check"}
-                    size={15}
-                    color={isRead ? COLORS.accentBlue : COLORS.inkMuted}
-                  />
-                )}
-              </View>
+            {isImage ? renderImageContent() : (
+              <Text style={[st.bubbleText, mine && st.bubbleTextMine]}>
+                {item.text || "Encrypted message"}
+              </Text>
             )}
+            <View style={st.bubbleMetaRow}>
+              {isImage && isOneTime && (
+                <MaterialCommunityIcons
+                  name="timer-outline"
+                  size={12}
+                  color={COLORS.inkMuted}
+                  style={{ marginRight: 4 }}
+                />
+              )}
+              <Text style={[st.bubbleTime, mine && st.bubbleTimeMine]}>
+                {toRelative(item.createdAt)}
+              </Text>
+              {mine && (
+                <View style={st.statusIconWrap}>
+                  {isTemp ? (
+                    <MaterialCommunityIcons 
+                      name="clock-outline" 
+                      size={12} 
+                      color={COLORS.inkMuted} 
+                    />
+                  ) : (
+                    <MaterialCommunityIcons
+                      name={isRead ? "check-all" : "check"}
+                      size={15}
+                      color={isRead ? COLORS.accentBlue : COLORS.inkMuted}
+                    />
+                  )}
+                </View>
+              )}
+            </View>
+            <ReactionPills
+              reactions={item.reactions}
+              userId={String(user?._id)}
+              onPress={(emoji) => onQuickReact(item._id, emoji)}
+              mine={mine}
+            />
           </View>
         </View>
-      </View>
+      </Pressable>
     </Swipeable>
   );
 });
@@ -345,6 +397,8 @@ export default function MessagesTab({ navigation }) {
   const [sendingImage, setSendingImage] = useState(false);
   const [viewingOneTime, setViewingOneTime] = useState(null);
   const [viewingImage, setViewingImage] = useState(null);
+  const [reactionTarget, setReactionTarget] = useState(null);
+  const [showFullEmojiPicker, setShowFullEmojiPicker] = useState(false);
 
   const connectionsRef = useRef([]);
   const conversationsRef = useRef([]);
@@ -564,6 +618,13 @@ export default function MessagesTab({ navigation }) {
         if (activePeerRef.current?._id && String(activePeerRef.current._id) === String(userId)) {
           setIsPeerTyping(isTyping);
         }
+      },
+      ({ messageId, reactions }) => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            String(m._id) === String(messageId) ? { ...m, reactions } : m
+          )
+        );
       }
     );
   }, [token, user?._id, decrypt, upsertConversation, refreshUnreadMsgCount]);
@@ -761,6 +822,23 @@ export default function MessagesTab({ navigation }) {
   const closeImageViewer = () => {
     setViewingImage(null);
   };
+
+  const onBubbleLongPress = useCallback((msg) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setReactionTarget(msg);
+    setShowFullEmojiPicker(false);
+  }, []);
+
+  const handleReact = useCallback(async (messageId, emoji) => {
+    Haptics.selectionAsync();
+    try {
+      await emitReaction(String(messageId), emoji);
+    } catch (_e) {
+      showSnackbar("Could not react", "error");
+    }
+    setReactionTarget(null);
+    setShowFullEmojiPicker(false);
+  }, [showSnackbar]);
 
   const handleClearChat = async () => {
     if (!activePeer?._id) return;
@@ -962,6 +1040,8 @@ export default function MessagesTab({ navigation }) {
                   isHighlighted={highlightedMessageId === String(item._id)}
                   decrypt={decrypt}
                   onViewOneTime={handleViewOneTime}
+                  onLongPress={onBubbleLongPress}
+                  onQuickReact={handleReact}
                 />
               )}
             />
@@ -1134,6 +1214,75 @@ export default function MessagesTab({ navigation }) {
             )}
           </View>
         </Modal>
+
+        {/* ── EMOJI REACTION PICKER ── */}
+        <Modal
+          visible={!!reactionTarget && !showFullEmojiPicker}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setReactionTarget(null)}
+        >
+          <Pressable
+            style={st.reactOverlay}
+            onPress={() => setReactionTarget(null)}
+          >
+            <Pressable
+              style={st.reactPickerCard}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={st.reactQuickRow}>
+                {QUICK_EMOJIS.map((emoji) => (
+                  <Pressable
+                    key={emoji}
+                    style={st.reactQuickBtn}
+                    onPress={() => handleReact(reactionTarget?._id, emoji)}
+                  >
+                    <Text style={st.reactQuickEmoji}>{emoji}</Text>
+                  </Pressable>
+                ))}
+                <Pressable
+                  style={st.reactQuickBtnPlus}
+                  onPress={() => setShowFullEmojiPicker(true)}
+                >
+                  <MaterialIcons name="add" size={20} color={COLORS.white} />
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* ── FULL EMOJI PICKER (rn-emoji-keyboard) ── */}
+        <EmojiPicker
+          open={showFullEmojiPicker}
+          onEmojiSelected={(emojiObject) => {
+            handleReact(reactionTarget?._id, emojiObject.emoji);
+          }}
+          onClose={() => {
+            setShowFullEmojiPicker(false);
+            setReactionTarget(null);
+          }}
+          enableSearchBar
+          enableRecentlyUsed
+          categoryPosition="top"
+          theme={{
+            backdrop: "rgba(0,0,0,0.4)",
+            knob: COLORS.border,
+            container: COLORS.white,
+            header: COLORS.ink,
+            category: {
+              icon: COLORS.inkMuted,
+              iconActive: COLORS.accentBlue,
+              container: COLORS.paperDark,
+              containerActive: COLORS.tagBlue,
+            },
+            search: {
+              text: COLORS.ink,
+              placeholder: COLORS.inkMuted,
+              icon: COLORS.inkMuted,
+              background: COLORS.paperDark,
+            },
+          }}
+        />
       </KeyboardAvoidingView>
     );
   }
@@ -1677,7 +1826,6 @@ const st = StyleSheet.create({
     justifyContent: "flex-start",
   },
   bubble: {
-    maxWidth: "80%",
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 20,
@@ -1989,7 +2137,6 @@ const st = StyleSheet.create({
   /* ── IMAGE BUBBLE ── */
   imageBubble: {
     padding: 4,
-    overflow: "hidden",
   },
   imageBubbleImg: {
     width: IMAGE_BUBBLE_WIDTH,
@@ -2171,5 +2318,98 @@ const st = StyleSheet.create({
   imageViewerImage: {
     width: SCREEN_WIDTH,
     height: SCREEN_WIDTH,
+  },
+
+  /* ── REACTION PILLS ON BUBBLES ── */
+  reactionPillsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    position: "absolute",
+    bottom: -19,
+  },
+  reactionPillsRowMine: {
+    right: 8,
+  },
+  reactionPillsRowPeer: {
+    left: 8,
+  },
+  reactionPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  reactionPillMine: {
+    borderColor: COLORS.accentBlue + "50",
+    backgroundColor: COLORS.tagBlue,
+  },
+  reactionPillEmoji: {
+    fontSize: 14,
+  },
+  reactionPillCount: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: COLORS.inkMuted,
+    marginLeft: 3,
+  },
+  reactionPillCountMine: {
+    color: COLORS.accentBlue,
+  },
+
+  /* ── REACTION PICKER MODAL ── */
+  reactOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  reactPickerCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 24,
+    width: "100%",
+    maxWidth: 360,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  reactQuickRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+  },
+  reactQuickBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reactQuickEmoji: {
+    fontSize: 28,
+  },
+
+  reactQuickBtnPlus: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.accentBlue,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

@@ -4,6 +4,7 @@ import {
   buildConversationKey,
   markConversationRead,
   sendEncryptedMessage,
+  reactToMessage,
 } from '../services/chatService.js';
 import User from '../models/User.js';
 
@@ -22,6 +23,11 @@ export const mapSocketMessage = (message) => ({
   imageUri: message.imageUri || null,
   isOneTimeView: message.isOneTimeView || false,
   oneTimeViewedAt: message.oneTimeViewedAt || null,
+  reactions: (message.reactions || []).map((r) => ({
+    userId: String(r.userId),
+    emoji: r.emoji,
+    createdAt: r.createdAt,
+  })),
 });
 
 const getTokenFromHandshake = (socket) => {
@@ -140,6 +146,43 @@ export const initSocketServer = (httpServer) => {
         userId: socket.userId,
         isTyping,
       });
+    });
+
+    socket.on('chat:react', async (payload = {}, callback) => {
+      try {
+        const { messageId, emoji } = payload;
+        if (!messageId || !emoji) {
+          throw new Error('messageId and emoji are required');
+        }
+
+        const updated = await reactToMessage({
+          messageId,
+          userId: socket.userId,
+          emoji,
+        });
+
+        const reactPayload = {
+          messageId: String(updated._id),
+          reactions: updated.reactions.map((r) => ({
+            userId: String(r.userId),
+            emoji: r.emoji,
+            createdAt: r.createdAt,
+          })),
+        };
+
+        for (const pid of updated.participants) {
+          io.to(`user:${String(pid)}`).emit('chat:reaction', reactPayload);
+        }
+
+        if (typeof callback === 'function') {
+          callback({ success: true, ...reactPayload });
+        }
+      } catch (error) {
+        console.error('[Socket chat:react Error]', error.message);
+        if (typeof callback === 'function') {
+          callback({ success: false, message: error?.message || 'Failed to react' });
+        }
+      }
     });
 
     socket.on('disconnect', async () => {

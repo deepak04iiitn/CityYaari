@@ -71,6 +71,7 @@ let messageHandler = null;
 let readReceiptHandler = null;
 let statusHandler = null;
 let typingHandler = null;
+let reactionHandler = null;
 
 export const ensureChatSocket = (token) => {
   if (!token) return null;
@@ -117,14 +118,19 @@ export const ensureChatSocket = (token) => {
     typingHandler?.(payload);
   });
 
+  socketRef.on('chat:reaction', (payload) => {
+    reactionHandler?.(payload);
+  });
+
   return socketRef;
 };
 
-export const setChatHandlers = (onMessage, onReadReceipt, onStatus, onTyping) => {
+export const setChatHandlers = (onMessage, onReadReceipt, onStatus, onTyping, onReaction) => {
   messageHandler = onMessage;
   readReceiptHandler = onReadReceipt;
   statusHandler = onStatus;
   typingHandler = onTyping;
+  reactionHandler = onReaction;
 };
 
 export const getChatSocket = () => socketRef;
@@ -140,6 +146,22 @@ export const sendMessageViaSocket = (payload) => {
         resolve(response);
       } else {
         reject(new Error(response?.message || 'Failed to send message'));
+      }
+    });
+  });
+};
+
+export const emitReaction = (messageId, emoji) => {
+  return new Promise((resolve, reject) => {
+    if (!socketRef?.connected) {
+      reject(new Error('Socket not connected'));
+      return;
+    }
+    socketRef.emit('chat:react', { messageId, emoji }, (response) => {
+      if (response?.success) {
+        resolve(response);
+      } else {
+        reject(new Error(response?.message || 'Failed to react'));
       }
     });
   });

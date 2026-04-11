@@ -190,6 +190,43 @@ export const getConversationList = async (userId) => {
   }));
 };
 
+export const reactToMessage = async ({ messageId, userId, emoji }) => {
+  const message = await Message.findById(messageId);
+  if (!message) {
+    const error = new Error('Message not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const userOid = new mongoose.Types.ObjectId(toIdString(userId));
+  const isParticipant = message.participants.some(
+    (p) => toIdString(p) === toIdString(userId)
+  );
+  if (!isParticipant) {
+    const error = new Error('You are not a participant in this conversation');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const existingIdx = message.reactions.findIndex(
+    (r) => toIdString(r.userId) === toIdString(userId)
+  );
+
+  if (existingIdx !== -1) {
+    if (message.reactions[existingIdx].emoji === emoji) {
+      message.reactions.splice(existingIdx, 1);
+    } else {
+      message.reactions[existingIdx].emoji = emoji;
+      message.reactions[existingIdx].createdAt = new Date();
+    }
+  } else {
+    message.reactions.push({ userId: userOid, emoji, createdAt: new Date() });
+  }
+
+  await message.save();
+  return message;
+};
+
 export const clearChatForUser = async ({ userId, targetUserId }) => {
   const conversationKey = buildConversationKey(userId, targetUserId);
   const userOid = new mongoose.Types.ObjectId(toIdString(userId));
