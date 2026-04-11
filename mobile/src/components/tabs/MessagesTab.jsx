@@ -45,8 +45,25 @@ import {
   sendImageMessageHttp,
   markOneTimeViewed,
   getServerBaseUrl,
+  setGroupChatHandlers,
+  joinGroupRoom,
+  leaveGroupRoom,
+  sendGroupMessageViaSocket,
+  emitGroupTyping,
+  emitGroupReaction,
+  fetchGroupMessages,
+  sendGroupImageHttp,
+  markGroupOneTimeViewed,
+  fetchGroupChatSummaries,
+  markGroupChatAsRead,
 } from "../../services/chat/chatService";
-import { decryptMessageText, encryptMessageText } from "../../services/chat/chatCrypto";
+import {
+  decryptMessageText,
+  encryptMessageText,
+  encryptGroupMessage,
+  decryptGroupMessage,
+} from "../../services/chat/chatCrypto";
+import { fetchMyMeetups, leaveMeetup } from "../../services/meetups/meetupService";
 import { BAR_HEIGHT, FAB_LIFT } from "../../screens/MainTabs";
 import { useUnreadMsg } from "../../store/UnreadMsgContext";
 
@@ -69,6 +86,8 @@ const COLORS = {
   cardBg: "#ffffff",
   border: "#e0dbd4",
   tagBlue: "#eef2ff",
+  accentGold: "#c9890a",
+  tagGold: "#fff8e6",
 };
 
 const TAB_BAR_TOTAL = BAR_HEIGHT + FAB_LIFT;
@@ -380,7 +399,7 @@ const TypingBubble = React.memo(() => (
   </View>
 ));
 
-export default function MessagesTab({ navigation }) {
+export default function MessagesTab({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { user, token } = useAuth();
   const { showSnackbar } = useSnackbar();
@@ -416,6 +435,30 @@ export default function MessagesTab({ navigation }) {
   const [showNewMsgSheet, setShowNewMsgSheet] = useState(false);
   const [newMsgSearch, setNewMsgSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [msgMode, setMsgMode] = useState("yaaris");
+  const [myMeetups, setMyMeetups] = useState([]);
+  const [groupSummaries, setGroupSummaries] = useState({});
+  const [activeGroupMeetup, setActiveGroupMeetup] = useState(null);
+  const [groupMessages, setGroupMessages] = useState([]);
+  const [loadingGroupMsgs, setLoadingGroupMsgs] = useState(false);
+  const [groupText, setGroupText] = useState("");
+  const [groupTypers, setGroupTypers] = useState([]);
+  const [groupReplyingTo, setGroupReplyingTo] = useState(null);
+  const [groupReactionTarget, setGroupReactionTarget] = useState(null);
+  const [showGroupEmojiPicker, setShowGroupEmojiPicker] = useState(false);
+  const [groupImagePreview, setGroupImagePreview] = useState(null);
+  const [groupIsOneTimeView, setGroupIsOneTimeView] = useState(false);
+  const [groupSendingImage, setGroupSendingImage] = useState(false);
+  const [groupViewingOneTime, setGroupViewingOneTime] = useState(null);
+  const [groupViewingImage, setGroupViewingImage] = useState(null);
+  const [showGroupScrollDown, setShowGroupScrollDown] = useState(false);
+  const [groupSearchActive, setGroupSearchActive] = useState(false);
+  const [groupSearchQuery, setGroupSearchQuery] = useState("");
+  const [groupSearchIndex, setGroupSearchIndex] = useState(0);
+  const [showGroupMenu, setShowGroupMenu] = useState(false);
+  const [showGroupClearModal, setShowGroupClearModal] = useState(false);
+  const [showLeaveGroupModal, setShowLeaveGroupModal] = useState(false);
+  const [groupHighlightedMessageId, setGroupHighlightedMessageId] = useState(null);
 
   const connectionsRef = useRef([]);
   const conversationsRef = useRef([]);
@@ -428,6 +471,14 @@ export default function MessagesTab({ navigation }) {
   const pendingScrollRef = useRef(false);
   const scrollDownAnim = useRef(new Animated.Value(0)).current;
   const scrollDownVisibleRef = useRef(false);
+  const groupFlatListRef = useRef(null);
+  const groupScrollDownAnim = useRef(new Animated.Value(0)).current;
+  const groupScrollDownVisibleRef = useRef(false);
+  const groupPendingScrollRef = useRef(false);
+  const prevGroupLastMsgIdRef = useRef(null);
+  const groupTypingTimeoutRef = useRef(null);
+  const isGroupTypingRef = useRef(false);
+  const groupSearchInputRef = useRef(null);
 
   useEffect(() => {
     const target = showScrollDown && !chatSearchActive ? 1 : 0;
@@ -710,10 +761,19 @@ export default function MessagesTab({ navigation }) {
   );
 
   useEffect(() => {
+    const meetup = route?.params?.openGroupMeetup;
+    if (meetup?._id) {
+      setMsgMode("meetups");
+      setTimeout(() => openGroupChat(meetup), 300);
+      navigation.setParams({ openGroupMeetup: undefined });
+    }
+  }, [route?.params?.openGroupMeetup]);
+
+  useEffect(() => {
     navigation.setOptions({
-      tabBarStyle: activePeer ? { display: "none" } : undefined,
+      tabBarStyle: (activePeer || activeGroupMeetup) ? { display: "none" } : undefined,
     });
-  }, [activePeer, navigation]);
+  }, [activePeer, activeGroupMeetup, navigation]);
 
   const openChat = async (peer) => {
     prevLastMsgIdRef.current = null;
@@ -1019,6 +1079,318 @@ export default function MessagesTab({ navigation }) {
       notificationCount={unreadNotifications}
     />
   );
+
+  // ── GROUP CHAT LOGIC ──
+
+  const loadMyMeetups = useCallback(async () => {
+    const [res, summaries] = await Promise.all([
+      fetchMyMeetups(),
+      fetchGroupChatSummaries().catch(() => ({})),
+    ]);
+    if (res.success) setMyMeetups(res.meetups);
+    setGroupSummaries(summaries);
+  }, []);
+
+  useEffect(() => {
+    if (msgMode === "meetups") loadMyMeetups();
+  }, [msgMode, loadMyMeetups]);
+
+  const openGroupChat = useCallback(async (meetup) => {
+    setActiveGroupMeetup(meetup);
+    setGroupMessages([]);
+    setGroupText("");
+    setGroupTypers([]);
+    setGroupReplyingTo(null);
+    setGroupSearchActive(false);
+    setGroupSearchQuery("");
+    setLoadingGroupMsgs(true);
+    groupPendingScrollRef.current = true;
+    joinGroupRoom(meetup._id);
+    markGroupChatAsRead(meetup._id).catch(() => {});
+
+    setGroupChatHandlers(
+      (msg) => {
+        if (msg.meetupId === meetup._id) {
+          setGroupMessages((prev) => {
+            if (prev.some((m) => m._id === msg._id)) return prev;
+            return [...prev, msg];
+          });
+        }
+      },
+      (payload) => {
+        if (payload.userId !== user?._id) {
+          setGroupTypers((prev) => {
+            if (payload.isTyping) {
+              return prev.includes(payload.userId) ? prev : [...prev, payload.userId];
+            }
+            return prev.filter((id) => id !== payload.userId);
+          });
+        }
+      },
+      (payload) => {
+        setGroupMessages((prev) =>
+          prev.map((m) => (String(m._id) === String(payload.messageId) ? { ...m, reactions: payload.reactions } : m))
+        );
+      }
+    );
+
+    try {
+      const msgs = await fetchGroupMessages(meetup._id, { limit: 50 });
+      const decryptedMsgs = msgs.map((m) => ({
+        ...m,
+        text: m.messageType === "image" ? "[Image]" : decryptGroupMessage(m.ciphertext, m.iv, meetup._id),
+      }));
+      setGroupMessages(decryptedMsgs);
+    } catch {}
+    setLoadingGroupMsgs(false);
+  }, [user?._id]);
+
+  const closeGroupChat = useCallback(async () => {
+    if (activeGroupMeetup) {
+      leaveGroupRoom(activeGroupMeetup._id);
+      markGroupChatAsRead(activeGroupMeetup._id).catch(() => {});
+    }
+    setActiveGroupMeetup(null);
+    setGroupMessages([]);
+    setGroupChatHandlers(null, null, null);
+    setGroupReplyingTo(null);
+    setGroupSearchActive(false);
+    prevGroupLastMsgIdRef.current = null;
+    loadMyMeetups();
+  }, [activeGroupMeetup, loadMyMeetups]);
+
+  const decryptGroupMsg = useCallback((ct, iv, _peerId) => {
+    if (!ct || !activeGroupMeetup) return "";
+    if (!iv && ct.includes(":")) {
+      const [ivPart, ctPart] = ct.split(":");
+      return decryptGroupMessage(ctPart, ivPart, activeGroupMeetup._id);
+    }
+    return decryptGroupMessage(ct, iv, activeGroupMeetup._id);
+  }, [activeGroupMeetup]);
+
+  const sendGroupMsg = useCallback(async () => {
+    const txt = groupText.trim();
+    if (!txt || !activeGroupMeetup) return;
+    setGroupText("");
+    const { ciphertext, iv } = encryptGroupMessage(txt, activeGroupMeetup._id);
+    try {
+      await sendGroupMessageViaSocket({
+        meetupId: activeGroupMeetup._id,
+        ciphertext,
+        iv,
+        replyTo: groupReplyingTo?._id || null,
+        replySnippet: groupReplyingTo ? (() => { const enc = encryptGroupMessage((groupReplyingTo.text || "").slice(0, 100), activeGroupMeetup._id); return `${enc.iv}:${enc.ciphertext}`; })() : null,
+      });
+    } catch {}
+    setGroupReplyingTo(null);
+  }, [groupText, activeGroupMeetup, groupReplyingTo]);
+
+  const groupScrollToBottom = useCallback((animated = true) => {
+    if (groupSearchActive) return;
+    const doScroll = () => groupFlatListRef.current?.scrollToEnd({ animated });
+    doScroll();
+    setTimeout(doScroll, 100);
+    setTimeout(doScroll, 300);
+  }, [groupSearchActive]);
+
+  const handleGroupChatScroll = useCallback(({ nativeEvent }) => {
+    const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
+    const distFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height;
+    if (distFromBottom > 300 && !groupScrollDownVisibleRef.current) {
+      groupScrollDownVisibleRef.current = true;
+      setShowGroupScrollDown(true);
+    } else if (distFromBottom < 120 && groupScrollDownVisibleRef.current) {
+      groupScrollDownVisibleRef.current = false;
+      setShowGroupScrollDown(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const target = showGroupScrollDown && !groupSearchActive ? 1 : 0;
+    Animated.timing(groupScrollDownAnim, {
+      toValue: target,
+      duration: target ? 200 : 150,
+      useNativeDriver: true,
+    }).start();
+  }, [showGroupScrollDown, groupSearchActive, groupScrollDownAnim]);
+
+  useEffect(() => {
+    const lastId = groupMessages[groupMessages.length - 1]?._id;
+    const isInitial = prevGroupLastMsgIdRef.current === null;
+    if (lastId && lastId !== prevGroupLastMsgIdRef.current) {
+      prevGroupLastMsgIdRef.current = lastId;
+      if (!groupSearchActive && !groupScrollDownVisibleRef.current) {
+        groupPendingScrollRef.current = true;
+        groupScrollToBottom(!isInitial);
+        const timer = setTimeout(() => { groupPendingScrollRef.current = false; }, 1500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [groupMessages, groupSearchActive, groupScrollToBottom]);
+
+  const groupPickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") { showSnackbar("Photo access needed", "info"); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.8,
+        allowsEditing: true,
+      });
+      if (!result.canceled) {
+        const asset = result.assets[0];
+        if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) {
+          showSnackbar("Image must be under 2MB", "error");
+          return;
+        }
+        setGroupImagePreview(asset);
+        setGroupIsOneTimeView(false);
+      }
+    } catch {}
+  };
+
+  const sendGroupImage = async () => {
+    if (!groupImagePreview || !activeGroupMeetup) return;
+    setGroupSendingImage(true);
+    try {
+      const { ciphertext, iv } = encryptGroupMessage("📷 Photo", activeGroupMeetup._id);
+      await sendGroupImageHttp(activeGroupMeetup._id, {
+        uri: groupImagePreview.uri,
+        fileName: `group-${Date.now()}.jpg`,
+        mimeType: groupImagePreview.mimeType || "image/jpeg",
+        ciphertext,
+        iv,
+        isOneTimeView: groupIsOneTimeView,
+      });
+      setGroupImagePreview(null);
+      setGroupIsOneTimeView(false);
+    } catch { showSnackbar("Failed to send image", "error"); }
+    setGroupSendingImage(false);
+  };
+
+  const handleGroupViewOneTime = async (item) => {
+    if (item._viewOnly) {
+      const serverBase = getServerBaseUrl();
+      setGroupViewingImage(item.imageUri?.startsWith("http") ? item.imageUri : `${serverBase}${item.imageUri}`);
+      return;
+    }
+    if (!item.isOneTimeView || item.oneTimeViewedAt) return;
+    const serverBase = getServerBaseUrl();
+    const fullUri = item.imageUri?.startsWith("http") ? item.imageUri : `${serverBase}${item.imageUri}`;
+    setGroupViewingOneTime({ ...item, fullUri });
+    try { await ScreenCapture.preventScreenCaptureAsync("group-one-time"); } catch {}
+    try {
+      await markGroupOneTimeViewed(item._id);
+      setGroupMessages((prev) =>
+        prev.map((m) =>
+          String(m._id) === String(item._id)
+            ? { ...m, oneTimeViewedAt: true }
+            : m
+        )
+      );
+    } catch {
+      showSnackbar("Could not mark image as viewed", "error");
+    }
+  };
+
+  const closeGroupOneTimeViewer = async () => {
+    setGroupViewingOneTime(null);
+    try { await ScreenCapture.allowScreenCaptureAsync("group-one-time"); } catch {}
+  };
+
+  const onGroupBubbleLongPress = useCallback((msg) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setGroupReactionTarget(msg);
+  }, []);
+
+  const handleGroupReact = useCallback(async (messageId, emoji) => {
+    Haptics.selectionAsync();
+    setGroupReactionTarget(null);
+    setShowGroupEmojiPicker(false);
+    try { await emitGroupReaction(messageId, emoji); } catch {}
+  }, []);
+
+  const groupOnReply = useCallback((msg) => {
+    setGroupReplyingTo(msg);
+  }, []);
+
+  const groupScrollToMessage = useCallback((msgId) => {
+    const index = groupMessages.findIndex((m) => String(m._id) === String(msgId));
+    if (index >= 0) {
+      groupFlatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+      setGroupHighlightedMessageId(String(msgId));
+      setTimeout(() => setGroupHighlightedMessageId(null), 1500);
+    } else {
+      showSnackbar("Original message not found in recent history", "info");
+    }
+  }, [groupMessages, showSnackbar]);
+
+  const groupSearchMatchIds = useMemo(() => {
+    const q = groupSearchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return groupMessages
+      .filter((m) => {
+        const text = m.text || "";
+        return text.toLowerCase().includes(q);
+      })
+      .map((m) => String(m._id));
+  }, [groupSearchQuery, groupMessages]);
+
+  const groupSearchMatchSet = useMemo(() => new Set(groupSearchMatchIds), [groupSearchMatchIds]);
+  const groupSearchFocusId = groupSearchMatchIds[groupSearchIndex] || null;
+
+  useEffect(() => {
+    if (groupSearchFocusId) groupScrollToMessage(groupSearchFocusId);
+  }, [groupSearchFocusId, groupScrollToMessage]);
+
+  const groupSearchNav = useCallback((direction) => {
+    if (!groupSearchMatchIds.length) return;
+    setGroupSearchIndex((prev) => {
+      if (direction === "up") return prev > 0 ? prev - 1 : groupSearchMatchIds.length - 1;
+      return prev < groupSearchMatchIds.length - 1 ? prev + 1 : 0;
+    });
+  }, [groupSearchMatchIds]);
+
+  const closeGroupSearch = useCallback(() => {
+    setGroupSearchActive(false);
+    setGroupSearchQuery("");
+    setGroupSearchIndex(0);
+  }, []);
+
+  const handleGroupClearChat = async () => {
+    setGroupMessages([]);
+    setShowGroupClearModal(false);
+    setShowGroupMenu(false);
+    showSnackbar("Chat cleared for you", "success");
+  };
+
+  const handleLeaveGroup = async () => {
+    if (!activeGroupMeetup) return;
+    const res = await leaveMeetup(activeGroupMeetup._id);
+    setShowLeaveGroupModal(false);
+    if (res.success) {
+      leaveGroupRoom(activeGroupMeetup._id);
+      setActiveGroupMeetup(null);
+      setGroupMessages([]);
+      setGroupChatHandlers(null, null, null);
+      loadMyMeetups();
+      showSnackbar("You left the group", "success");
+    } else {
+      showSnackbar(res.message || "Could not leave group", "error");
+    }
+  };
+
+  const getTypingLabel = () => {
+    const count = groupTypers.length;
+    if (count === 0) return null;
+    const members = activeGroupMeetup?.members || [];
+    if (count === 1) {
+      const typer = members.find((m) => String(m._id || m) === String(groupTypers[0]));
+      const name = typer?.fullName?.split(" ")[0] || "Someone";
+      return `${name} is typing...`;
+    }
+    return `${count} people are typing...`;
+  };
 
   /* ─── CHAT VIEW ─── */
   if (activePeer?._id) {
@@ -1536,6 +1908,558 @@ export default function MessagesTab({ navigation }) {
     );
   }
 
+  // ── GROUP CHAT VIEW ──
+
+  if (activeGroupMeetup) {
+    const serverBase = getServerBaseUrl();
+    const typingLabel = getTypingLabel();
+
+    const groupMsgsDecrypted = groupMessages.map((m) => ({
+      ...m,
+      text: m.text || (m.messageType === "system" ? m.ciphertext : m.messageType === "image" ? "[Image]" : decryptGroupMessage(m.ciphertext, m.iv, activeGroupMeetup._id)),
+      sender: typeof m.sender === "object" ? m.sender?._id : m.sender,
+      _senderObj: typeof m.sender === "object" ? m.sender : null,
+    }));
+
+    const getSenderObj = (item) => {
+      if (item._senderObj) return item._senderObj;
+      const member = activeGroupMeetup.members?.find((mb) => String(mb._id || mb) === String(item.sender));
+      return member || null;
+    };
+
+    return (
+      <KeyboardAvoidingView
+        style={st.root}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <StatusBar style="dark" />
+
+        {groupSearchActive ? (
+          <View style={[st.chatSearchHeader, { paddingTop: insets.top + 14 }]}>
+            <Pressable onPress={closeGroupSearch} style={st.chatBackArrow}>
+              <MaterialIcons name="arrow-back" size={24} color={COLORS.ink} />
+            </Pressable>
+            <View style={st.chatSearchInputWrap}>
+              <MaterialIcons name="search" size={18} color={COLORS.inkMuted} />
+              <TextInput
+                ref={groupSearchInputRef}
+                value={groupSearchQuery}
+                onChangeText={setGroupSearchQuery}
+                placeholder="Search messages..."
+                placeholderTextColor={COLORS.inkMuted}
+                style={st.chatSearchInput}
+                autoFocus
+                returnKeyType="search"
+              />
+              {groupSearchQuery.length > 0 && (
+                <Pressable onPress={() => setGroupSearchQuery("")}>
+                  <MaterialIcons name="close" size={18} color={COLORS.inkMuted} />
+                </Pressable>
+              )}
+            </View>
+            {groupSearchQuery.trim().length > 0 && (
+              <Text style={st.chatSearchCounter}>
+                {groupSearchMatchIds.length > 0 ? `${groupSearchIndex + 1}/${groupSearchMatchIds.length}` : "0"}
+              </Text>
+            )}
+            <Pressable
+              onPress={() => groupSearchNav("up")}
+              disabled={groupSearchMatchIds.length === 0}
+              style={[st.chatSearchNavBtn, groupSearchMatchIds.length === 0 && { opacity: 0.3 }]}
+            >
+              <MaterialIcons name="keyboard-arrow-up" size={24} color={COLORS.ink} />
+            </Pressable>
+            <Pressable
+              onPress={() => groupSearchNav("down")}
+              disabled={groupSearchMatchIds.length === 0}
+              style={[st.chatSearchNavBtn, groupSearchMatchIds.length === 0 && { opacity: 0.3 }]}
+            >
+              <MaterialIcons name="keyboard-arrow-down" size={24} color={COLORS.ink} />
+            </Pressable>
+          </View>
+        ) : (
+          <View style={[st.chatHeader, { paddingTop: insets.top + 14 }]}>
+            <Pressable onPress={closeGroupChat} style={st.chatBackArrow}>
+              <MaterialIcons name="arrow-back" size={24} color={COLORS.ink} />
+            </Pressable>
+            <View style={st.chatHeaderInfo}>
+              <Text style={st.chatHeaderName} numberOfLines={1}>{activeGroupMeetup.title}</Text>
+              {typingLabel ? (
+                <Text style={[st.chatStatusText, { color: COLORS.accentMint, fontWeight: "900" }]}>{typingLabel}</Text>
+              ) : (
+                <Text style={st.chatStatusText}>{activeGroupMeetup.members?.length || 0} members</Text>
+              )}
+            </View>
+            <Pressable onPress={() => setShowGroupMenu(true)} style={st.chatHeaderDots}>
+              <MaterialIcons name="more-vert" size={24} color={COLORS.ink} />
+            </Pressable>
+          </View>
+        )}
+
+        {/* ── GROUP DROPDOWN MENU ── */}
+        <Modal visible={showGroupMenu} transparent animationType="none" onRequestClose={() => setShowGroupMenu(false)}>
+          <Pressable style={st.menuOverlay} onPress={() => setShowGroupMenu(false)}>
+            <View style={[st.menuContent, { top: insets.top + 52 }]}>
+              <View style={st.menuInner}>
+                <Pressable
+                  style={({ pressed }) => [st.menuItem, pressed && st.menuItemPressed]}
+                  onPress={() => {
+                    setShowGroupMenu(false);
+                    setGroupSearchActive(true);
+                    setGroupSearchQuery("");
+                    setGroupSearchIndex(0);
+                    setTimeout(() => groupSearchInputRef.current?.focus(), 300);
+                  }}
+                >
+                  <View style={[st.menuIconWrap, { backgroundColor: COLORS.accentBlue + "14" }]}>
+                    <MaterialIcons name="search" size={18} color={COLORS.accentBlue} />
+                  </View>
+                  <View style={st.menuTextCol}>
+                    <Text style={st.menuItemTitle}>Search</Text>
+                    <Text style={st.menuItemSub}>Find messages in chat</Text>
+                  </View>
+                </Pressable>
+                <View style={st.menuDivider} />
+                <Pressable
+                  style={({ pressed }) => [st.menuItem, pressed && st.menuItemPressed]}
+                  onPress={() => { setShowGroupMenu(false); setShowGroupClearModal(true); }}
+                >
+                  <View style={[st.menuIconWrap, { backgroundColor: COLORS.accent + "14" }]}>
+                    <MaterialIcons name="delete-outline" size={18} color={COLORS.accent} />
+                  </View>
+                  <View style={st.menuTextCol}>
+                    <Text style={[st.menuItemTitle, { color: COLORS.accent }]}>Clear chat</Text>
+                    <Text style={st.menuItemSub}>Clear messages for you</Text>
+                  </View>
+                </Pressable>
+                <View style={st.menuDivider} />
+                <Pressable
+                  style={({ pressed }) => [st.menuItem, pressed && st.menuItemPressed]}
+                  onPress={() => { setShowGroupMenu(false); setShowLeaveGroupModal(true); }}
+                >
+                  <View style={[st.menuIconWrap, { backgroundColor: COLORS.accent + "14" }]}>
+                    <MaterialIcons name="logout" size={18} color={COLORS.accent} />
+                  </View>
+                  <View style={st.menuTextCol}>
+                    <Text style={[st.menuItemTitle, { color: COLORS.accent }]}>Leave group</Text>
+                    <Text style={st.menuItemSub}>Exit this meetup group</Text>
+                  </View>
+                </Pressable>
+              </View>
+            </View>
+          </Pressable>
+        </Modal>
+
+        {/* ── GROUP CLEAR CONFIRMATION ── */}
+        <Modal visible={showGroupClearModal} transparent animationType="slide" onRequestClose={() => setShowGroupClearModal(false)}>
+          <View style={st.modalOverlay}>
+            <View style={st.modalContent}>
+              <View style={st.modalHeader}>
+                <View style={st.warningCircle}>
+                  <MaterialIcons name="warning" size={32} color={COLORS.accent} />
+                </View>
+                <Text style={st.modalTitle}>Clear group chat?</Text>
+              </View>
+              <Text style={st.modalText}>Messages will be cleared from your view only. Other members can still see them.</Text>
+              <View style={st.modalActions}>
+                <Pressable style={[st.modalBtn, st.modalBtnCancel]} onPress={() => setShowGroupClearModal(false)}>
+                  <Text style={st.modalBtnTextCancel}>Cancel</Text>
+                </Pressable>
+                <Pressable style={[st.modalBtn, st.modalBtnConfirm]} onPress={handleGroupClearChat}>
+                  <Text style={st.modalBtnTextConfirm}>Clear</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ── LEAVE GROUP CONFIRMATION ── */}
+        <Modal visible={showLeaveGroupModal} transparent animationType="fade" onRequestClose={() => setShowLeaveGroupModal(false)}>
+          <View style={st.modalOverlay}>
+            <View style={st.modalContent}>
+              <View style={st.modalHeader}>
+                <View style={[st.warningCircle, { backgroundColor: COLORS.accent + "18" }]}>
+                  <MaterialIcons name="logout" size={30} color={COLORS.accent} />
+                </View>
+                <Text style={st.modalTitle}>Leave group?</Text>
+              </View>
+              <Text style={st.modalText}>
+                <Text style={{ fontWeight: "700", color: COLORS.coffee }}>{activeGroupMeetup?.title || "This meetup"}</Text>
+                {" "}will be permanently removed from your chats and you will no longer receive messages from this group.
+              </Text>
+              <View style={st.modalActions}>
+                <Pressable style={[st.modalBtn, st.modalBtnCancel]} onPress={() => setShowLeaveGroupModal(false)}>
+                  <Text style={st.modalBtnTextCancel}>Cancel</Text>
+                </Pressable>
+                <Pressable style={[st.modalBtn, st.modalBtnConfirm]} onPress={handleLeaveGroup}>
+                  <Text style={st.modalBtnTextConfirm}>Leave</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        <View style={st.chatBody}>
+          <View style={st.chatListArea}>
+            {loadingGroupMsgs ? (
+              <View style={st.chatLoading}>
+                <ActivityIndicator color={COLORS.accentBlue} size="large" />
+              </View>
+            ) : (
+              <FlatList
+                ref={groupFlatListRef}
+                data={groupMsgsDecrypted}
+                keyExtractor={(item) => String(item._id)}
+                style={st.chatBody}
+                contentContainerStyle={st.bubbleList}
+                keyboardShouldPersistTaps="handled"
+                onContentSizeChange={() => {
+                  if (groupPendingScrollRef.current) {
+                    groupFlatListRef.current?.scrollToEnd({ animated: false });
+                  }
+                }}
+                onScrollToIndexFailed={(info) => {
+                  setTimeout(() => {
+                    groupFlatListRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 });
+                  }, 300);
+                }}
+                onScroll={handleGroupChatScroll}
+                scrollEventThrottle={100}
+                ListFooterComponent={typingLabel ? <TypingBubble /> : null}
+                ListEmptyComponent={
+                  <View style={st.chatEmptyWrap}>
+                    <MaterialIcons name="groups" size={32} color={COLORS.border} />
+                    <Text style={st.chatEmptyText}>Start the group conversation</Text>
+                  </View>
+                }
+                renderItem={({ item }) => {
+                  if (item.messageType === "system") {
+                    return (
+                      <View style={st.systemMsgWrap}>
+                        <View style={st.systemMsgBubble}>
+                          <MaterialIcons name="celebration" size={14} color={COLORS.accentGold} style={{ marginRight: 6 }} />
+                          <Text style={st.systemMsgText}>{item.text}</Text>
+                        </View>
+                      </View>
+                    );
+                  }
+
+                  const mine = String(item.sender) === String(user?._id);
+                  const senderObj = getSenderObj(item);
+                  const hasReactions = item.reactions?.length > 0;
+                  const isImage = item.messageType === "image";
+                  const isOneTime = item.isOneTimeView;
+                  const wasViewed = !!item.oneTimeViewedAt;
+                  const fullImageUri = isImage && item.imageUri ? (item.imageUri.startsWith("http") ? item.imageUri : `${serverBase}${item.imageUri}`) : null;
+
+                  const renderGroupImageContent = () => {
+                    if (isOneTime) {
+                      if (mine) {
+                        return (
+                          <View style={st.oneTimeBubbleContent}>
+                            <View style={st.oneTimeIconCircle}>
+                              <MaterialCommunityIcons name="camera-timer" size={24} color={COLORS.accentBlue} />
+                            </View>
+                            <Text style={st.oneTimeLabel}>One-time photo</Text>
+                            <Text style={st.oneTimeSub}>{wasViewed ? "Opened" : "Not opened yet"}</Text>
+                          </View>
+                        );
+                      }
+                      if (wasViewed) {
+                        return (
+                          <View style={st.oneTimeBubbleContent}>
+                            <View style={[st.oneTimeIconCircle, { backgroundColor: COLORS.border }]}>
+                              <MaterialCommunityIcons name="camera-off" size={24} color={COLORS.inkMuted} />
+                            </View>
+                            <Text style={[st.oneTimeLabel, { color: COLORS.inkMuted }]}>Photo opened</Text>
+                            <Text style={st.oneTimeSub}>No longer available</Text>
+                          </View>
+                        );
+                      }
+                      return (
+                        <Pressable style={st.oneTimeBubbleContent} onPress={() => handleGroupViewOneTime(item)}>
+                          <View style={[st.oneTimeIconCircle, { backgroundColor: COLORS.accentBlue + "18" }]}>
+                            <MaterialCommunityIcons name="eye-circle-outline" size={28} color={COLORS.accentBlue} />
+                          </View>
+                          <Text style={[st.oneTimeLabel, { color: COLORS.accentBlue }]}>Tap to view</Text>
+                          <Text style={st.oneTimeSub}>One-time photo</Text>
+                        </Pressable>
+                      );
+                    }
+                    return (
+                      <Pressable onPress={() => handleGroupViewOneTime({ ...item, _viewOnly: true })}>
+                        <Image source={{ uri: fullImageUri }} style={st.imageBubbleImg} resizeMode="cover" />
+                      </Pressable>
+                    );
+                  };
+
+                  let _swipeRef = null;
+                  return (
+                    <Swipeable
+                      ref={(ref) => { _swipeRef = ref; }}
+                      renderLeftActions={(progress) => <SwipeReplyIcon progress={progress} />}
+                      onSwipeableWillOpen={(direction) => {
+                        if (direction === "left") {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          groupOnReply(item);
+                          _swipeRef?.close();
+                        }
+                      }}
+                      friction={1.5}
+                      leftThreshold={35}
+                      overshootLeft={false}
+                      overshootFriction={8}
+                      enableTrackpadTwoFingerGesture
+                    >
+                      <Pressable
+                        onLongPress={() => onGroupBubbleLongPress(item)}
+                        delayLongPress={300}
+                        style={[st.bubbleRow, mine ? st.bubbleRowMine : st.bubbleRowPeer, hasReactions && { marginBottom: 22 }]}
+                      >
+                        {!mine && (
+                          <View style={st.bubbleAvatarWrap}>
+                            <Avatar uri={senderObj?.profileImageUri} name={senderObj?.fullName || "?"} size={28} />
+                          </View>
+                        )}
+                        <View style={{ maxWidth: "75%" }}>
+                          {!mine && (
+                            <Text style={st.groupSenderName}>
+                              {senderObj?.fullName || senderObj?.username || "Unknown"}
+                            </Text>
+                          )}
+                          <View
+                            style={[
+                              st.bubble,
+                              mine ? st.bubbleMine : st.bubblePeer,
+                              isImage && !isOneTime && st.imageBubble,
+                              item.replyTo && st.bubbleWithReply,
+                              groupSearchActive && groupSearchMatchSet.has(String(item._id)) && groupSearchFocusId !== String(item._id) && { backgroundColor: COLORS.accentBlue + "0D" },
+                              groupSearchActive && groupSearchFocusId === String(item._id) && { backgroundColor: COLORS.accentBlue + "22", borderWidth: 1, borderColor: COLORS.accentBlue },
+                              !groupSearchActive && groupHighlightedMessageId === String(item._id) && { backgroundColor: COLORS.accentBlue + "22", borderWidth: 1, borderColor: COLORS.accentBlue },
+                            ]}
+                          >
+                            {item.replyTo && (
+                              <Pressable
+                                style={[st.replyInBubble, mine ? st.replyInBubbleMine : st.replyInBubblePeer]}
+                                onPress={() => groupScrollToMessage(item.replyTo)}
+                              >
+                                <View style={st.replyIndicator} />
+                                <View style={st.replyContent}>
+                                  <Text style={st.replyUser} numberOfLines={1}>Reply</Text>
+                                  <Text style={st.replyText} numberOfLines={2}>
+                                    {item.replySnippet ? decryptGroupMsg(item.replySnippet, null) : "Original message"}
+                                  </Text>
+                                </View>
+                              </Pressable>
+                            )}
+                            {isImage ? renderGroupImageContent() : (
+                              <Text style={[st.bubbleText, mine && st.bubbleTextMine]}>
+                                {item.text || "Encrypted message"}
+                              </Text>
+                            )}
+                            <View style={st.bubbleMetaRow}>
+                              <Text style={[st.bubbleTime, mine && st.bubbleTimeMine]}>
+                                {toRelative(item.createdAt)}
+                              </Text>
+                            </View>
+                            <ReactionPills
+                              reactions={item.reactions}
+                              userId={String(user?._id)}
+                              onPress={(emoji) => handleGroupReact(item._id, emoji)}
+                              mine={mine}
+                            />
+                          </View>
+                        </View>
+                        {mine && (
+                          <View style={st.bubbleAvatarWrap}>
+                            <Avatar uri={user?.profileImageUri} name={user?.fullName} size={28} />
+                          </View>
+                        )}
+                      </Pressable>
+                    </Swipeable>
+                  );
+                }}
+              />
+            )}
+
+            <Animated.View
+              pointerEvents={showGroupScrollDown && !groupSearchActive ? "auto" : "none"}
+              style={[
+                st.scrollDownWrap,
+                {
+                  opacity: groupScrollDownAnim,
+                  transform: [{ translateY: groupScrollDownAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
+                },
+              ]}
+            >
+              <Pressable
+                style={st.scrollDownBtn}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); groupScrollToBottom(true); }}
+              >
+                <MaterialIcons name="keyboard-arrow-down" size={26} color={COLORS.white} />
+              </Pressable>
+            </Animated.View>
+          </View>
+
+          {groupReplyingTo && (
+            <View style={st.replyPreviewWrap}>
+              <View style={st.replyPreviewContent}>
+                <View style={st.replyIndicator} />
+                <View style={st.replyMain}>
+                  <Text style={st.replyUserLabel}>
+                    Replying to {String(groupReplyingTo.sender) === String(user?._id) ? "yourself" : (getSenderObj(groupReplyingTo)?.fullName || "member")}
+                  </Text>
+                  <Text style={st.replyTextLabel} numberOfLines={1}>{groupReplyingTo.text}</Text>
+                </View>
+              </View>
+              <Pressable onPress={() => setGroupReplyingTo(null)} style={st.replyCloseBtn}>
+                <MaterialIcons name="close" size={20} color={COLORS.inkMuted} />
+              </Pressable>
+            </View>
+          )}
+
+          <View style={[st.composerWrap, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+            <View style={st.composer}>
+              <Pressable onPress={groupPickImage} style={st.attachBtn}>
+                <MaterialIcons name="image" size={24} color={COLORS.accentBlue} />
+              </Pressable>
+              <TextInput
+                value={groupText}
+                onChangeText={(val) => {
+                  setGroupText(val);
+                  if (!activeGroupMeetup?._id) return;
+                  if (!isGroupTypingRef.current && val.trim().length > 0) {
+                    isGroupTypingRef.current = true;
+                    emitGroupTyping(activeGroupMeetup._id, true);
+                  }
+                  if (groupTypingTimeoutRef.current) clearTimeout(groupTypingTimeoutRef.current);
+                  groupTypingTimeoutRef.current = setTimeout(() => {
+                    if (isGroupTypingRef.current) {
+                      isGroupTypingRef.current = false;
+                      emitGroupTyping(activeGroupMeetup._id, false);
+                    }
+                  }, 2000);
+                }}
+                placeholder="Type a message..."
+                placeholderTextColor={COLORS.inkMuted}
+                style={st.composerInput}
+                multiline
+              />
+              <Pressable
+                style={[st.sendBtn, !groupText.trim() && st.sendBtnDisabled]}
+                onPress={sendGroupMsg}
+                disabled={!groupText.trim()}
+              >
+                <MaterialIcons name="send" size={19} color={COLORS.white} />
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
+        {/* ── GROUP IMAGE PREVIEW + ONE-TIME TOGGLE ── */}
+        <Modal visible={!!groupImagePreview} transparent animationType="slide" onRequestClose={() => { setGroupImagePreview(null); setGroupIsOneTimeView(false); }}>
+          <View style={st.imgPreviewOverlay}>
+            <View style={st.imgPreviewCard}>
+              <View style={st.imgPreviewHeader}>
+                <Text style={st.imgPreviewTitle}>Send Photo</Text>
+                <Pressable onPress={() => { setGroupImagePreview(null); setGroupIsOneTimeView(false); }}>
+                  <MaterialIcons name="close" size={24} color={COLORS.inkMuted} />
+                </Pressable>
+              </View>
+              {groupImagePreview && (
+                <Image source={{ uri: groupImagePreview.uri }} style={st.imgPreviewImage} resizeMode="contain" />
+              )}
+              <Pressable style={st.oneTimeToggleRow} onPress={() => setGroupIsOneTimeView((v) => !v)}>
+                <View style={[st.oneTimeToggle, groupIsOneTimeView && st.oneTimeToggleActive]}>
+                  {groupIsOneTimeView && <MaterialIcons name="check" size={16} color={COLORS.white} />}
+                </View>
+                <View style={st.oneTimeToggleInfo}>
+                  <View style={st.oneTimeToggleLabelRow}>
+                    <MaterialCommunityIcons name="eye-off-outline" size={18} color={groupIsOneTimeView ? COLORS.accentBlue : COLORS.inkMuted} />
+                    <Text style={[st.oneTimeToggleLabel, groupIsOneTimeView && { color: COLORS.accentBlue }]}>One-time view</Text>
+                  </View>
+                  <Text style={st.oneTimeToggleSub}>Photo can only be viewed once</Text>
+                </View>
+              </Pressable>
+              <Pressable style={[st.imgSendBtn, groupSendingImage && { opacity: 0.6 }]} onPress={sendGroupImage} disabled={groupSendingImage}>
+                {groupSendingImage ? (
+                  <ActivityIndicator color={COLORS.white} size="small" />
+                ) : (
+                  <>
+                    <MaterialIcons name="send" size={20} color={COLORS.white} />
+                    <Text style={st.imgSendBtnText}>Send</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ── GROUP ONE-TIME VIEWER ── */}
+        <Modal visible={!!groupViewingOneTime} transparent animationType="fade" onRequestClose={closeGroupOneTimeViewer}>
+          <View style={st.oneTimeViewerOverlay}>
+            <View style={st.oneTimeViewerHeader}>
+              <MaterialCommunityIcons name="eye-circle-outline" size={20} color={COLORS.white} />
+              <Text style={st.oneTimeViewerLabel}>One-time view</Text>
+            </View>
+            {groupViewingOneTime?.fullUri && (
+              <Image source={{ uri: groupViewingOneTime.fullUri }} style={st.oneTimeViewerImage} resizeMode="contain" />
+            )}
+            <Pressable style={st.oneTimeViewerClose} onPress={closeGroupOneTimeViewer}>
+              <Text style={st.oneTimeViewerCloseText}>Close</Text>
+            </Pressable>
+          </View>
+        </Modal>
+
+        {/* ── GROUP IMAGE VIEWER ── */}
+        <Modal visible={!!groupViewingImage} transparent animationType="fade" onRequestClose={() => setGroupViewingImage(null)}>
+          <View style={st.imageViewerOverlay}>
+            <Pressable style={st.imageViewerCloseBtn} onPress={() => setGroupViewingImage(null)}>
+              <MaterialIcons name="close" size={28} color={COLORS.white} />
+            </Pressable>
+            {groupViewingImage && <Image source={{ uri: groupViewingImage }} style={st.imageViewerImage} resizeMode="contain" />}
+          </View>
+        </Modal>
+
+        {/* ── GROUP EMOJI REACTION PICKER ── */}
+        <Modal visible={!!groupReactionTarget && !showGroupEmojiPicker} transparent animationType="fade" onRequestClose={() => setGroupReactionTarget(null)}>
+          <Pressable style={st.reactOverlay} onPress={() => setGroupReactionTarget(null)}>
+            <Pressable style={st.reactPickerCard} onPress={(e) => e.stopPropagation()}>
+              <View style={st.reactQuickRow}>
+                {QUICK_EMOJIS.map((emoji) => (
+                  <Pressable key={emoji} style={st.reactQuickBtn} onPress={() => handleGroupReact(groupReactionTarget?._id, emoji)}>
+                    <Text style={st.reactQuickEmoji}>{emoji}</Text>
+                  </Pressable>
+                ))}
+                <Pressable style={st.reactQuickBtnPlus} onPress={() => setShowGroupEmojiPicker(true)}>
+                  <MaterialIcons name="add" size={20} color={COLORS.white} />
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* ── GROUP FULL EMOJI PICKER ── */}
+        <EmojiPicker
+          open={showGroupEmojiPicker}
+          onEmojiSelected={(emojiObject) => handleGroupReact(groupReactionTarget?._id, emojiObject.emoji)}
+          onClose={() => { setShowGroupEmojiPicker(false); setGroupReactionTarget(null); }}
+          enableSearchBar
+          enableRecentlyUsed
+          categoryPosition="top"
+          theme={{
+            backdrop: "rgba(0,0,0,0.4)",
+            knob: COLORS.border,
+            container: COLORS.white,
+            header: COLORS.ink,
+            category: { icon: COLORS.inkMuted, iconActive: COLORS.accentBlue, container: COLORS.paperDark, containerActive: COLORS.tagBlue },
+            search: { text: COLORS.ink, placeholder: COLORS.inkMuted, icon: COLORS.inkMuted },
+          }}
+        />
+      </KeyboardAvoidingView>
+    );
+  }
+
   /* ─── CONVERSATION LIST VIEW ─── */
   return (
     <View style={st.root}>
@@ -1581,65 +2505,167 @@ export default function MessagesTab({ navigation }) {
           </View>
         </View>
 
-        {/* ── CONVERSATION LIST ── */}
-        <View style={st.convSection}>
-          <Text style={st.sectionLabel}>RECENT CHATS</Text>
+        {/* ── YAARIS / MEETUPS TOGGLE ── */}
+        <View style={st.msgModeToggle}>
+          {["yaaris", "meetups"].map((tab) => (
+            <Pressable
+              key={tab}
+              onPress={() => setMsgMode(tab)}
+              style={[st.msgModeTab, msgMode === tab && st.msgModeTabActive]}
+            >
+              <MaterialIcons
+                name={tab === "yaaris" ? "chat" : "groups"}
+                size={16}
+                color={msgMode === tab ? COLORS.white : COLORS.inkMuted}
+              />
+              <Text style={[st.msgModeText, msgMode === tab && st.msgModeTextActive]}>
+                {tab === "yaaris" ? "Yaaris" : "Meetups"}
+              </Text>
+            </Pressable>
+          ))}
         </View>
 
-        {loadingList ? (
-          <ActivityIndicator style={{ marginTop: 30 }} color={COLORS.accentBlue} size="large" />
-        ) : filtered.length === 0 ? (
-          <View style={st.emptyCard}>
-            <View style={st.emptyIconWrap}>
-              <MaterialIcons name="chat-bubble-outline" size={28} color={COLORS.accentBlue} />
+        {msgMode === "yaaris" ? (
+          <>
+            {/* ── CONVERSATION LIST ── */}
+            <View style={st.convSection}>
+              <Text style={st.sectionLabel}>RECENT CHATS</Text>
             </View>
-            <Text style={st.emptyTitle}>No messages yet</Text>
-            <Text style={st.emptyBody}>
-              Connect with people in your city,{"\n"}then start your first encrypted chat.
-            </Text>
-          </View>
-        ) : (
-          filtered.map((item, idx) => (
-            <React.Fragment key={item.conversationKey}>
-              <Pressable
-                style={({ pressed }) => [st.convRow, pressed && st.convRowPressed]}
-                onPress={() => openChat(item.peer)}
-                onLongPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  handleDeleteConversation(item);
-                }}
-                delayLongPress={400}
-              >
-                <View style={st.convAvatarWrap}>
-                  <Avatar uri={item.peer?.profileImageUri} name={item.peer?.fullName} size={50} />
-                  {item.peer?.isOnline && <View style={st.convOnline} />}
+
+            {loadingList ? (
+              <ActivityIndicator style={{ marginTop: 30 }} color={COLORS.accentBlue} size="large" />
+            ) : filtered.length === 0 ? (
+              <View style={st.emptyCard}>
+                <View style={st.emptyIconWrap}>
+                  <MaterialIcons name="chat-bubble-outline" size={28} color={COLORS.accentBlue} />
                 </View>
-                <View style={st.convMid}>
-                  <View style={st.convNameRow}>
-                    <Text style={[st.convName, !!item.unreadCount && st.convNameUnread]} numberOfLines={1}>
-                      {item.peer?.fullName || item.peer?.username}
-                    </Text>
-                    <Text style={[st.convTime, !!item.unreadCount && st.convTimeUnread]}>
-                      {toRelative(item.lastMessage?.createdAt)}
-                    </Text>
-                  </View>
-                  <View style={st.convPreviewRow}>
-                    <Text style={[st.convPreview, !!item.unreadCount && st.convPreviewUnread]} numberOfLines={1}>
-                      {item.preview || "Tap to chat"}
-                    </Text>
-                    {!!item.unreadCount && (
-                      <View style={st.badge}>
-                        <Text style={st.badgeText}>
-                          {item.unreadCount > 9 ? "9+" : item.unreadCount}
+                <Text style={st.emptyTitle}>No messages yet</Text>
+                <Text style={st.emptyBody}>
+                  Connect with people in your city,{"\n"}then start your first encrypted chat.
+                </Text>
+              </View>
+            ) : (
+              filtered.map((item, idx) => (
+                <React.Fragment key={item.conversationKey}>
+                  <Pressable
+                    style={({ pressed }) => [st.convRow, pressed && st.convRowPressed]}
+                    onPress={() => openChat(item.peer)}
+                    onLongPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      handleDeleteConversation(item);
+                    }}
+                    delayLongPress={400}
+                  >
+                    <View style={st.convAvatarWrap}>
+                      <Avatar uri={item.peer?.profileImageUri} name={item.peer?.fullName} size={50} />
+                      {item.peer?.isOnline && <View style={st.convOnline} />}
+                    </View>
+                    <View style={st.convMid}>
+                      <View style={st.convNameRow}>
+                        <Text style={[st.convName, !!item.unreadCount && st.convNameUnread]} numberOfLines={1}>
+                          {item.peer?.fullName || item.peer?.username}
+                        </Text>
+                        <Text style={[st.convTime, !!item.unreadCount && st.convTimeUnread]}>
+                          {toRelative(item.lastMessage?.createdAt)}
                         </Text>
                       </View>
-                    )}
-                  </View>
+                      <View style={st.convPreviewRow}>
+                        <Text style={[st.convPreview, !!item.unreadCount && st.convPreviewUnread]} numberOfLines={1}>
+                          {item.preview || "Tap to chat"}
+                        </Text>
+                        {!!item.unreadCount && (
+                          <View style={st.badge}>
+                            <Text style={st.badgeText}>
+                              {item.unreadCount > 9 ? "9+" : item.unreadCount}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  </Pressable>
+                  {idx < filtered.length - 1 && <View style={st.convDivider} />}
+                </React.Fragment>
+              ))
+            )}
+          </>
+        ) : (
+          <>
+            {/* ── MEETUP GROUP CHATS ── */}
+            <View style={st.convSection}>
+              <Text style={st.sectionLabel}>MEETUP GROUPS</Text>
+            </View>
+
+            {myMeetups.length === 0 ? (
+              <View style={st.emptyCard}>
+                <View style={st.emptyIconWrap}>
+                  <MaterialIcons name="groups" size={28} color={COLORS.accentBlue} />
                 </View>
-              </Pressable>
-              {idx < filtered.length - 1 && <View style={st.convDivider} />}
-            </React.Fragment>
-          ))
+                <Text style={st.emptyTitle}>No meetup chats</Text>
+                <Text style={st.emptyBody}>
+                  Join a meetup from the Home tab to start group chatting.
+                </Text>
+              </View>
+            ) : (
+              myMeetups.map((meetup, idx) => {
+                const serverBase = getServerBaseUrl();
+                const imgSrc = meetup.imageUri
+                  ? { uri: meetup.imageUri.startsWith("http") ? meetup.imageUri : `${serverBase}${meetup.imageUri}` }
+                  : null;
+                const summary = groupSummaries[meetup._id];
+                const lastMsg = summary?.lastMessage;
+                let preview = meetup.venue || meetup.meetupLocation || "Tap to chat";
+                if (lastMsg) {
+                  if (lastMsg.messageType === "image") {
+                    preview = "📷 Photo";
+                  } else {
+                    try {
+                      preview = decryptGroupMessage(lastMsg.ciphertext, lastMsg.iv, meetup._id) || "Encrypted message";
+                    } catch {
+                      preview = "Encrypted message";
+                    }
+                  }
+                }
+
+                return (
+                  <React.Fragment key={meetup._id}>
+                    <Pressable
+                      style={({ pressed }) => [st.convRow, pressed && st.convRowPressed]}
+                      onPress={() => openGroupChat(meetup)}
+                    >
+                      <View style={st.meetupAvatar}>
+                        {imgSrc ? (
+                          <Image source={imgSrc} style={st.meetupAvatarImg} />
+                        ) : (
+                          <MaterialIcons name="groups" size={24} color={COLORS.accentBlue} />
+                        )}
+                      </View>
+                      <View style={st.convMid}>
+                        <View style={st.convNameRow}>
+                          <Text style={st.convName} numberOfLines={1}>{meetup.title}</Text>
+                          <Text style={st.convTime}>
+                            {lastMsg ? toRelative(lastMsg.createdAt) : `${meetup.members?.length || 0} members`}
+                          </Text>
+                        </View>
+                        <View style={st.convPreviewRow}>
+                          <Text style={st.convPreview} numberOfLines={1}>
+                            {preview}
+                          </Text>
+                          {!!summary?.unreadCount && (
+                            <View style={st.badge}>
+                              <Text style={st.badgeText}>
+                                {summary.unreadCount > 99 ? "99+" : summary.unreadCount}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    </Pressable>
+                    {idx < myMeetups.length - 1 && <View style={st.convDivider} />}
+                  </React.Fragment>
+                );
+              })
+            )}
+          </>
         )}
       </ScrollView>
 
@@ -1679,11 +2705,11 @@ export default function MessagesTab({ navigation }) {
       </Modal>
 
       {/* ── FLOATING NEW MESSAGE BUTTON ── */}
-      {connections.length > 0 && (
+      {connections.length > 0 && msgMode === "yaaris" && (
         <Pressable
           style={({ pressed }) => [
             st.fab,
-            { bottom: TAB_BAR_TOTAL + insets.bottom - 6 },
+            { bottom: insets.bottom + 80 },
             pressed && { transform: [{ scale: 0.92 }] },
           ]}
           onPress={() => { setShowNewMsgSheet(true); setNewMsgSearch(""); }}
@@ -1885,6 +2911,92 @@ const st = StyleSheet.create({
   },
 
   /* ── CONV SECTION ── */
+  /* ── MSG MODE TOGGLE ── */
+  msgModeToggle: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    marginBottom: 16,
+    backgroundColor: COLORS.paperDark,
+    borderRadius: 12,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  msgModeTab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  msgModeTabActive: {
+    backgroundColor: COLORS.ink,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  msgModeText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: COLORS.inkMuted,
+    letterSpacing: 0.5,
+  },
+  msgModeTextActive: {
+    color: COLORS.white,
+  },
+
+  meetupAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: COLORS.paperDark,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  meetupAvatarImg: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
+
+  groupSenderName: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.accentBlue,
+    marginBottom: 2,
+    paddingLeft: 4,
+  },
+  systemMsgWrap: {
+    alignItems: "center",
+    marginVertical: 8,
+    paddingHorizontal: 20,
+  },
+  systemMsgBubble: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.tagGold,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 100,
+    maxWidth: "85%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  systemMsgText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.accentGold,
+    letterSpacing: 0.2,
+  },
+
   convSection: {
     paddingTop: 14,
     paddingHorizontal: 20,

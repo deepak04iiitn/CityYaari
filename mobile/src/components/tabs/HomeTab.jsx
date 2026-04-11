@@ -14,9 +14,10 @@ import {
   ActivityIndicator,
   TextInput,
   Keyboard,
-  TouchableWithoutFeedback,
+  Modal,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { ScreenShell } from "./TabShared";
 import { fetchPosts, toggleLike, toggleDislike, toggleSave } from "../../services/posts/postService";
 import {
@@ -31,8 +32,12 @@ import FilterModal from "./FilterModal";
 import ProfileCompletionGateModal, {
   isProfileCompleteForConnections,
 } from "../common/ProfileCompletionGateModal";
+import { fetchMeetups, rsvpMeetup, leaveMeetup } from "../../services/meetups/meetupService";
+import { getServerBaseUrl } from "../../services/chat/chatService";
 
 const { width } = Dimensions.get("window");
+
+const DEFAULT_MEETUP_IMG = { uri: "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=600&q=80" };
 
 const COLORS = {
   ink: "#0a0a0a",
@@ -52,30 +57,6 @@ const COLORS = {
   border: "#e0dbd4",
 };
 
-const MEETUPS = [
-  {
-    id: "1",
-    title: "Weekend Filter Coffee Walk",
-    date: "SAT, 14 OCT",
-    time: "9:00 AM",
-    location: "Mylapore, Chennai",
-    spots: 5,
-    accent: COLORS.accentGold,
-    image:
-      "https://images.unsplash.com/photo-1511578314322-379afb476865?w=900&q=80",
-  },
-  {
-    id: "2",
-    title: "Sunset Rooftop Networking",
-    date: "SUN, 15 OCT",
-    time: "5:30 PM",
-    location: "Indiranagar, Bangalore",
-    spots: 2,
-    accent: COLORS.accent,
-    image:
-      "https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=900&q=80",
-  },
-];
 
 if (
   Platform.OS === "android" &&
@@ -96,7 +77,18 @@ export default function HomeTab({ navigation }) {
   const [requestedUsers, setRequestedUsers] = useState({});
   const [showProfileGateModal, setShowProfileGateModal] = useState(false);
 
+  const [meetups, setMeetups] = useState([]);
+  const [meetupsLoading, setMeetupsLoading] = useState(false);
+  const [meetupSubTab, setMeetupSubTab] = useState("upcoming");
+
+  const [meetupSearch, setMeetupSearch] = useState("");
+  const [meetupSearchFocused, setMeetupSearchFocused] = useState(false);
+  const [meetupDateFilter, setMeetupDateFilter] = useState(null);
+  const [showMeetupDatePicker, setShowMeetupDatePicker] = useState(false);
+  const meetupSearchRef = useRef(null);
+
   const [expandedPosts, setExpandedPosts] = useState({});
+  const [expandedMeetupDescs, setExpandedMeetupDescs] = useState({});
   const [activeCommentPostId, setActiveCommentPostId] = useState(null);
 
   // ── SEARCH & FILTER STATE ──────────────────────────────────────
@@ -128,6 +120,79 @@ export default function HomeTab({ navigation }) {
 
   useEffect(() => { loadPosts({}); }, []);
   useEffect(() => { loadConnections(); }, [user?._id]);
+  useEffect(() => { loadMeetups(); }, []);
+  useEffect(() => { if (mode === "Meetups") loadMeetups(); }, [mode]);
+
+  const loadMeetups = async () => {
+    setMeetupsLoading(true);
+    const result = await fetchMeetups();
+    if (result.success) {
+      setMeetups(result.meetups);
+    }
+    setMeetupsLoading(false);
+  };
+
+  const handleRsvp = async (meetupId) => {
+    const res = await rsvpMeetup(meetupId);
+    if (res.success) {
+      showSnackbar("Joined meetup!", "success");
+      loadMeetups();
+      navigation.navigate("Messages", { openGroupMeetup: res.data?.meetup });
+    } else {
+      showSnackbar(res.message || "Could not join meetup", "error");
+    }
+  };
+
+  const handleLeaveMeetup = async (meetupId) => {
+    const res = await leaveMeetup(meetupId);
+    if (res.success) {
+      showSnackbar("Left meetup", "success");
+      loadMeetups();
+    } else {
+      showSnackbar(res.message || "Could not leave meetup", "error");
+    }
+  };
+
+  const filteredMeetups = meetups.filter((m) => {
+    if (meetupSubTab === "upcoming" && m.status !== "upcoming") return false;
+    if (meetupSubTab === "completed" && m.status !== "completed") return false;
+
+    if (meetupDateFilter) {
+      const mDate = new Date(m.date);
+      if (
+        mDate.getFullYear() !== meetupDateFilter.getFullYear() ||
+        mDate.getMonth() !== meetupDateFilter.getMonth() ||
+        mDate.getDate() !== meetupDateFilter.getDate()
+      ) return false;
+    }
+
+    if (meetupSearch.trim()) {
+      const q = meetupSearch.trim().toLowerCase();
+      const haystack = [
+        m.title, m.details, m.hometown,
+        m.venue, m.meetupLocation, m.location,
+      ].filter(Boolean).join(" ").toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+
+    return true;
+  });
+
+  const upcomingMeetups = meetups.filter((m) => m.status === "upcoming").slice(0, 6);
+
+  const formatMeetupDate = (d) => {
+    const date = new Date(d);
+    return date.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" }).toUpperCase();
+  };
+
+  const formatMeetupTime = (timeStr) => {
+    if (!timeStr) return "";
+    const [h, m] = timeStr.split(":").map(Number);
+    if (isNaN(h) || isNaN(m)) return timeStr;
+    const suffix = h >= 12 ? "PM" : "AM";
+    const hour12 = h % 12 || 12;
+    return `${hour12}:${String(m).padStart(2, "0")} ${suffix}`;
+  };
 
   const loadConnections = async () => {
     const result = await getMyConnections();
@@ -323,16 +388,15 @@ export default function HomeTab({ navigation }) {
       background={COLORS.paper}
       keyboardShouldPersistTaps="handled"
     >
-      <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()} accessible={false}>
-        <View style={styles.container}>
+      <Pressable onPress={() => Keyboard.dismiss()} accessible={false} style={styles.container}>
         {/* ── MASTHEAD ── */}
         <View style={styles.masthead}>
-          <View style={styles.mastheadTop}>
+          {/* <View style={styles.mastheadTop}>
             <View style={styles.liveChip}>
               <View style={styles.liveDot} />
               <Text style={styles.liveLabel}>LIVE CITY FEED</Text>
             </View>
-          </View>
+          </View> */}
 
           <Text style={styles.heroTitle}>
             <Text style={styles.heroTitleLight}>Discover</Text>
@@ -374,70 +438,307 @@ export default function HomeTab({ navigation }) {
 
         {mode === "Meetups" ? (
           <>
-            <View style={styles.sectionRow}>
-              <Text style={styles.sectionLabel}>UPCOMING MEETUPS</Text>
-              <Pressable>
-                <Text style={styles.seeAll}>See all →</Text>
+            {/* ── MEETUP SEARCH & DATE FILTER ── */}
+            <View style={styles.meetupSearchRow}>
+              <Pressable
+                style={[styles.meetupSearchBox, meetupSearchFocused && styles.meetupSearchBoxFocused]}
+                onPress={() => meetupSearchRef.current?.focus()}
+              >
+                <MaterialIcons name="search" size={18} color={meetupSearchFocused ? COLORS.accentBlue : COLORS.inkMuted} />
+                <TextInput
+                  ref={meetupSearchRef}
+                  style={styles.meetupSearchInput}
+                  placeholder="Search meetups..."
+                  placeholderTextColor={COLORS.inkMuted}
+                  value={meetupSearch}
+                  onChangeText={setMeetupSearch}
+                  onFocus={() => setMeetupSearchFocused(true)}
+                  onBlur={() => setMeetupSearchFocused(false)}
+                  returnKeyType="search"
+                />
+                {meetupSearch.length > 0 && (
+                  <Pressable onPress={() => setMeetupSearch("")} hitSlop={8}>
+                    <MaterialIcons name="close" size={16} color={COLORS.inkMuted} />
+                  </Pressable>
+                )}
+              </Pressable>
+
+              <Pressable
+                style={[styles.meetupDateBtn, meetupDateFilter && styles.meetupDateBtnActive]}
+                onPress={() => setShowMeetupDatePicker(true)}
+              >
+                <MaterialIcons
+                  name="event"
+                  size={17}
+                  color={meetupDateFilter ? COLORS.white : COLORS.ink}
+                />
               </Pressable>
             </View>
-            <View style={styles.comingSoonWrap}>
-              <View style={styles.comingSoonIcon}>
-                <MaterialIcons name="event-available" size={32} color={COLORS.accentBlue} />
+
+            {meetupDateFilter && (
+              <View style={styles.meetupActiveFilters}>
+                <View style={styles.meetupFilterChip}>
+                  <MaterialIcons name="calendar-today" size={12} color={COLORS.accentBlue} />
+                  <Text style={styles.meetupFilterChipText}>
+                    {meetupDateFilter.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}
+                  </Text>
+                  <Pressable onPress={() => setMeetupDateFilter(null)} hitSlop={8}>
+                    <MaterialIcons name="close" size={14} color={COLORS.inkMuted} />
+                  </Pressable>
+                </View>
               </View>
-              <Text style={styles.comingSoonTitle}>Meetups Coming Soon</Text>
-              <Text style={styles.comingSoonSubtitle}>
-                We are building a beautiful meetup experience for Bandhuu. It will launch soon.
-              </Text>
+            )}
+
+            {showMeetupDatePicker && (
+              Platform.OS === "ios" ? (
+                <Modal transparent animationType="fade" visible>
+                  <Pressable style={styles.datePickerOverlay} onPress={() => setShowMeetupDatePicker(false)}>
+                    <Pressable style={styles.datePickerSheet}>
+                      <View style={styles.datePickerHeader}>
+                        <Text style={styles.datePickerTitle}>Pick a date</Text>
+                        <Pressable onPress={() => setShowMeetupDatePicker(false)}>
+                          <Text style={styles.datePickerDone}>Done</Text>
+                        </Pressable>
+                      </View>
+                      <DateTimePicker
+                        value={meetupDateFilter || new Date()}
+                        mode="date"
+                        display="inline"
+                        onChange={(_, d) => { if (d) setMeetupDateFilter(d); }}
+                        themeVariant="light"
+                      />
+                    </Pressable>
+                  </Pressable>
+                </Modal>
+              ) : (
+                <DateTimePicker
+                  value={meetupDateFilter || new Date()}
+                  mode="date"
+                  display="default"
+                  onChange={(e, d) => {
+                    setShowMeetupDatePicker(false);
+                    if (e.type === "set" && d) setMeetupDateFilter(d);
+                  }}
+                />
+              )
+            )}
+
+            {/* Sub-tabs */}
+            <View style={styles.meetupSubTabs}>
+              {["upcoming", "completed", "all"].map((tab) => (
+                <Pressable
+                  key={tab}
+                  onPress={() => setMeetupSubTab(tab)}
+                  style={[styles.meetupSubTab, meetupSubTab === tab && styles.meetupSubTabActive]}
+                >
+                  <Text style={[styles.meetupSubTabText, meetupSubTab === tab && styles.meetupSubTabTextActive]}>
+                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
+
+            {meetupsLoading ? (
+              <ActivityIndicator style={{ marginTop: 30 }} color={COLORS.accentBlue} size="large" />
+            ) : filteredMeetups.length === 0 ? (
+              <View style={styles.comingSoonWrap}>
+                <View style={styles.comingSoonIcon}>
+                  <MaterialIcons name={meetupSearch || meetupDateFilter ? "search-off" : "event-busy"} size={32} color={COLORS.accentBlue} />
+                </View>
+                <Text style={styles.comingSoonTitle}>
+                  {meetupSearch || meetupDateFilter ? "No matches" : "No meetups yet"}
+                </Text>
+                <Text style={styles.comingSoonSubtitle}>
+                  {meetupSearch || meetupDateFilter
+                    ? "Try a different search term or clear the date filter."
+                    : "Be the first to create a meetup! Head over to the Post tab to get started."}
+                </Text>
+                {(meetupSearch || meetupDateFilter) && (
+                  <Pressable
+                    style={styles.meetupClearAllBtn}
+                    onPress={() => { setMeetupSearch(""); setMeetupDateFilter(null); }}
+                  >
+                    <Text style={styles.meetupClearAllText}>Clear filters</Text>
+                  </Pressable>
+                )}
+              </View>
+            ) : (
+              filteredMeetups.map((m) => {
+                const isMember = m.members?.some((mb) => (mb._id || mb) === user?._id);
+                const isCreator = (m.user?._id || m.user) === user?._id;
+                const isFull = m.members?.length >= m.maxMembers;
+                const spotsLeft = m.maxMembers - (m.members?.length || 0);
+                const serverBase = getServerBaseUrl();
+                const imgSrc = m.imageUri
+                  ? { uri: m.imageUri.startsWith("http") ? m.imageUri : `${serverBase}${m.imageUri}` }
+                  : DEFAULT_MEETUP_IMG;
+
+                return (
+                  <View key={m._id} style={styles.meetCardFull}>
+                    <View style={styles.meetImgWrap}>
+                      <Image source={imgSrc} style={styles.meetImg} />
+                        <View style={[styles.datePill, { backgroundColor: COLORS.accent }]}>
+                          <Text style={styles.datePillText}>{formatMeetupDate(m.date)}</Text>
+                        </View>
+                        <View style={styles.spotsBadge}>
+                          <MaterialIcons name="people" size={10} color={COLORS.ink} />
+                          <Text style={styles.spotsText}>{spotsLeft > 0 ? `${spotsLeft} left` : "Full"}</Text>
+                        </View>
+                      </View>
+
+                    <View style={styles.meetBody}>
+                      <View style={styles.meetTimeRow}>
+                        <Text style={styles.meetTime}>{formatMeetupTime(m.time)}</Text>
+                        {m.hometown ? (
+                          <View style={styles.hometownInline}>
+                            <MaterialIcons name="home" size={11} color={COLORS.accent} />
+                            <Text style={styles.hometownInlineText}>For {m.hometown} folks</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text style={styles.meetTitle} numberOfLines={2}>{m.title}</Text>
+                      {m.details ? (
+                        <View>
+                          <Text
+                            style={styles.meetDesc}
+                            numberOfLines={expandedMeetupDescs[m._id] ? undefined : 2}
+                          >
+                            {m.details}
+                          </Text>
+                          {m.details.length > 80 && (
+                            <Pressable
+                              onPress={() => {
+                                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                                setExpandedMeetupDescs((prev) => ({ ...prev, [m._id]: !prev[m._id] }));
+                              }}
+                              hitSlop={8}
+                            >
+                              <Text style={styles.meetReadMore}>
+                                {expandedMeetupDescs[m._id] ? "Show less" : "Read more"}
+                              </Text>
+                            </Pressable>
+                          )}
+                        </View>
+                      ) : null}
+                      {(m.venue || m.meetupLocation || m.location) ? (
+                        <View style={styles.meetLoc}>
+                          <MaterialIcons name="location-on" size={13} color={COLORS.accentBlue} />
+                          <Text style={styles.meetLocText} numberOfLines={1}>
+                            {[m.venue, m.meetupLocation || m.location].filter(Boolean).join(", ")}
+                          </Text>
+                        </View>
+                      ) : null}
+
+                      <View style={styles.meetFooter}>
+                        <View style={styles.meetMembers}>
+                          <MaterialIcons name="group" size={14} color={COLORS.inkMuted} />
+                          <Text style={styles.meetMembersText}>{m.members?.length || 0}/{m.maxMembers}</Text>
+                        </View>
+
+                        {isCreator ? (
+                          <View style={[styles.rsvpBtn, { backgroundColor: COLORS.paperDark }]}>
+                            <Text style={[styles.rsvpText, { color: COLORS.ink }]}>YOUR MEETUP</Text>
+                          </View>
+                        ) : isMember ? (
+                          <Pressable
+                            style={[styles.rsvpBtn, { backgroundColor: COLORS.accentMint }]}
+                            onPress={() => handleLeaveMeetup(m._id)}
+                          >
+                            <Text style={styles.rsvpText}>JOINED ✓</Text>
+                          </Pressable>
+                        ) : isFull ? (
+                          <View style={[styles.rsvpBtn, { backgroundColor: COLORS.border }]}>
+                            <Text style={[styles.rsvpText, { color: COLORS.inkMuted }]}>FULL</Text>
+                          </View>
+                        ) : (
+                          <Pressable
+                            style={[styles.rsvpBtn, { backgroundColor: COLORS.accent }]}
+                            onPress={() => handleRsvp(m._id)}
+                          >
+                            <Text style={styles.rsvpText}>RSVP NOW</Text>
+                          </Pressable>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                );
+              })
+            )}
           </>
         ) : (
           <>
-            <View style={styles.sectionRow}>
-              <Text style={styles.sectionLabel}>UPCOMING MEETUPS</Text>
-              <Pressable>
-                <Text style={styles.seeAll}>See all →</Text>
-              </Pressable>
-            </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.cardScroll}
-              snapToInterval={270 + 16}
-              decelerationRate="fast"
-            >
-              {MEETUPS.map((m) => (
-                <Pressable key={m.id} style={styles.meetCard}>
-                  <View style={styles.meetImgWrap}>
-                    <Image source={{ uri: m.image }} style={styles.meetImg} />
-                    <View style={[styles.datePill, { backgroundColor: m.accent }]}>
-                      <Text style={styles.datePillText}>{m.date}</Text>
-                    </View>
-                    <View style={styles.spotsBadge}>
-                      <MaterialIcons name="people" size={10} color={COLORS.ink} />
-                      <Text style={styles.spotsText}>{m.spots} left</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.meetBody}>
-                    <Text style={styles.meetTime}>{m.time}</Text>
-                    <Text style={styles.meetTitle} numberOfLines={2}>
-                      {m.title}
+            {/* ── UPCOMING MEETUPS CAROUSEL ── */}
+            {upcomingMeetups.length > 0 && (
+              <>
+                <View style={styles.sectionRow}>
+                  <View>
+                    <Text style={styles.feedSectionTitle}>
+                      <Text style={styles.feedSectionTitleLight}>Upcoming </Text>
+                      Meetups
                     </Text>
-                    <View style={styles.meetLoc}>
-                      <MaterialIcons name="location-on" size={12} color={COLORS.inkMuted} />
-                      <Text style={styles.meetLocText}>{m.location}</Text>
-                    </View>
-                    <Pressable style={[styles.rsvpBtn, { backgroundColor: m.accent }]}>
-                      <Text style={styles.rsvpText}>RSVP NOW</Text>
-                    </Pressable>
+                    <View style={styles.feedSectionAccent} />
                   </View>
-                </Pressable>
-              ))}
-            </ScrollView>
+                  <Pressable onPress={() => setMode("Meetups")} hitSlop={12}>
+                    <Text style={styles.seeAllBtn}>See all</Text>
+                  </Pressable>
+                </View>
 
-            <View style={styles.feedDivider} />
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  nestedScrollEnabled
+                  contentContainerStyle={styles.upcomingScroll}
+                >
+                  {upcomingMeetups.map((m) => {
+                    const serverBase = getServerBaseUrl();
+                    const imgSrc = m.imageUri
+                      ? { uri: m.imageUri.startsWith("http") ? m.imageUri : `${serverBase}${m.imageUri}` }
+                      : DEFAULT_MEETUP_IMG;
+                    const isMember = m.members?.some((mb) => (mb._id || mb) === user?._id);
+                    const isCreator = (m.user?._id || m.user) === user?._id;
+                    const spotsLeft = m.maxMembers - (m.members?.length || 0);
 
+                    return (
+                      <View key={m._id} style={styles.upcomingCard}>
+                        <Image source={imgSrc} style={styles.upcomingImg} />
+                        <View style={styles.upcomingBody}>
+                          <Text style={styles.upcomingDate}>{formatMeetupDate(m.date)} · {formatMeetupTime(m.time)}</Text>
+                          <Text style={styles.upcomingTitle} numberOfLines={2}>{m.title}</Text>
+                          {m.hometown ? (
+                            <View style={styles.upcomingHometownChip}>
+                              <MaterialIcons name="home" size={10} color={COLORS.accent} />
+                              <Text style={styles.upcomingHometownText}>For {m.hometown}</Text>
+                            </View>
+                          ) : null}
+                          <View style={styles.upcomingFooter}>
+                            <View style={styles.upcomingSpots}>
+                              <MaterialIcons name="people" size={11} color={COLORS.inkMuted} />
+                              <Text style={styles.upcomingSpotsText}>{spotsLeft > 0 ? `${spotsLeft} left` : "Full"}</Text>
+                            </View>
+                            {isCreator ? (
+                              <View style={[styles.upcomingRsvp, { backgroundColor: COLORS.paperDark }]}>
+                                <Text style={[styles.upcomingRsvpText, { color: COLORS.ink }]}>YOURS</Text>
+                              </View>
+                            ) : isMember ? (
+                              <View style={[styles.upcomingRsvp, { backgroundColor: COLORS.accentMint }]}>
+                                <Text style={styles.upcomingRsvpText}>JOINED</Text>
+                              </View>
+                            ) : (
+                              <Pressable style={[styles.upcomingRsvp, { backgroundColor: COLORS.accent }]} onPress={() => handleRsvp(m._id)}>
+                                <Text style={styles.upcomingRsvpText}>RSVP</Text>
+                              </Pressable>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+                <View style={[styles.feedDivider, { marginTop: 20 }]} />
+              </>
+            )}
+
+            {upcomingMeetups.length === 0 && <View style={styles.feedDivider} />}
             <View style={styles.sectionRow}>
               <View>
                 <Text style={styles.feedSectionTitle}>
@@ -699,8 +1000,7 @@ export default function HomeTab({ navigation }) {
             navigation.navigate("Account");
           }}
         />
-        </View>
-      </TouchableWithoutFeedback>
+      </Pressable>
     </ScreenShell>
   );
 }
@@ -807,6 +1107,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
     marginBottom: 14,
+    marginTop: -10
   },
   sectionLabel: {
     fontSize: 10,
@@ -876,13 +1177,153 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  /* ── MEETUP CARDS ── */
-  cardScroll: {
-    paddingLeft: 20,
-    paddingRight: 20,
-    paddingBottom: 28,
-    gap: 16,
+  /* ── MEETUP SUB-TABS ── */
+  meetupSubTabs: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    marginBottom: 16,
+    backgroundColor: COLORS.paperDark,
+    borderRadius: 10,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
+  meetupSubTab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  meetupSubTabActive: {
+    backgroundColor: COLORS.white,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  meetupSubTabText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: COLORS.inkMuted,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  meetupSubTabTextActive: {
+    color: COLORS.ink,
+  },
+
+  /* ── MEETUP SEARCH & FILTER ── */
+  meetupSearchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginHorizontal: 20,
+    marginBottom: 12,
+  },
+  meetupSearchBox: {
+    flex: 1,
+    height: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+  },
+  meetupSearchBoxFocused: {
+    borderColor: COLORS.accentBlue,
+    backgroundColor: COLORS.paper,
+  },
+  meetupSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.ink,
+    padding: 0,
+    fontWeight: "500",
+  },
+  meetupDateBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: COLORS.white,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  meetupDateBtnActive: {
+    backgroundColor: COLORS.accentBlue,
+    borderColor: COLORS.accentBlue,
+  },
+  meetupActiveFilters: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginHorizontal: 20,
+    marginBottom: 12,
+  },
+  meetupFilterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: COLORS.tagBlue,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  meetupFilterChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.accentBlue,
+  },
+  meetupClearAllBtn: {
+    marginTop: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: COLORS.accentBlue,
+  },
+  meetupClearAllText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: COLORS.white,
+    letterSpacing: 0.3,
+  },
+  datePickerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  datePickerSheet: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 34,
+  },
+  datePickerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  datePickerTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: COLORS.ink,
+  },
+  datePickerDone: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.accentBlue,
+  },
+
+  /* ── MEETUP CARDS ── */
   feedDivider: {
     height: 1,
     backgroundColor: COLORS.border,
@@ -890,8 +1331,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 14,
   },
-  meetCard: {
-    width: 270,
+  meetCardFull: {
+    marginHorizontal: 20,
+    marginBottom: 16,
     backgroundColor: COLORS.cardBg,
     borderRadius: 16,
     overflow: "hidden",
@@ -946,35 +1388,166 @@ const styles = StyleSheet.create({
   meetBody: {
     padding: 16,
   },
+  meetTimeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 5,
+    gap: 8,
+  },
   meetTime: {
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "800",
     color: COLORS.inkMuted,
-    letterSpacing: 1,
-    marginBottom: 4,
+    letterSpacing: 0.8,
     textTransform: "uppercase",
+  },
+  hometownInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: COLORS.accent + "12",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  hometownInlineText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: COLORS.accent,
+    letterSpacing: 0.2,
   },
   meetTitle: {
     fontSize: 17,
     fontWeight: "800",
     color: COLORS.ink,
     lineHeight: 23,
-    marginBottom: 10,
+    marginBottom: 4,
     letterSpacing: -0.3,
+  },
+  meetDesc: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: COLORS.inkMuted,
+    lineHeight: 18,
+    marginBottom: 2,
+  },
+  meetReadMore: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: COLORS.accentBlue,
+    letterSpacing: 0.3,
+    marginBottom: 8,
+    marginTop: 2,
+  },
+  seeAllBtn: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.accentBlue,
+    letterSpacing: 0.2,
+  },
+  upcomingScroll: {
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+    gap: 12,
+  },
+  upcomingCard: {
+    width: 180,
+    backgroundColor: COLORS.cardBg,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  upcomingImg: {
+    width: "100%",
+    height: 90,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  upcomingBody: {
+    padding: 10,
+  },
+  upcomingDate: {
+    fontSize: 9,
+    fontWeight: "900",
+    color: COLORS.accent,
+    letterSpacing: 1,
+    marginBottom: 3,
+  },
+  upcomingTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: COLORS.ink,
+    lineHeight: 17,
+    marginBottom: 4,
+  },
+  upcomingHometownChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 3,
+    backgroundColor: COLORS.accent + "12",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginBottom: 6,
+  },
+  upcomingHometownText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: COLORS.accent,
+  },
+  upcomingFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 2,
+  },
+  upcomingSpots: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  upcomingSpotsText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: COLORS.inkMuted,
+  },
+  upcomingRsvp: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  upcomingRsvpText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: COLORS.white,
+    letterSpacing: 0.5,
   },
   meetLoc: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
+    gap: 5,
+    marginTop: 10,
+    backgroundColor: COLORS.tagBlue,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
     marginBottom: 14,
+    alignSelf: "flex-start",
   },
   meetLocText: {
-    fontSize: 11,
-    color: COLORS.inkMuted,
-    fontWeight: "600",
+    fontSize: 12,
+    color: COLORS.accentBlue,
+    fontWeight: "700",
+    flex: 1,
   },
   rsvpBtn: {
     paddingVertical: 10,
+    paddingHorizontal: 16,
     borderRadius: 6,
     alignItems: "center",
   },
@@ -983,6 +1556,21 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: COLORS.white,
     letterSpacing: 1.5,
+  },
+  meetFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  meetMembers: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  meetMembersText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.inkMuted,
   },
 
   /* ── FEED ── */

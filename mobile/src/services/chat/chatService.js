@@ -72,6 +72,9 @@ let readReceiptHandler = null;
 let statusHandler = null;
 let typingHandler = null;
 let reactionHandler = null;
+let groupMessageHandler = null;
+let groupTypingHandler = null;
+let groupReactionHandler = null;
 
 export const ensureChatSocket = (token) => {
   if (!token) return null;
@@ -120,6 +123,18 @@ export const ensureChatSocket = (token) => {
 
   socketRef.on('chat:reaction', (payload) => {
     reactionHandler?.(payload);
+  });
+
+  socketRef.on('group:message', (payload) => {
+    groupMessageHandler?.(payload);
+  });
+
+  socketRef.on('group:typing', (payload) => {
+    groupTypingHandler?.(payload);
+  });
+
+  socketRef.on('group:reaction', (payload) => {
+    groupReactionHandler?.(payload);
   });
 
   return socketRef;
@@ -181,4 +196,93 @@ export const destroyChatSocket = () => {
   activeToken = null;
   messageHandler = null;
   readReceiptHandler = null;
+};
+
+// ── Group Chat ──
+
+export const setGroupChatHandlers = (onMessage, onTyping, onReaction) => {
+  groupMessageHandler = onMessage;
+  groupTypingHandler = onTyping;
+  groupReactionHandler = onReaction;
+};
+
+export const joinGroupRoom = (meetupId) => {
+  if (!socketRef?.connected || !meetupId) return;
+  socketRef.emit('group:join', { meetupId });
+};
+
+export const leaveGroupRoom = (meetupId) => {
+  if (!socketRef?.connected || !meetupId) return;
+  socketRef.emit('group:leave', { meetupId });
+};
+
+export const sendGroupMessageViaSocket = (payload) => {
+  return new Promise((resolve, reject) => {
+    if (!socketRef?.connected) {
+      reject(new Error('Socket not connected'));
+      return;
+    }
+    socketRef.emit('group:send', payload, (response) => {
+      if (response?.success) resolve(response);
+      else reject(new Error(response?.message || 'Failed to send'));
+    });
+  });
+};
+
+export const emitGroupTyping = (meetupId, isTyping) => {
+  if (!socketRef?.connected || !meetupId) return;
+  socketRef.emit('group:typing', { meetupId, isTyping });
+};
+
+export const emitGroupReaction = (messageId, emoji) => {
+  return new Promise((resolve, reject) => {
+    if (!socketRef?.connected) {
+      reject(new Error('Socket not connected'));
+      return;
+    }
+    socketRef.emit('group:react', { messageId, emoji }, (response) => {
+      if (response?.success) resolve(response);
+      else reject(new Error(response?.message || 'Failed to react'));
+    });
+  });
+};
+
+export const fetchGroupMessages = async (meetupId, { before, limit } = {}) => {
+  const params = {};
+  if (before) params.before = before;
+  if (limit) params.limit = limit;
+  const response = await apiClient.get(`/group-chats/${meetupId}/messages`, { params });
+  return response.data || [];
+};
+
+export const sendGroupImageHttp = async (meetupId, { uri, fileName, mimeType, ciphertext, iv, isOneTimeView }) => {
+  const formData = new FormData();
+  formData.append('chatImage', {
+    uri,
+    name: fileName || `group-${Date.now()}.jpg`,
+    type: mimeType || 'image/jpeg',
+  });
+  formData.append('ciphertext', ciphertext || 'image');
+  formData.append('iv', iv || 'image');
+  formData.append('isOneTimeView', String(!!isOneTimeView));
+
+  const response = await apiClient.post(`/group-chats/${meetupId}/image`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+};
+
+export const markGroupOneTimeViewed = async (messageId) => {
+  const response = await apiClient.post(`/group-chats/one-time-view/${messageId}`);
+  return response.data;
+};
+
+export const fetchGroupChatSummaries = async () => {
+  const response = await apiClient.get('/group-chats/summaries');
+  return response.data || {};
+};
+
+export const markGroupChatAsRead = async (meetupId) => {
+  const response = await apiClient.post(`/group-chats/${meetupId}/read`);
+  return response.data;
 };

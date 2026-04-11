@@ -26,16 +26,16 @@ const { width } = Dimensions.get("window");
 const Tab = createBottomTabNavigator();
 
 const C = {
-  blue: "#004ac6",
-  blueXLight: "#eef2ff",
-  orange: "#e8380d",
-  orangeDark: "#a13211",
+  accent: "#e8380d",
+  accentDark: "#a13211",
+  accentGhost: "#fff0ed",
+  accentBorder: "#f5cdc4",
   ink: "#0a0a0a",
-  inkFaint: "#888888",
+  inkSoft: "#5c554e",
   white: "#ffffff",
   bg: "#f5f2ed",
-  border: "#e0dbd4",
-  surface: "#ffffff",
+  bar: "#d6d0c8",
+  barBorder: "#c5bfb6",
 };
 
 const TAB_CONFIG = {
@@ -47,7 +47,7 @@ const TAB_CONFIG = {
 };
 
 const SPRING = { tension: 200, friction: 18 };
-export const BAR_HEIGHT = 68;
+export const BAR_HEIGHT = 78;
 const NOTCH_W = 88;
 const NOTCH_D = 32;
 const FAB_SIZE = 62;
@@ -69,7 +69,7 @@ function NotchedBar({ bottomPad }) {
 
   return (
     <Svg width={width} height={totalH} style={StyleSheet.absoluteFill}>
-      <Path d={path} fill={C.surface} />
+      <Path d={path} fill={C.bar} />
     </Svg>
   );
 }
@@ -107,7 +107,7 @@ function TabIcon({ icon, label, focused, badge }) {
           style={[ss.pill, { opacity: pillOpacity }]}
         />
         <Animated.View style={{ transform: [{ scale: iconScale }, { translateY: iconTranslateY }] }}>
-          <MaterialIcons name={icon} size={24} color={focused ? C.blue : C.inkFaint} />
+          <MaterialIcons name={icon} size={24} color={focused ? C.accent : C.inkSoft} />
         </Animated.View>
         {badgeLabel ? (
           <View style={ss.badge}>
@@ -141,7 +141,7 @@ function PostFAB({ onPress }) {
     <Pressable onPress={onPress} onPressIn={pressIn} onPressOut={pressOut} style={ss.fabPressable}>
       <Animated.View style={{ transform: [{ scale }], alignItems: "center" }}>
         <LinearGradient
-          colors={[C.orange, C.orangeDark]}
+          colors={[C.accent, C.accentDark]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={ss.fab}
@@ -172,7 +172,7 @@ function CustomTabBar({ state, descriptors, navigation }) {
         <View style={[ss.topBorderRight, { width: width / 2 - NOTCH_W / 2 - 20 }]} />
       </View>
 
-      <View style={[ss.tabRow, { height: BAR_HEIGHT, marginTop: FAB_LIFT }]}>
+      <View style={[ss.tabRow, { height: BAR_HEIGHT + bottomPad, paddingBottom: bottomPad, marginTop: FAB_LIFT }]}>
         {visibleRoutes.map((route) => {
           const routeIndex = state.routes.findIndex((item) => item.key === route.key);
           const focused = state.index === routeIndex;
@@ -252,24 +252,24 @@ const ss = StyleSheet.create({
     left: 0,
     right: 0,
     shadowColor: "#0a0a0a",
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: -6 },
-    elevation: 20,
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: -8 },
+    elevation: 24,
   },
   topBorder: {
     position: "absolute",
     top: 0,
     left: 0,
     height: 1,
-    backgroundColor: C.border,
+    backgroundColor: C.barBorder,
   },
   topBorderRight: {
     position: "absolute",
     top: 0,
     right: 0,
     height: 1,
-    backgroundColor: C.border,
+    backgroundColor: C.barBorder,
   },
   tabRow: {
     position: "absolute",
@@ -289,7 +289,7 @@ const ss = StyleSheet.create({
   tabItem: {
     alignItems: "center",
     justifyContent: "center",
-    transform: [{ translateY: -3 }],
+    transform: [{ translateY: 4 }],
   },
   pillArea: {
     width: 58,
@@ -302,9 +302,9 @@ const ss = StyleSheet.create({
     width: 58,
     height: 34,
     borderRadius: 17,
-    backgroundColor: C.blueXLight,
+    backgroundColor: C.accentGhost,
     borderWidth: 1,
-    borderColor: "#cfddff",
+    borderColor: C.accentBorder,
   },
   badge: {
     position: "absolute",
@@ -314,11 +314,11 @@ const ss = StyleSheet.create({
     height: 18,
     borderRadius: 9,
     paddingHorizontal: 4,
-    backgroundColor: C.orange,
+    backgroundColor: C.accent,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: C.white,
+    borderColor: C.bar,
   },
   badgeText: {
     color: C.white,
@@ -330,11 +330,11 @@ const ss = StyleSheet.create({
     marginTop: 1,
     fontSize: 10,
     fontWeight: "700",
-    color: C.inkFaint,
+    color: C.inkSoft,
     letterSpacing: 0.5,
   },
   tabLabelActive: {
-    color: C.blue,
+    color: C.accent,
     fontWeight: "900",
     letterSpacing: 0.8,
   },
@@ -360,6 +360,6 @@ const ss = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 16,
     borderWidth: 4,
-    borderColor: "#fff6f2",
+    borderColor: C.bar,
   },
 });

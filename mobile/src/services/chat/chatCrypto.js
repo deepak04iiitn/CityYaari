@@ -44,3 +44,33 @@ export const decryptMessageText = (ciphertext, ivBase64, myUserId, peerUserId) =
     return '';
   }
 };
+
+// ── Group Chat Encryption (meetupId-based shared key) ──
+
+const buildGroupSecret = (meetupId) => {
+  return `meetup:${String(meetupId)}:${APP_CHAT_SECRET}`;
+};
+
+export const encryptGroupMessage = (plainText, meetupId) => {
+  const secret = buildGroupSecret(meetupId);
+  const key = CryptoJS.SHA256(secret);
+  const iv = secureRandomWordArray(16);
+  const encrypted = CryptoJS.AES.encrypt(plainText, key, { iv });
+
+  return {
+    ciphertext: encrypted.toString(),
+    iv: CryptoJS.enc.Base64.stringify(iv),
+  };
+};
+
+export const decryptGroupMessage = (ciphertext, ivBase64, meetupId) => {
+  try {
+    const secret = buildGroupSecret(meetupId);
+    const key = CryptoJS.SHA256(secret);
+    const iv = CryptoJS.enc.Base64.parse(ivBase64);
+    const decrypted = CryptoJS.AES.decrypt(ciphertext, key, { iv });
+    return decrypted.toString(CryptoJS.enc.Utf8);
+  } catch (_error) {
+    return '';
+  }
+};

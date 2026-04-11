@@ -293,10 +293,10 @@ export default function SearchTab({ navigation }) {
       contentContainerStyle={s.screenContent}
     >
       <View style={s.masthead}>
-        <View style={s.liveChip}>
+        {/* <View style={s.liveChip}>
           <View style={s.liveDot} />
           <Text style={s.liveLabel}>CITY CONNECTIONS</Text>
-        </View>
+        </View> */}
         <Text style={s.headline}>
           <Text style={s.headlineLight}>Find</Text>
           {"\n"}

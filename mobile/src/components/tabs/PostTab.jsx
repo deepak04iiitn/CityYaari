@@ -12,14 +12,17 @@ import {
   ActivityIndicator,
   Modal,
   Animated,
+  Platform,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import axios from "axios";
 import { useAuth } from "../../store/AuthContext";
 import { useSnackbar } from "../../store/SnackbarContext";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { ScreenShell } from "./TabShared";
+import { createMeetupWithImage } from "../../services/meetups/meetupService";
 
 const { width, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -53,6 +56,19 @@ export default function PostTab({ navigation }) {
   const [errorMsg, setErrorMsg] = useState("");
   const [showError, setShowError] = useState(false);
   const [showProfileGuard, setShowProfileGuard] = useState(false);
+
+  const [meetupTitle, setMeetupTitle] = useState("");
+  const [meetupDetails, setMeetupDetails] = useState("");
+  const [meetupMaxMembers, setMeetupMaxMembers] = useState("");
+  const [meetupHometown, setMeetupHometown] = useState("");
+  const [meetupLocation, setMeetupLocation] = useState("");
+  const [meetupVenue, setMeetupVenue] = useState("");
+  const [meetupDate, setMeetupDate] = useState(new Date());
+  const [meetupTime, setMeetupTime] = useState(new Date());
+  const [meetupImage, setMeetupImage] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [meetupSuccess, setMeetupSuccess] = useState(false);
   
   const successAnim = useMemo(() => new Animated.Value(0), []);
   const errorAnim = useMemo(() => new Animated.Value(0), []);
@@ -137,7 +153,7 @@ export default function PostTab({ navigation }) {
     }
 
     if (mode === "Meetup") {
-      showErrorMsg("Meetups are coming soon. Stay tuned for the full launch.");
+      handleCreateMeetup();
       return;
     }
 
@@ -208,6 +224,118 @@ export default function PostTab({ navigation }) {
     }).start(() => setShowProfileGuard(false));
   };
 
+  const pickMeetupImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      showSnackbar("Please allow access to your photos.", "info");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) {
+        showErrorMsg("Image too large. Please select an image smaller than 2MB.");
+        return;
+      }
+      setMeetupImage(asset);
+    }
+  };
+
+  const handleCreateMeetup = async () => {
+    if (!meetupTitle.trim() || !meetupDetails.trim()) {
+      showSnackbar("Please provide a title and description.", "info");
+      return;
+    }
+    if (!meetupMaxMembers || Number(meetupMaxMembers) < 2) {
+      showSnackbar("Max members must be at least 2.", "info");
+      return;
+    }
+    if (!meetupVenue.trim() || !meetupLocation.trim()) {
+      showSnackbar("Please provide venue and location.", "info");
+      return;
+    }
+
+    const isProfileComplete = user?.hometownCountry && user?.country && user?.organization && user?.bio;
+    if (!isProfileComplete) {
+      setShowProfileGuard(true);
+      Animated.spring(profileGuardAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 40,
+        friction: 7,
+      }).start();
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append("title", meetupTitle.trim());
+      formData.append("details", meetupDetails.trim());
+      formData.append("maxMembers", String(Number(meetupMaxMembers)));
+      formData.append("hometown", meetupHometown.trim());
+      formData.append("meetupLocation", meetupLocation.trim());
+      formData.append("venue", meetupVenue.trim());
+      formData.append("date", meetupDate.toISOString());
+      const hours = meetupTime.getHours().toString().padStart(2, "0");
+      const mins = meetupTime.getMinutes().toString().padStart(2, "0");
+      formData.append("time", `${hours}:${mins}`);
+
+      if (meetupImage) {
+        const uri = meetupImage.uri;
+        const filename = uri.split("/").pop();
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : "image/jpeg";
+        formData.append("meetupImage", { uri, name: filename, type });
+      }
+
+      const res = await createMeetupWithImage(formData);
+      if (!res.success) {
+        showErrorMsg(res.message || "Failed to create meetup.");
+        return;
+      }
+
+      setMeetupSuccess(true);
+      showSnackbar("Meetup created successfully!", "success");
+      Animated.spring(successAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 40,
+        friction: 7,
+      }).start();
+
+      setMeetupTitle("");
+      setMeetupDetails("");
+      setMeetupMaxMembers("");
+      setMeetupHometown("");
+      setMeetupLocation("");
+      setMeetupVenue("");
+      setMeetupDate(new Date());
+      setMeetupTime(new Date());
+      setMeetupImage(null);
+    } catch (error) {
+      showErrorMsg("Something went wrong. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const closeMeetupSuccess = () => {
+    Animated.timing(successAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setMeetupSuccess(false));
+  };
+
+  const formatDate = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const formatTime = (d) => d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+
   return (
     <ScreenShell
       navigation={navigation}
@@ -275,21 +403,148 @@ export default function PostTab({ navigation }) {
           {/* Form Content */}
           <View style={styles.form}>
             {mode === "Meetup" ? (
-              <LinearGradient
-                colors={["#eef2ff", "#ffffff"]}
-                style={styles.comingSoonCard}
-              >
-                <View style={styles.comingSoonIcon}>
-                  <MaterialIcons name="celebration" size={30} color={COLORS.primary} />
+              <>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>MEETUP TITLE</Text>
+                  <TextInput
+                    style={styles.mainInput}
+                    placeholder="Ex. - Weekend Hiking Trip"
+                    placeholderTextColor={COLORS.outline}
+                    value={meetupTitle}
+                    onChangeText={setMeetupTitle}
+                  />
                 </View>
-                <Text style={styles.comingSoonTitle}>Meetups Coming Soon</Text>
-                <Text style={styles.comingSoonSub}>
-                  We are crafting a richer meetup experience for Bandhuu. The feature will be available shortly.
-                </Text>
-                <Pressable style={styles.comingSoonBtn} onPress={handleShareYaari}>
-                  <Text style={styles.comingSoonBtnText}>Notify Me</Text>
+
+                <View style={[styles.inputGroup, { marginBottom: 20 }]}>
+                  <Text style={styles.label}>DESCRIPTION</Text>
+                  <TextInput
+                    style={[styles.textArea, { height: 100 }]}
+                    placeholder="What's this meetup about?"
+                    placeholderTextColor={COLORS.outline}
+                    multiline
+                    textAlignVertical="top"
+                    value={meetupDetails}
+                    onChangeText={setMeetupDetails}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>MAX MEMBERS</Text>
+                  <TextInput
+                    style={styles.mainInput}
+                    placeholder="e.g. 10"
+                    placeholderTextColor={COLORS.outline}
+                    keyboardType="number-pad"
+                    value={meetupMaxMembers}
+                    onChangeText={setMeetupMaxMembers}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>HOMETOWN</Text>
+                  <TextInput
+                    style={styles.mainInput}
+                    placeholder="Target hometown (e.g. Patna, Lucknow)"
+                    placeholderTextColor={COLORS.outline}
+                    value={meetupHometown}
+                    onChangeText={setMeetupHometown}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>MEETUP LOCATION</Text>
+                  <TextInput
+                    style={styles.mainInput}
+                    placeholder="City, State, Country"
+                    placeholderTextColor={COLORS.outline}
+                    value={meetupLocation}
+                    onChangeText={setMeetupLocation}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>VENUE</Text>
+                  <TextInput
+                    style={styles.mainInput}
+                    placeholder="Venue name"
+                    placeholderTextColor={COLORS.outline}
+                    value={meetupVenue}
+                    onChangeText={setMeetupVenue}
+                  />
+                </View>
+
+                <View style={styles.meetupRow}>
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.label}>DATE</Text>
+                    <Pressable style={styles.pickerBtn} onPress={() => setShowDatePicker(true)}>
+                      <MaterialIcons name="event" size={18} color={COLORS.primary} />
+                      <Text style={styles.pickerBtnText}>{formatDate(meetupDate)}</Text>
+                    </Pressable>
+                  </View>
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.label}>TIME</Text>
+                    <Pressable style={styles.pickerBtn} onPress={() => setShowTimePicker(true)}>
+                      <MaterialIcons name="schedule" size={18} color={COLORS.primary} />
+                      <Text style={styles.pickerBtnText}>{formatTime(meetupTime)}</Text>
+                    </Pressable>
+                  </View>
+                </View>
+
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={meetupDate}
+                    mode="date"
+                    minimumDate={new Date()}
+                    onChange={(e, d) => { setShowDatePicker(Platform.OS === "ios"); if (d) setMeetupDate(d); }}
+                  />
+                )}
+                {showTimePicker && (
+                  <DateTimePicker
+                    value={meetupTime}
+                    mode="time"
+                    onChange={(e, d) => { setShowTimePicker(Platform.OS === "ios"); if (d) setMeetupTime(d); }}
+                  />
+                )}
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>ADD IMAGE (OPTIONAL)</Text>
+                  <Pressable
+                    style={[styles.uploadZone, meetupImage && { paddingVertical: 0, borderStyle: "solid", overflow: "hidden" }]}
+                    onPress={pickMeetupImage}
+                  >
+                    {meetupImage ? (
+                      <>
+                        <Image source={{ uri: meetupImage.uri }} style={styles.previewImage} resizeMode="cover" />
+                        <Pressable style={styles.removeImageIcon} onPress={() => setMeetupImage(null)}>
+                          <MaterialIcons name="close" size={20} color={COLORS.onPrimary} />
+                        </Pressable>
+                      </>
+                    ) : (
+                      <>
+                        <View style={styles.uploadIconCircle}>
+                          <MaterialIcons name="add-a-photo" size={24} color={COLORS.primary} />
+                        </View>
+                        <Text style={styles.uploadMainText}>Add a cover image</Text>
+                        <Text style={styles.uploadSubText}>JPG or PNG (max 2MB)</Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
+
+                <Pressable
+                  style={[styles.submitButton, isSubmitting && { opacity: 0.7 }]}
+                  onPress={handleCreateMeetup}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator color={COLORS.onPrimary} />
+                  ) : (
+                    <Text style={styles.submitButtonText}>Create Meetup</Text>
+                  )}
                 </Pressable>
-              </LinearGradient>
+
+                <View style={{ height: 120 }} />
+              </>
             ) : (
               <>
                 {/* Category Selector */}
@@ -537,6 +792,34 @@ export default function PostTab({ navigation }) {
                   <Text style={styles.guardBtnText}>Complete Now</Text>
                 </Pressable>
               </View>
+            </LinearGradient>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* Meetup Success Modal */}
+      <Modal visible={meetupSuccess} transparent animationType="none">
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[
+              styles.successCard,
+              {
+                opacity: successAnim,
+                transform: [{ scale: successAnim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) }],
+              },
+            ]}
+          >
+            <LinearGradient colors={["#ecfdf5", "#ffffff"]} style={styles.successGradient}>
+              <View style={styles.successIconOuter}>
+                <MaterialIcons name="celebration" size={32} color="#10b981" />
+              </View>
+              <Text style={styles.successTitle}>Meetup Created!</Text>
+              <Text style={styles.successSub}>
+                Your meetup is live! Others can now discover and join it.
+              </Text>
+              <Pressable style={styles.successBtn} onPress={closeMeetupSuccess}>
+                <Text style={styles.successBtnText}>Awesome!</Text>
+              </Pressable>
             </LinearGradient>
           </Animated.View>
         </View>
@@ -965,46 +1248,24 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: "uppercase",
   },
-  comingSoonCard: {
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: "#dbe5ff",
-    alignItems: "center",
+  meetupRow: {
+    flexDirection: "row",
     gap: 12,
   },
-  comingSoonIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+  pickerBtn: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#dbe7ff",
+    gap: 10,
+    backgroundColor: "#f8f6f2",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderWidth: 1.5,
+    borderColor: COLORS.outlineVariant,
   },
-  comingSoonTitle: {
-    fontSize: 22,
-    fontWeight: "900",
+  pickerBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
     color: COLORS.onSurface,
-    letterSpacing: -0.3,
-  },
-  comingSoonSub: {
-    fontSize: 13,
-    color: COLORS.onSurfaceVariant,
-    lineHeight: 20,
-    textAlign: "center",
-  },
-  comingSoonBtn: {
-    marginTop: 4,
-    backgroundColor: COLORS.primary,
-    borderRadius: 100,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  comingSoonBtnText: {
-    color: COLORS.onPrimary,
-    fontSize: 11,
-    fontWeight: "900",
-    letterSpacing: 1.1,
-    textTransform: "uppercase",
   },
 });

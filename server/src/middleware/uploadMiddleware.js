@@ -130,3 +130,42 @@ export const handleChatImageUpload = (req, res, next) => {
 };
 
 export const chatImageUploadDir = chatUploadDir;
+
+// --- Meetup Image Upload ---
+const meetupUploadDir = path.resolve(__dirname, '../../uploads/meetup-images');
+fs.mkdirSync(meetupUploadDir, { recursive: true });
+
+const meetupStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, meetupUploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const safeExt = ext || '.jpg';
+    cb(null, `meetup-${req.user._id}-${Date.now()}${safeExt}`);
+  },
+});
+
+export const uploadMeetupImage = multer({
+  storage: meetupStorage,
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter,
+}).single('meetupImage');
+
+export const handleMeetupImageUpload = (req, res, next) => {
+  uploadMeetupImage(req, res, (error) => {
+    if (!error) {
+      next();
+      return;
+    }
+
+    if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+      res.status(400).json({ message: 'Meetup image must be 2MB or smaller' });
+      return;
+    }
+
+    res.status(400).json({ message: error.message || 'Could not upload meetup image' });
+  });
+};
+
+export const meetupImageUploadDir = meetupUploadDir;

@@ -7,6 +7,8 @@ import {
   reactToMessage,
 } from '../services/chatService.js';
 import User from '../models/User.js';
+import GroupMessage from '../models/GroupMessage.js';
+import Meetup from '../models/Meetup.js';
 
 export const mapSocketMessage = (message) => ({
   _id: message._id,
@@ -179,6 +181,125 @@ export const initSocketServer = (httpServer) => {
         }
       } catch (error) {
         console.error('[Socket chat:react Error]', error.message);
+        if (typeof callback === 'function') {
+          callback({ success: false, message: error?.message || 'Failed to react' });
+        }
+      }
+    });
+
+    // ── Group Chat Events ──
+
+    socket.on('group:join', (payload = {}) => {
+      const { meetupId } = payload;
+      if (!meetupId) return;
+      socket.join(`meetup:${meetupId}`);
+    });
+
+    socket.on('group:leave', (payload = {}) => {
+      const { meetupId } = payload;
+      if (!meetupId) return;
+      socket.leave(`meetup:${meetupId}`);
+    });
+
+    socket.on('group:send', async (payload = {}, callback) => {
+      try {
+        const { meetupId, ciphertext, iv, replyTo, replySnippet } = payload;
+        if (!meetupId || !ciphertext || !iv) {
+          throw new Error('meetupId, ciphertext and iv are required');
+        }
+
+        const meetup = await Meetup.findById(meetupId);
+        if (!meetup) throw new Error('Meetup not found');
+        if (!meetup.members.some(m => m.toString() === socket.userId)) {
+          throw new Error('Not a member');
+        }
+
+        const msg = await GroupMessage.create({
+          meetupId,
+          sender: socket.userId,
+          ciphertext,
+          iv,
+          replyTo: replyTo || null,
+          replySnippet: replySnippet || null,
+        });
+
+        const populated = await GroupMessage.findById(msg._id)
+          .populate('sender', '_id fullName username profileImageUri');
+
+        const mapped = {
+          _id: populated._id,
+          meetupId: populated.meetupId,
+          sender: populated.sender,
+          ciphertext: populated.ciphertext,
+          iv: populated.iv,
+          messageType: 'text',
+          replyTo: populated.replyTo,
+          replySnippet: populated.replySnippet,
+          reactions: [],
+          createdAt: populated.createdAt,
+          updatedAt: populated.updatedAt,
+        };
+
+        io.to(`meetup:${meetupId}`).emit('group:message', mapped);
+
+        if (typeof callback === 'function') {
+          callback({ success: true, message: mapped });
+        }
+      } catch (error) {
+        console.error('[Socket group:send Error]', error.message);
+        if (typeof callback === 'function') {
+          callback({ success: false, message: error?.message || 'Failed to send' });
+        }
+      }
+    });
+
+    socket.on('group:typing', (payload = {}) => {
+      const { meetupId, isTyping } = payload;
+      if (!meetupId) return;
+      socket.to(`meetup:${meetupId}`).emit('group:typing', {
+        userId: socket.userId,
+        isTyping,
+      });
+    });
+
+    socket.on('group:react', async (payload = {}, callback) => {
+      try {
+        const { messageId, emoji } = payload;
+        if (!messageId || !emoji) throw new Error('messageId and emoji required');
+
+        const msg = await GroupMessage.findById(messageId);
+        if (!msg) throw new Error('Message not found');
+
+        const userId = socket.userId;
+        const idx = msg.reactions.findIndex(r => r.userId.toString() === userId);
+        if (idx >= 0) {
+          if (msg.reactions[idx].emoji === emoji) {
+            msg.reactions.splice(idx, 1);
+          } else {
+            msg.reactions[idx].emoji = emoji;
+            msg.reactions[idx].createdAt = new Date();
+          }
+        } else {
+          msg.reactions.push({ userId, emoji });
+        }
+        await msg.save();
+
+        const reactPayload = {
+          messageId: String(msg._id),
+          reactions: msg.reactions.map(r => ({
+            userId: String(r.userId),
+            emoji: r.emoji,
+            createdAt: r.createdAt,
+          })),
+        };
+
+        io.to(`meetup:${msg.meetupId}`).emit('group:reaction', reactPayload);
+
+        if (typeof callback === 'function') {
+          callback({ success: true, ...reactPayload });
+        }
+      } catch (error) {
+        console.error('[Socket group:react Error]', error.message);
         if (typeof callback === 'function') {
           callback({ success: false, message: error?.message || 'Failed to react' });
         }

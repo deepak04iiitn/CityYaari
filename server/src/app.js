@@ -9,6 +9,7 @@ import commentRoutes from './routes/commentRoutes.js';
 import meetupRoutes from './routes/meetupRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
+import groupChatRoutes from './routes/groupChatRoutes.js';
 import { protect, admin } from './middleware/authMiddleware.js';
 
 const app = express();
@@ -27,6 +28,7 @@ app.use('/api/comments', commentRoutes);
 app.use('/api/meetups', meetupRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/chats', chatRoutes);
+app.use('/api/group-chats', groupChatRoutes);
 
 // Health check
 app.get('/health', (_req, res) => {
