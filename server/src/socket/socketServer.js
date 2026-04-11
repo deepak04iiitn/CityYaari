@@ -7,7 +7,7 @@ import {
 } from '../services/chatService.js';
 import User from '../models/User.js';
 
-const mapSocketMessage = (message) => ({
+export const mapSocketMessage = (message) => ({
   _id: message._id,
   sender: message.sender,
   receiver: message.receiver,
@@ -18,6 +18,10 @@ const mapSocketMessage = (message) => ({
   readAt: message.readAt,
   replyTo: message.replyTo,
   replySnippet: message.replySnippet,
+  messageType: message.messageType || 'text',
+  imageUri: message.imageUri || null,
+  isOneTimeView: message.isOneTimeView || false,
+  oneTimeViewedAt: message.oneTimeViewedAt || null,
 });
 
 const getTokenFromHandshake = (socket) => {
@@ -28,10 +32,16 @@ const getTokenFromHandshake = (socket) => {
   return null;
 };
 
+let ioInstance = null;
+
+export const getIO = () => ioInstance;
+
 export const initSocketServer = (httpServer) => {
   const io = new Server(httpServer, {
     cors: { origin: '*', methods: ['GET', 'POST', 'PUT'] },
   });
+
+  ioInstance = io;
 
   io.use((socket, next) => {
     try {

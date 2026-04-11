@@ -28,6 +28,9 @@ export const sendEncryptedMessage = async ({
   iv,
   replyTo = null,
   replySnippet = null,
+  messageType = 'text',
+  imageUri = null,
+  isOneTimeView = false,
 }) => {
   await assertConnected(senderId, receiverId);
 
@@ -44,7 +47,42 @@ export const sendEncryptedMessage = async ({
     iv,
     replyTo: replyTo ? new mongoose.Types.ObjectId(replyTo) : null,
     replySnippet,
+    messageType,
+    imageUri,
+    isOneTimeView,
   });
+
+  return message;
+};
+
+export const viewOneTimeImage = async ({ messageId, userId }) => {
+  const message = await Message.findById(messageId);
+  if (!message) {
+    const error = new Error('Message not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (toIdString(message.receiver) !== toIdString(userId)) {
+    const error = new Error('You are not the recipient of this message');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (!message.isOneTimeView || message.messageType !== 'image') {
+    const error = new Error('This is not a one-time view image');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (message.oneTimeViewedAt) {
+    const error = new Error('This image has already been viewed');
+    error.statusCode = 410;
+    throw error;
+  }
+
+  message.oneTimeViewedAt = new Date();
+  await message.save();
 
   return message;
 };
@@ -128,6 +166,10 @@ export const getConversationList = async (userId) => {
         iv: msg.iv,
         createdAt: msg.createdAt,
         readAt: msg.readAt,
+        messageType: msg.messageType || 'text',
+        imageUri: msg.imageUri || null,
+        isOneTimeView: msg.isOneTimeView || false,
+        oneTimeViewedAt: msg.oneTimeViewedAt || null,
       },
     });
   }

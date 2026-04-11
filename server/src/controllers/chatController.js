@@ -5,7 +5,9 @@ import {
   markConversationRead,
   sendEncryptedMessage,
   clearChatForUser,
+  viewOneTimeImage,
 } from '../services/chatService.js';
+import { getIO, mapSocketMessage } from '../socket/socketServer.js';
 
 const mapMessage = (msg) => ({
   _id: msg._id,
@@ -18,6 +20,10 @@ const mapMessage = (msg) => ({
   createdAt: msg.createdAt,
   replyTo: msg.replyTo,
   replySnippet: msg.replySnippet,
+  messageType: msg.messageType || 'text',
+  imageUri: msg.imageUri || null,
+  isOneTimeView: msg.isOneTimeView || false,
+  oneTimeViewedAt: msg.oneTimeViewedAt || null,
 });
 
 const withError = (res, error, fallbackMessage) => {
@@ -74,6 +80,60 @@ export const sendMessage = async (req, res) => {
     res.status(201).json({ message: mapMessage(message) });
   } catch (error) {
     withError(res, error, 'Failed to send message');
+  }
+};
+
+export const sendImageMessage = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { ciphertext, iv, isOneTimeView } = req.body;
+
+    if (!ciphertext || !iv) {
+      return res.status(400).json({ message: 'ciphertext and iv are required' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'Image file is required' });
+    }
+
+    const imageUri = `/uploads/chat-images/${req.file.filename}`;
+
+    const message = await sendEncryptedMessage({
+      senderId: req.user._id,
+      receiverId: userId,
+      ciphertext,
+      iv,
+      messageType: 'image',
+      imageUri,
+      isOneTimeView: isOneTimeView === 'true' || isOneTimeView === true,
+    });
+
+    const io = getIO();
+    if (io) {
+      const eventPayload = {
+        message: mapSocketMessage(message),
+        clientTempId: null,
+      };
+      io.to(`user:${req.user._id}`).emit('chat:message', eventPayload);
+      io.to(`user:${userId}`).emit('chat:message', eventPayload);
+    }
+
+    res.status(201).json({ message: mapMessage(message) });
+  } catch (error) {
+    withError(res, error, 'Failed to send image');
+  }
+};
+
+export const viewOneTimeMsg = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const message = await viewOneTimeImage({
+      messageId,
+      userId: req.user._id,
+    });
+    res.json({ message: mapMessage(message) });
+  } catch (error) {
+    withError(res, error, 'Failed to view image');
   }
 };
 

@@ -54,6 +54,23 @@ const messageSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    messageType: {
+      type: String,
+      enum: ['text', 'image'],
+      default: 'text',
+    },
+    imageUri: {
+      type: String,
+      default: null,
+    },
+    isOneTimeView: {
+      type: Boolean,
+      default: false,
+    },
+    oneTimeViewedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Animated,
+  Dimensions,
   FlatList,
   Image,
   Keyboard,
@@ -14,12 +15,15 @@ import {
   TextInput,
   View,
   Modal,
+  Alert,
 } from "react-native";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import * as ImagePicker from "expo-image-picker";
+import * as ScreenCapture from "expo-screen-capture";
 import { useAuth } from "../../store/AuthContext";
 import { useSnackbar } from "../../store/SnackbarContext";
 import { getMyConnections } from "../../services/users/userService";
@@ -35,10 +39,17 @@ import {
   getChatSocket,
   sendMessageViaSocket,
   emitReadReceipt,
+  sendImageMessageHttp,
+  markOneTimeViewed,
+  getServerBaseUrl,
 } from "../../services/chat/chatService";
 import { decryptMessageText, encryptMessageText } from "../../services/chat/chatCrypto";
 import { BAR_HEIGHT, FAB_LIFT } from "../../screens/MainTabs";
 import { useUnreadMsg } from "../../store/UnreadMsgContext";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const IMAGE_BUBBLE_WIDTH = SCREEN_WIDTH * 0.6;
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
 
 const COLORS = {
   ink: "#0a0a0a",
@@ -128,10 +139,13 @@ const SwipeReplyIcon = React.memo(({ progress }) => {
   );
 });
 
-const MessageBubble = React.memo(({ item, mine, user, activePeer, onReply, onJump, isHighlighted, decrypt }) => {
+const MessageBubble = React.memo(({ item, mine, user, activePeer, onReply, onJump, isHighlighted, decrypt, onViewOneTime }) => {
   const swiperRef = useRef(null);
   const isTemp = String(item._id).startsWith("tmp-");
   const isRead = !!item.readAt;
+  const isImage = item.messageType === "image";
+  const isOneTime = item.isOneTimeView;
+  const wasViewed = !!item.oneTimeViewedAt;
 
   const renderLeftActions = useCallback((progress) => (
     <SwipeReplyIcon progress={progress} />
@@ -143,6 +157,60 @@ const MessageBubble = React.memo(({ item, mine, user, activePeer, onReply, onJum
       swiperRef.current?.close();
     }
   }, [onReply, item]);
+
+  const fullImageUri = isImage && item.imageUri
+    ? `${getServerBaseUrl()}${item.imageUri}`
+    : null;
+
+  const renderImageContent = () => {
+    if (isOneTime) {
+      if (mine) {
+        return (
+          <View style={st.oneTimeBubbleContent}>
+            <View style={st.oneTimeIconCircle}>
+              <MaterialCommunityIcons name="camera-timer" size={24} color={COLORS.accentBlue} />
+            </View>
+            <Text style={st.oneTimeLabel}>One-time photo</Text>
+            <Text style={st.oneTimeSub}>
+              {wasViewed ? "Opened" : "Not opened yet"}
+            </Text>
+          </View>
+        );
+      }
+
+      if (wasViewed) {
+        return (
+          <View style={st.oneTimeBubbleContent}>
+            <View style={[st.oneTimeIconCircle, { backgroundColor: COLORS.border }]}>
+              <MaterialCommunityIcons name="camera-off" size={24} color={COLORS.inkMuted} />
+            </View>
+            <Text style={[st.oneTimeLabel, { color: COLORS.inkMuted }]}>Photo opened</Text>
+            <Text style={st.oneTimeSub}>No longer available</Text>
+          </View>
+        );
+      }
+
+      return (
+        <Pressable style={st.oneTimeBubbleContent} onPress={() => onViewOneTime(item)}>
+          <View style={[st.oneTimeIconCircle, { backgroundColor: COLORS.accentBlue + "18" }]}>
+            <MaterialCommunityIcons name="eye-circle-outline" size={28} color={COLORS.accentBlue} />
+          </View>
+          <Text style={[st.oneTimeLabel, { color: COLORS.accentBlue }]}>Tap to view</Text>
+          <Text style={st.oneTimeSub}>One-time photo</Text>
+        </Pressable>
+      );
+    }
+
+    return (
+      <Pressable onPress={() => onViewOneTime({ ...item, _viewOnly: true })}>
+        <Image
+          source={{ uri: fullImageUri }}
+          style={st.imageBubbleImg}
+          resizeMode="cover"
+        />
+      </Pressable>
+    );
+  };
 
   return (
     <Swipeable
@@ -160,6 +228,7 @@ const MessageBubble = React.memo(({ item, mine, user, activePeer, onReply, onJum
           style={[
             st.bubble, 
             mine ? st.bubbleMine : st.bubblePeer,
+            isImage && !isOneTime && st.imageBubble,
             item.replyTo && st.bubbleWithReply,
             isHighlighted && { backgroundColor: COLORS.accentBlue + '22', borderWidth: 1, borderColor: COLORS.accentBlue }
           ]}
@@ -180,10 +249,20 @@ const MessageBubble = React.memo(({ item, mine, user, activePeer, onReply, onJum
               </View>
             </Pressable>
           )}
-          <Text style={[st.bubbleText, mine && st.bubbleTextMine]}>
-            {item.text || "Encrypted message"}
-          </Text>
+          {isImage ? renderImageContent() : (
+            <Text style={[st.bubbleText, mine && st.bubbleTextMine]}>
+              {item.text || "Encrypted message"}
+            </Text>
+          )}
           <View style={st.bubbleMetaRow}>
+            {isImage && isOneTime && (
+              <MaterialCommunityIcons
+                name="timer-outline"
+                size={12}
+                color={mine ? COLORS.inkMuted : COLORS.inkMuted}
+                style={{ marginRight: 4 }}
+              />
+            )}
             <Text style={[st.bubbleTime, mine && st.bubbleTimeMine]}>
               {toRelative(item.createdAt)}
             </Text>
@@ -261,6 +340,11 @@ export default function MessagesTab({ navigation }) {
   const [isPeerTyping, setIsPeerTyping] = useState(false);
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [isOneTimeView, setIsOneTimeView] = useState(false);
+  const [sendingImage, setSendingImage] = useState(false);
+  const [viewingOneTime, setViewingOneTime] = useState(null);
+  const [viewingImage, setViewingImage] = useState(null);
 
   const connectionsRef = useRef([]);
   const conversationsRef = useRef([]);
@@ -590,6 +674,94 @@ export default function MessagesTab({ navigation }) {
     }
   };
 
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        showSnackbar("Permission to access gallery is required", "error");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.8,
+        allowsEditing: true,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > MAX_IMAGE_SIZE) {
+        Alert.alert("Image too large", "Please select an image under 2MB.");
+        return;
+      }
+      setImagePreview(asset);
+      setIsOneTimeView(false);
+    } catch (_e) {
+      showSnackbar("Could not pick image", "error");
+    }
+  };
+
+  const sendImage = async () => {
+    if (!imagePreview || !activePeer?._id || !user?._id) return;
+    const peerId = activePeer._id;
+
+    setSendingImage(true);
+    try {
+      const encrypted = encryptMessageText("📷 Photo", user._id, peerId);
+      await sendImageMessageHttp(peerId, {
+        uri: imagePreview.uri,
+        fileName: imagePreview.fileName || `chat-${Date.now()}.jpg`,
+        mimeType: imagePreview.mimeType || "image/jpeg",
+        ciphertext: encrypted.ciphertext,
+        iv: encrypted.iv,
+        isOneTimeView,
+      });
+      setImagePreview(null);
+      setIsOneTimeView(false);
+    } catch (_e) {
+      showSnackbar("Failed to send image", "error");
+    } finally {
+      setSendingImage(false);
+    }
+  };
+
+  const handleViewOneTime = async (item) => {
+    if (item._viewOnly) {
+      const fullUri = `${getServerBaseUrl()}${item.imageUri}`;
+      setViewingImage(fullUri);
+      return;
+    }
+
+    if (!item.isOneTimeView || item.oneTimeViewedAt) return;
+    const fullUri = `${getServerBaseUrl()}${item.imageUri}`;
+    setViewingOneTime({ ...item, fullUri });
+    try {
+      await ScreenCapture.preventScreenCaptureAsync("oneTimeView");
+    } catch (_e) { /* best effort */ }
+    try {
+      await markOneTimeViewed(item._id);
+      setMessages((prev) =>
+        prev.map((m) =>
+          String(m._id) === String(item._id)
+            ? { ...m, oneTimeViewedAt: new Date().toISOString() }
+            : m
+        )
+      );
+    } catch (_e) {
+      showSnackbar("Could not mark image as viewed", "error");
+    }
+  };
+
+  const closeOneTimeViewer = async () => {
+    setViewingOneTime(null);
+    try {
+      await ScreenCapture.allowScreenCaptureAsync("oneTimeView");
+    } catch (_e) { /* best effort */ }
+  };
+
+  const closeImageViewer = () => {
+    setViewingImage(null);
+  };
+
   const handleClearChat = async () => {
     if (!activePeer?._id) return;
     try {
@@ -789,6 +961,7 @@ export default function MessagesTab({ navigation }) {
                   onJump={(msgId) => scrollToMessage(msgId)}
                   isHighlighted={highlightedMessageId === String(item._id)}
                   decrypt={decrypt}
+                  onViewOneTime={handleViewOneTime}
                 />
               )}
             />
@@ -810,6 +983,9 @@ export default function MessagesTab({ navigation }) {
           )}
           <View style={[st.composerWrap, { paddingBottom: Math.max(insets.bottom, 8) }]}>
             <View style={st.composer}>
+              <Pressable onPress={pickImage} style={st.attachBtn}>
+                <MaterialIcons name="image" size={24} color={COLORS.accentBlue} />
+              </Pressable>
               <TextInput
                 value={input}
                 onChangeText={(val) => {
@@ -845,6 +1021,119 @@ export default function MessagesTab({ navigation }) {
             </View>
           </View>
         </View>
+
+        {/* ── IMAGE PREVIEW + ONE-TIME TOGGLE MODAL ── */}
+        <Modal
+          visible={!!imagePreview}
+          transparent
+          animationType="slide"
+          onRequestClose={() => { setImagePreview(null); setIsOneTimeView(false); }}
+        >
+          <View style={st.imgPreviewOverlay}>
+            <View style={st.imgPreviewCard}>
+              <View style={st.imgPreviewHeader}>
+                <Text style={st.imgPreviewTitle}>Send Photo</Text>
+                <Pressable onPress={() => { setImagePreview(null); setIsOneTimeView(false); }}>
+                  <MaterialIcons name="close" size={24} color={COLORS.inkMuted} />
+                </Pressable>
+              </View>
+
+              {imagePreview && (
+                <Image
+                  source={{ uri: imagePreview.uri }}
+                  style={st.imgPreviewImage}
+                  resizeMode="contain"
+                />
+              )}
+
+              <Pressable
+                style={st.oneTimeToggleRow}
+                onPress={() => setIsOneTimeView((v) => !v)}
+              >
+                <View style={[
+                  st.oneTimeToggle,
+                  isOneTimeView && st.oneTimeToggleActive,
+                ]}>
+                  {isOneTimeView && (
+                    <MaterialIcons name="check" size={16} color={COLORS.white} />
+                  )}
+                </View>
+                <View style={st.oneTimeToggleInfo}>
+                  <View style={st.oneTimeToggleLabelRow}>
+                    <MaterialCommunityIcons name="eye-off-outline" size={18} color={isOneTimeView ? COLORS.accentBlue : COLORS.inkMuted} />
+                    <Text style={[st.oneTimeToggleLabel, isOneTimeView && { color: COLORS.accentBlue }]}>
+                      One-time view
+                    </Text>
+                  </View>
+                  <Text style={st.oneTimeToggleSub}>
+                    Photo can only be viewed once and screenshots are blocked
+                  </Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                style={[st.imgSendBtn, sendingImage && { opacity: 0.6 }]}
+                onPress={sendImage}
+                disabled={sendingImage}
+              >
+                {sendingImage ? (
+                  <ActivityIndicator color={COLORS.white} size="small" />
+                ) : (
+                  <>
+                    <MaterialIcons name="send" size={20} color={COLORS.white} />
+                    <Text style={st.imgSendBtnText}>Send</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ── ONE-TIME VIEW IMAGE VIEWER (screenshot blocked) ── */}
+        <Modal
+          visible={!!viewingOneTime}
+          transparent
+          animationType="fade"
+          onRequestClose={closeOneTimeViewer}
+        >
+          <View style={st.oneTimeViewerOverlay}>
+            <View style={st.oneTimeViewerHeader}>
+              <MaterialCommunityIcons name="eye-circle-outline" size={20} color={COLORS.white} />
+              <Text style={st.oneTimeViewerLabel}>One-time view</Text>
+            </View>
+            {viewingOneTime?.fullUri && (
+              <Image
+                source={{ uri: viewingOneTime.fullUri }}
+                style={st.oneTimeViewerImage}
+                resizeMode="contain"
+              />
+            )}
+            <Pressable style={st.oneTimeViewerClose} onPress={closeOneTimeViewer}>
+              <Text style={st.oneTimeViewerCloseText}>Close</Text>
+            </Pressable>
+          </View>
+        </Modal>
+
+        {/* ── REGULAR IMAGE VIEWER ── */}
+        <Modal
+          visible={!!viewingImage}
+          transparent
+          animationType="fade"
+          onRequestClose={closeImageViewer}
+        >
+          <View style={st.imageViewerOverlay}>
+            <Pressable style={st.imageViewerCloseBtn} onPress={closeImageViewer}>
+              <MaterialIcons name="close" size={28} color={COLORS.white} />
+            </Pressable>
+            {viewingImage && (
+              <Image
+                source={{ uri: viewingImage }}
+                style={st.imageViewerImage}
+                resizeMode="contain"
+              />
+            )}
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     );
   }
@@ -1686,5 +1975,201 @@ const st = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     color: COLORS.white,
+  },
+
+  /* ── ATTACH BUTTON ── */
+  attachBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  /* ── IMAGE BUBBLE ── */
+  imageBubble: {
+    padding: 4,
+    overflow: "hidden",
+  },
+  imageBubbleImg: {
+    width: IMAGE_BUBBLE_WIDTH,
+    height: IMAGE_BUBBLE_WIDTH * 0.75,
+    borderRadius: 16,
+  },
+
+  /* ── ONE-TIME VIEW BUBBLE ── */
+  oneTimeBubbleContent: {
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    minWidth: 160,
+  },
+  oneTimeIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: COLORS.tagBlue,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  oneTimeLabel: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.ink,
+    letterSpacing: -0.2,
+  },
+  oneTimeSub: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: COLORS.inkMuted,
+    marginTop: 2,
+  },
+
+  /* ── IMAGE PREVIEW MODAL ── */
+  imgPreviewOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  imgPreviewCard: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingBottom: 36,
+    maxHeight: "85%",
+  },
+  imgPreviewHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+  },
+  imgPreviewTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: COLORS.ink,
+  },
+  imgPreviewImage: {
+    width: "100%",
+    height: 320,
+    backgroundColor: COLORS.paperDark,
+  },
+  oneTimeToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 14,
+  },
+  oneTimeToggle: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  oneTimeToggleActive: {
+    backgroundColor: COLORS.accentBlue,
+    borderColor: COLORS.accentBlue,
+  },
+  oneTimeToggleInfo: {
+    flex: 1,
+  },
+  oneTimeToggleLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  oneTimeToggleLabel: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: COLORS.ink,
+  },
+  oneTimeToggleSub: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: COLORS.inkMuted,
+    marginTop: 2,
+  },
+  imgSendBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 8,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: COLORS.accent,
+  },
+  imgSendBtnText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: COLORS.white,
+  },
+
+  /* ── ONE-TIME VIEWER ── */
+  oneTimeViewerOverlay: {
+    flex: 1,
+    backgroundColor: "#000",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  oneTimeViewerHeader: {
+    position: "absolute",
+    top: 60,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    zIndex: 10,
+  },
+  oneTimeViewerLabel: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: COLORS.white,
+  },
+  oneTimeViewerImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_WIDTH,
+  },
+  oneTimeViewerClose: {
+    position: "absolute",
+    bottom: 60,
+    paddingHorizontal: 36,
+    paddingVertical: 14,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 28,
+  },
+  oneTimeViewerCloseText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: COLORS.white,
+  },
+
+  /* ── REGULAR IMAGE VIEWER ── */
+  imageViewerOverlay: {
+    flex: 1,
+    backgroundColor: "#000",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  imageViewerCloseBtn: {
+    position: "absolute",
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    padding: 8,
+  },
+  imageViewerImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_WIDTH,
   },
 });

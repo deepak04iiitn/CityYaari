@@ -6,6 +6,11 @@ const getSocketBaseUrl = () => {
   return apiBase.replace(/\/api\/?$/, '');
 };
 
+export const getServerBaseUrl = () => {
+  const apiBase = apiClient?.defaults?.baseURL || '';
+  return apiBase.replace(/\/api\/?$/, '');
+};
+
 export const fetchConversations = async () => {
   const response = await apiClient.get('/chats/conversations');
   return response.data?.conversations || [];
@@ -36,6 +41,28 @@ export const fetchUnreadMessageCount = async () => {
 export const clearConversationMessages = async (userId) => {
   const response = await apiClient.delete(`/chats/${userId}`);
   return response.data;
+};
+
+export const sendImageMessageHttp = async (userId, { uri, fileName, mimeType, ciphertext, iv, isOneTimeView }) => {
+  const formData = new FormData();
+  formData.append('chatImage', {
+    uri,
+    name: fileName || `chat-${Date.now()}.jpg`,
+    type: mimeType || 'image/jpeg',
+  });
+  formData.append('ciphertext', ciphertext);
+  formData.append('iv', iv);
+  formData.append('isOneTimeView', String(!!isOneTimeView));
+
+  const response = await apiClient.post(`/chats/${userId}/image`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data?.message;
+};
+
+export const markOneTimeViewed = async (messageId) => {
+  const response = await apiClient.post(`/chats/one-time-view/${messageId}`);
+  return response.data?.message;
 };
 
 let socketRef = null;
