@@ -176,7 +176,7 @@ const ReactionPills = React.memo(({ reactions, userId, onPress, mine }) => {
   );
 });
 
-const MessageBubble = React.memo(({ item, mine, user, activePeer, onReply, onJump, isHighlighted, decrypt, onViewOneTime, onLongPress, onQuickReact }) => {
+const MessageBubble = React.memo(({ item, mine, user, activePeer, onReply, onJump, isHighlighted, isSearchMatch, decrypt, onViewOneTime, onLongPress, onQuickReact }) => {
   const swiperRef = useRef(null);
   const isTemp = String(item._id).startsWith("tmp-");
   const isRead = !!item.readAt;
@@ -265,17 +265,22 @@ const MessageBubble = React.memo(({ item, mine, user, activePeer, onReply, onJum
       <Pressable
         onLongPress={() => !isTemp && onLongPress(item)}
         delayLongPress={300}
-        style={[st.bubbleRow, mine ? st.bubbleRowMine : st.bubbleRowPeer]}
+        style={[st.bubbleRow, mine ? st.bubbleRowMine : st.bubbleRowPeer, hasReactions && { marginBottom: 22 }]}
       >
-        <View style={{ maxWidth: "80%" }}>
+        {!mine && (
+          <View style={st.bubbleAvatarWrap}>
+            <Avatar uri={activePeer?.profileImageUri} name={activePeer?.fullName} size={28} />
+          </View>
+        )}
+        <View style={{ maxWidth: "75%" }}>
           <View 
             style={[
               st.bubble, 
               mine ? st.bubbleMine : st.bubblePeer,
               isImage && !isOneTime && st.imageBubble,
               item.replyTo && st.bubbleWithReply,
+              isSearchMatch && !isHighlighted && { backgroundColor: COLORS.accentBlue + '0D' },
               isHighlighted && { backgroundColor: COLORS.accentBlue + '22', borderWidth: 1, borderColor: COLORS.accentBlue },
-              hasReactions && { marginBottom: 14 },
             ]}
           >
             {item.replyTo && (
@@ -337,6 +342,11 @@ const MessageBubble = React.memo(({ item, mine, user, activePeer, onReply, onJum
             />
           </View>
         </View>
+        {mine && (
+          <View style={st.bubbleAvatarWrap}>
+            <Avatar uri={user?.profileImageUri} name={user?.fullName} size={28} />
+          </View>
+        )}
       </Pressable>
     </Swipeable>
   );
@@ -399,6 +409,13 @@ export default function MessagesTab({ navigation }) {
   const [viewingImage, setViewingImage] = useState(null);
   const [reactionTarget, setReactionTarget] = useState(null);
   const [showFullEmojiPicker, setShowFullEmojiPicker] = useState(false);
+  const [chatSearchActive, setChatSearchActive] = useState(false);
+  const [chatSearchQuery, setChatSearchQuery] = useState("");
+  const [chatSearchIndex, setChatSearchIndex] = useState(0);
+  const [showScrollDown, setShowScrollDown] = useState(false);
+  const [showNewMsgSheet, setShowNewMsgSheet] = useState(false);
+  const [newMsgSearch, setNewMsgSearch] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const connectionsRef = useRef([]);
   const conversationsRef = useRef([]);
@@ -406,20 +423,72 @@ export default function MessagesTab({ navigation }) {
   const flatListRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const isLocalTypingRef = useRef(false);
+  const chatSearchInputRef = useRef(null);
+  const prevLastMsgIdRef = useRef(null);
+  const pendingScrollRef = useRef(false);
+  const scrollDownAnim = useRef(new Animated.Value(0)).current;
+  const scrollDownVisibleRef = useRef(false);
+
+  useEffect(() => {
+    const target = showScrollDown && !chatSearchActive ? 1 : 0;
+    Animated.timing(scrollDownAnim, {
+      toValue: target,
+      duration: target ? 200 : 180,
+      useNativeDriver: true,
+    }).start();
+  }, [showScrollDown, chatSearchActive, scrollDownAnim]);
+
+  const handleChatScroll = useCallback(({ nativeEvent }) => {
+    const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
+    const distFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height;
+
+    if (distFromBottom > 300 && !scrollDownVisibleRef.current) {
+      scrollDownVisibleRef.current = true;
+      setShowScrollDown(true);
+    } else if (distFromBottom < 120 && scrollDownVisibleRef.current) {
+      scrollDownVisibleRef.current = false;
+      setShowScrollDown(false);
+    }
+
+    if (contentOffset.y < 80 && hasMore && !loadingOlder) {
+      loadOlderMessages();
+    }
+  }, [hasMore, loadingOlder, loadOlderMessages]);
+
+  const scrollToBottom = useCallback((animated = true) => {
+    if (chatSearchActive) return;
+    const doScroll = () => flatListRef.current?.scrollToEnd({ animated });
+    doScroll();
+    setTimeout(doScroll, 100);
+    setTimeout(doScroll, 300);
+    setTimeout(doScroll, 600);
+  }, [chatSearchActive]);
+
+  useEffect(() => {
+    if (chatSearchActive || messages.length === 0) {
+      prevLastMsgIdRef.current = null;
+      return;
+    }
+    const lastId = String(messages[messages.length - 1]._id);
+    if (prevLastMsgIdRef.current !== lastId) {
+      const isInitial = prevLastMsgIdRef.current === null;
+      prevLastMsgIdRef.current = lastId;
+      pendingScrollRef.current = true;
+      scrollToBottom(!isInitial);
+      const timer = setTimeout(() => { pendingScrollRef.current = false; }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [messages, chatSearchActive, scrollToBottom]);
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const sub = Keyboard.addListener(showEvent, () => {
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-    });
+    const sub = Keyboard.addListener(showEvent, () => scrollToBottom(true));
     return () => sub.remove();
-  }, []);
+  }, [scrollToBottom]);
 
   useEffect(() => {
-    if (isPeerTyping) {
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-    }
-  }, [isPeerTyping]);
+    if (isPeerTyping) scrollToBottom(true);
+  }, [isPeerTyping, scrollToBottom]);
 
   useEffect(() => { connectionsRef.current = connections; }, [connections]);
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
@@ -573,8 +642,6 @@ export default function MessagesTab({ navigation }) {
             return [...prev, { ...msg, text: decryptedText }];
           });
 
-          setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 150);
-
           if (receiverId === me) {
             emitReadReceipt(peerId);
             refreshUnreadMsgCount();
@@ -649,6 +716,8 @@ export default function MessagesTab({ navigation }) {
   }, [activePeer, navigation]);
 
   const openChat = async (peer) => {
+    prevLastMsgIdRef.current = null;
+    pendingScrollRef.current = false;
     setActivePeer(peer);
     setIsPeerTyping(false);
     setConversations((prev) =>
@@ -659,7 +728,6 @@ export default function MessagesTab({ navigation }) {
     await loadMessages(peer);
     emitReadReceipt(peer._id);
     refreshUnreadMsgCount();
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 200);
   };
 
   const scrollToMessage = useCallback((msgId) => {
@@ -716,9 +784,6 @@ export default function MessagesTab({ navigation }) {
 
     setMessages((prev) => [...prev, optimistic]);
     setReplyingTo(null);
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 150);
 
     try {
       await sendMessageViaSocket({
@@ -854,6 +919,23 @@ export default function MessagesTab({ navigation }) {
     }
   };
 
+  const handleDeleteConversation = (item) => {
+    setDeleteTarget(item);
+  };
+
+  const confirmDeleteConversation = async () => {
+    if (!deleteTarget?.peer?._id) return;
+    try {
+      await clearConversationMessages(deleteTarget.peer._id);
+      showSnackbar("Chat deleted", "success");
+      loadConversations();
+    } catch {
+      showSnackbar("Failed to delete chat", "error");
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return conversations;
@@ -863,6 +945,67 @@ export default function MessagesTab({ navigation }) {
       return n.includes(q) || u.includes(q);
     });
   }, [conversations, search]);
+
+  const filteredConnections = useMemo(() => {
+    const q = newMsgSearch.trim().toLowerCase();
+    if (!q) return connections;
+    return connections.filter((c) => {
+      const n = c.fullName?.toLowerCase() || "";
+      const u = c.username?.toLowerCase() || "";
+      return n.includes(q) || u.includes(q);
+    });
+  }, [connections, newMsgSearch]);
+
+  const sheetFade = useMemo(() => new Animated.Value(0), []);
+  useEffect(() => {
+    Animated.timing(sheetFade, {
+      toValue: showNewMsgSheet ? 1 : 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [showNewMsgSheet, sheetFade]);
+
+  const chatSearchMatchIds = useMemo(() => {
+    const q = chatSearchQuery.trim().toLowerCase();
+    if (!q || !chatSearchActive) return [];
+    return messages
+      .filter((m) => (m.text || "").toLowerCase().includes(q))
+      .map((m) => String(m._id));
+  }, [messages, chatSearchQuery, chatSearchActive]);
+
+  const chatSearchMatchSet = useMemo(() => new Set(chatSearchMatchIds), [chatSearchMatchIds]);
+  const chatSearchFocusId = chatSearchMatchIds[chatSearchIndex] || null;
+
+  useEffect(() => {
+    setChatSearchIndex(Math.max(0, chatSearchMatchIds.length - 1));
+  }, [chatSearchQuery, chatSearchMatchIds.length]);
+
+  useEffect(() => {
+    if (!chatSearchFocusId) return;
+    const msgIndex = messages.findIndex((m) => String(m._id) === chatSearchFocusId);
+    if (msgIndex !== -1) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({ index: msgIndex, animated: true, viewPosition: 0.5 });
+      }, 100);
+    }
+  }, [chatSearchFocusId]);
+
+  const chatSearchNav = useCallback((direction) => {
+    if (!chatSearchMatchIds.length) return;
+    Haptics.selectionAsync();
+    setChatSearchIndex((prev) => {
+      if (direction === "up") {
+        return prev > 0 ? prev - 1 : chatSearchMatchIds.length - 1;
+      }
+      return prev < chatSearchMatchIds.length - 1 ? prev + 1 : 0;
+    });
+  }, [chatSearchMatchIds.length]);
+
+  const closeChatSearch = useCallback(() => {
+    setChatSearchActive(false);
+    setChatSearchQuery("");
+    setChatSearchIndex(0);
+  }, []);
 
   const headerBlock = (
     <AppTopHeader
@@ -885,58 +1028,131 @@ export default function MessagesTab({ navigation }) {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <StatusBar style="dark" />
-        <View style={[st.chatHeader, { paddingTop: insets.top + 14 }]}>
-          <Pressable onPress={() => setActivePeer(null)} style={st.chatBackArrow}>
-            <MaterialIcons name="arrow-back" size={24} color={COLORS.ink} />
-          </Pressable>
-          <Avatar uri={activePeer.profileImageUri} name={activePeer.fullName} size={42} />
-          <View style={st.chatHeaderInfo}>
-            <Text style={st.chatHeaderName} numberOfLines={1}>
-              {activePeer.fullName || activePeer.username}
-            </Text>
-            {isPeerTyping ? (
-              <Text style={[st.chatStatusText, { color: COLORS.accentMint, fontWeight: "900" }]}>typing...</Text>
-            ) : activePeer.isOnline ? (
-              <View style={st.chatEncRow}>
-                <View style={st.onlineDotSmall} />
-                <Text style={[st.chatStatusText, { color: COLORS.accentMint }]}>Online</Text>
-              </View>
-            ) : (
-              <Text style={st.chatStatusText} numberOfLines={1}>
-                {formatLastSeen(activePeer.lastSeenAt)}
+        {chatSearchActive ? (
+          <View style={[st.chatSearchHeader, { paddingTop: insets.top + 14 }]}>
+            <Pressable onPress={closeChatSearch} style={st.chatBackArrow}>
+              <MaterialIcons name="arrow-back" size={24} color={COLORS.ink} />
+            </Pressable>
+            <View style={st.chatSearchInputWrap}>
+              <MaterialIcons name="search" size={18} color={COLORS.inkMuted} />
+              <TextInput
+                ref={chatSearchInputRef}
+                value={chatSearchQuery}
+                onChangeText={setChatSearchQuery}
+                placeholder="Search messages..."
+                placeholderTextColor={COLORS.inkMuted}
+                style={st.chatSearchInput}
+                autoFocus
+                returnKeyType="search"
+              />
+              {chatSearchQuery.length > 0 && (
+                <Pressable onPress={() => setChatSearchQuery("")}>
+                  <MaterialIcons name="close" size={18} color={COLORS.inkMuted} />
+                </Pressable>
+              )}
+            </View>
+            {chatSearchQuery.trim().length > 0 && (
+              <Text style={st.chatSearchCounter}>
+                {chatSearchMatchIds.length > 0
+                  ? `${chatSearchIndex + 1}/${chatSearchMatchIds.length}`
+                  : "0"}
               </Text>
             )}
+            <Pressable
+              onPress={() => chatSearchNav("up")}
+              disabled={chatSearchMatchIds.length === 0}
+              style={[st.chatSearchNavBtn, chatSearchMatchIds.length === 0 && { opacity: 0.3 }]}
+            >
+              <MaterialIcons name="keyboard-arrow-up" size={24} color={COLORS.ink} />
+            </Pressable>
+            <Pressable
+              onPress={() => chatSearchNav("down")}
+              disabled={chatSearchMatchIds.length === 0}
+              style={[st.chatSearchNavBtn, chatSearchMatchIds.length === 0 && { opacity: 0.3 }]}
+            >
+              <MaterialIcons name="keyboard-arrow-down" size={24} color={COLORS.ink} />
+            </Pressable>
           </View>
-          <Pressable 
-            onPress={() => setShowChatMenu(true)} 
-            style={st.chatHeaderDots}
-          >
-            <MaterialIcons name="more-vert" size={24} color={COLORS.ink} />
-          </Pressable>
-        </View>
+        ) : (
+          <View style={[st.chatHeader, { paddingTop: insets.top + 14 }]}>
+            <Pressable onPress={() => setActivePeer(null)} style={st.chatBackArrow}>
+              <MaterialIcons name="arrow-back" size={24} color={COLORS.ink} />
+            </Pressable>
+            <Avatar uri={activePeer.profileImageUri} name={activePeer.fullName} size={42} />
+            <View style={st.chatHeaderInfo}>
+              <Text style={st.chatHeaderName} numberOfLines={1}>
+                {activePeer.fullName || activePeer.username}
+              </Text>
+              {isPeerTyping ? (
+                <Text style={[st.chatStatusText, { color: COLORS.accentMint, fontWeight: "900" }]}>typing...</Text>
+              ) : activePeer.isOnline ? (
+                <View style={st.chatEncRow}>
+                  <View style={st.onlineDotSmall} />
+                  <Text style={[st.chatStatusText, { color: COLORS.accentMint }]}>Online</Text>
+                </View>
+              ) : (
+                <Text style={st.chatStatusText} numberOfLines={1}>
+                  {formatLastSeen(activePeer.lastSeenAt)}
+                </Text>
+              )}
+            </View>
+            <Pressable 
+              onPress={() => setShowChatMenu(true)} 
+              style={st.chatHeaderDots}
+            >
+              <MaterialIcons name="more-vert" size={24} color={COLORS.ink} />
+            </Pressable>
+          </View>
+        )}
 
         {/* ── CHAT DROPDOWN MENU ── */}
         <Modal
           visible={showChatMenu}
           transparent={true}
-          animationType="fade"
+          animationType="none"
           onRequestClose={() => setShowChatMenu(false)}
         >
           <Pressable 
             style={st.menuOverlay} 
             onPress={() => setShowChatMenu(false)}
           >
-            <View style={[st.menuContent, { top: insets.top + 60 }]}>
-              <Pressable 
-                style={st.menuItem} 
-                onPress={() => {
-                  setShowChatMenu(false);
-                  setShowClearModal(true);
-                }}
-              >
-                <MaterialIcons name="delete-outline" size={20} color={COLORS.accent} />
-                <Text style={st.menuItemText}>Clear chat</Text>
-              </Pressable>
+            <View style={[st.menuContent, { top: insets.top + 52 }]}>
+              <View style={st.menuInner}>
+                <Pressable 
+                  style={({ pressed }) => [st.menuItem, pressed && st.menuItemPressed]}
+                  onPress={() => {
+                    setShowChatMenu(false);
+                    setChatSearchActive(true);
+                    setChatSearchQuery("");
+                    setChatSearchIndex(0);
+                    setTimeout(() => chatSearchInputRef.current?.focus(), 300);
+                  }}
+                >
+                  <View style={[st.menuIconWrap, { backgroundColor: COLORS.accentBlue + "14" }]}>
+                    <MaterialIcons name="search" size={18} color={COLORS.accentBlue} />
+                  </View>
+                  <View style={st.menuTextCol}>
+                    <Text style={st.menuItemTitle}>Search</Text>
+                    <Text style={st.menuItemSub}>Find messages in chat</Text>
+                  </View>
+                </Pressable>
+                <View style={st.menuDivider} />
+                <Pressable 
+                  style={({ pressed }) => [st.menuItem, pressed && st.menuItemPressed]}
+                  onPress={() => {
+                    setShowChatMenu(false);
+                    setShowClearModal(true);
+                  }}
+                >
+                  <View style={[st.menuIconWrap, { backgroundColor: COLORS.accent + "14" }]}>
+                    <MaterialIcons name="delete-outline" size={18} color={COLORS.accent} />
+                  </View>
+                  <View style={st.menuTextCol}>
+                    <Text style={[st.menuItemTitle, { color: COLORS.accent }]}>Clear chat</Text>
+                    <Text style={st.menuItemSub}>Delete all messages</Text>
+                  </View>
+                </Pressable>
+              </View>
             </View>
           </Pressable>
         </Modal>
@@ -992,60 +1208,93 @@ export default function MessagesTab({ navigation }) {
             </View>
           </View>
 
-          {loadingMessages ? (
-            <View style={st.chatLoading}>
-              <ActivityIndicator color={COLORS.accentBlue} size="large" />
-            </View>
-          ) : (
-            <FlatList
-              ref={flatListRef}
-              data={messages}
-              keyExtractor={(item) => String(item._id)}
-              style={st.chatBody}
-              contentContainerStyle={st.bubbleList}
+          <View style={st.chatListArea}>
+            {loadingMessages ? (
+              <View style={st.chatLoading}>
+                <ActivityIndicator color={COLORS.accentBlue} size="large" />
+              </View>
+            ) : (
+              <FlatList
+                ref={flatListRef}
+                data={messages}
+                keyExtractor={(item) => String(item._id)}
+                style={st.chatBody}
+                contentContainerStyle={st.bubbleList}
               keyboardShouldPersistTaps="handled"
               maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-              onContentSizeChange={() =>
-                flatListRef.current?.scrollToEnd({ animated: false })
-              }
-              onLayout={() =>
-                flatListRef.current?.scrollToEnd({ animated: false })
-              }
-              onScroll={({ nativeEvent }) => {
-                if (nativeEvent.contentOffset.y < 80 && hasMore && !loadingOlder) {
-                  loadOlderMessages();
+              onContentSizeChange={() => {
+                if (pendingScrollRef.current) {
+                  flatListRef.current?.scrollToEnd({ animated: false });
                 }
               }}
-              scrollEventThrottle={200}
-              ListHeaderComponent={
-                loadingOlder ? (
-                  <ActivityIndicator style={st.olderLoader} color={COLORS.accentBlue} size="small" />
-                ) : null
-              }
-              ListFooterComponent={isPeerTyping ? <TypingBubble /> : null}
-              ListEmptyComponent={
-                <View style={st.chatEmptyWrap}>
-                  <MaterialIcons name="chat-bubble-outline" size={32} color={COLORS.border} />
-                  <Text style={st.chatEmptyText}>Say hello to start the conversation</Text>
-                </View>
-              }
-              renderItem={({ item }) => (
-                <MessageBubble
-                  item={item}
-                  mine={String(item.sender) === String(user?._id)}
-                  user={user}
-                  activePeer={activePeer}
-                  onReply={(msg) => setReplyingTo(msg)}
-                  onJump={(msgId) => scrollToMessage(msgId)}
-                  isHighlighted={highlightedMessageId === String(item._id)}
-                  decrypt={decrypt}
-                  onViewOneTime={handleViewOneTime}
-                  onLongPress={onBubbleLongPress}
-                  onQuickReact={handleReact}
-                />
-              )}
-            />
-          )}
+              onScrollToIndexFailed={(info) => {
+                  setTimeout(() => {
+                    flatListRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 });
+                  }, 300);
+                }}
+                onScroll={handleChatScroll}
+                scrollEventThrottle={100}
+                ListHeaderComponent={
+                  loadingOlder ? (
+                    <ActivityIndicator style={st.olderLoader} color={COLORS.accentBlue} size="small" />
+                  ) : null
+                }
+                ListFooterComponent={isPeerTyping ? <TypingBubble /> : null}
+                ListEmptyComponent={
+                  <View style={st.chatEmptyWrap}>
+                    <MaterialIcons name="chat-bubble-outline" size={32} color={COLORS.border} />
+                    <Text style={st.chatEmptyText}>Say hello to start the conversation</Text>
+                  </View>
+                }
+                renderItem={({ item }) => (
+                  <MessageBubble
+                    item={item}
+                    mine={String(item.sender) === String(user?._id)}
+                    user={user}
+                    activePeer={activePeer}
+                    onReply={(msg) => setReplyingTo(msg)}
+                    onJump={(msgId) => scrollToMessage(msgId)}
+                    isHighlighted={
+                      chatSearchActive
+                        ? chatSearchFocusId === String(item._id)
+                        : highlightedMessageId === String(item._id)
+                    }
+                    isSearchMatch={chatSearchActive && chatSearchMatchSet.has(String(item._id))}
+                    decrypt={decrypt}
+                    onViewOneTime={handleViewOneTime}
+                    onLongPress={onBubbleLongPress}
+                    onQuickReact={handleReact}
+                  />
+                )}
+              />
+            )}
+
+            <Animated.View
+              pointerEvents={showScrollDown && !chatSearchActive ? "auto" : "none"}
+              style={[
+                st.scrollDownWrap,
+                {
+                  opacity: scrollDownAnim,
+                  transform: [{
+                    translateY: scrollDownAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [20, 0],
+                    }),
+                  }],
+                },
+              ]}
+            >
+              <Pressable
+                style={st.scrollDownBtn}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  scrollToBottom(true);
+                }}
+              >
+                <MaterialIcons name="keyboard-arrow-down" size={26} color={COLORS.white} />
+              </Pressable>
+            </Animated.View>
+          </View>
 
           {replyingTo && (
             <View style={st.replyPreviewWrap}>
@@ -1332,30 +1581,6 @@ export default function MessagesTab({ navigation }) {
           </View>
         </View>
 
-        {/* ── QUICK CONNECT ── */}
-        {connections.length > 0 && (
-          <View style={st.connectionsSection}>
-            <Text style={st.sectionLabel}>QUICK START</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={st.connectionsScroll}
-            >
-              {connections.map((c) => (
-                <Pressable key={c._id} style={st.connChip} onPress={() => openChat(c)}>
-                  <Avatar uri={c.profileImageUri} name={c.fullName} size={42} />
-                  <Text style={st.connChipName} numberOfLines={1}>
-                    {c.fullName?.split(" ")?.[0] || c.username}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {/* ── DIVIDER ── */}
-        <View style={st.hrule} />
-
         {/* ── CONVERSATION LIST ── */}
         <View style={st.convSection}>
           <Text style={st.sectionLabel}>RECENT CHATS</Text>
@@ -1377,8 +1602,13 @@ export default function MessagesTab({ navigation }) {
           filtered.map((item, idx) => (
             <React.Fragment key={item.conversationKey}>
               <Pressable
-                style={st.convRow}
+                style={({ pressed }) => [st.convRow, pressed && st.convRowPressed]}
                 onPress={() => openChat(item.peer)}
+                onLongPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  handleDeleteConversation(item);
+                }}
+                delayLongPress={400}
               >
                 <View style={st.convAvatarWrap}>
                   <Avatar uri={item.peer?.profileImageUri} name={item.peer?.fullName} size={50} />
@@ -1412,6 +1642,137 @@ export default function MessagesTab({ navigation }) {
           ))
         )}
       </ScrollView>
+
+      {/* ── DELETE CONVERSATION MODAL ── */}
+      <Modal
+        visible={!!deleteTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDeleteTarget(null)}
+      >
+        <View style={st.delModalOverlay}>
+          <View style={st.delModalBox}>
+            <Text style={st.delModalTitle}>Delete chat?</Text>
+            <Text style={st.delModalText}>
+              All messages with{" "}
+              <Text style={{ fontWeight: "800", color: COLORS.ink }}>
+                {deleteTarget?.peer?.fullName || deleteTarget?.peer?.username}
+              </Text>
+              {" "}will be permanently deleted. This can't be undone.
+            </Text>
+            <View style={st.delModalActions}>
+              <Pressable
+                style={({ pressed }) => [st.delModalBtn, st.delModalCancel, pressed && { opacity: 0.8 }]}
+                onPress={() => setDeleteTarget(null)}
+              >
+                <Text style={st.delModalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [st.delModalBtn, st.delModalConfirm, pressed && { opacity: 0.8 }]}
+                onPress={confirmDeleteConversation}
+              >
+                <Text style={st.delModalConfirmText}>Delete</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── FLOATING NEW MESSAGE BUTTON ── */}
+      {connections.length > 0 && (
+        <Pressable
+          style={({ pressed }) => [
+            st.fab,
+            { bottom: TAB_BAR_TOTAL + insets.bottom - 6 },
+            pressed && { transform: [{ scale: 0.92 }] },
+          ]}
+          onPress={() => { setShowNewMsgSheet(true); setNewMsgSearch(""); }}
+        >
+          <MaterialIcons name="chat" size={24} color={COLORS.white} />
+        </Pressable>
+      )}
+
+      {/* ── NEW MESSAGE BOTTOM SHEET ── */}
+      <Modal
+        visible={showNewMsgSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowNewMsgSheet(false)}
+      >
+        <Animated.View style={[st.sheetBackdrop, { opacity: sheetFade }]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowNewMsgSheet(false)} />
+        </Animated.View>
+        <View style={st.sheetOuter}>
+          <View style={st.sheetInner}>
+            <View style={st.sheetHandle} />
+            <View style={st.sheetHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={st.sheetTitle}>New Message</Text>
+                <Text style={st.sheetSub}>Select a connection to start chatting</Text>
+              </View>
+              <Pressable onPress={() => setShowNewMsgSheet(false)} style={st.sheetCloseBtn}>
+                <MaterialIcons name="close" size={16} color={COLORS.inkMuted} />
+              </Pressable>
+            </View>
+
+            <View style={st.sheetSearchRow}>
+              <MaterialIcons name="search" size={20} color={COLORS.inkMuted} />
+              <TextInput
+                value={newMsgSearch}
+                onChangeText={setNewMsgSearch}
+                placeholder="Search connections..."
+                placeholderTextColor={COLORS.inkMuted}
+                style={st.sheetSearchInput}
+                autoCorrect={false}
+              />
+              {newMsgSearch.length > 0 && (
+                <Pressable onPress={() => setNewMsgSearch("")}>
+                  <MaterialIcons name="close" size={18} color={COLORS.inkMuted} />
+                </Pressable>
+              )}
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 40 }}
+              keyboardShouldPersistTaps="handled"
+            >
+              {filteredConnections.length === 0 ? (
+                <View style={st.sheetEmpty}>
+                  <MaterialIcons name="person-search" size={36} color={COLORS.border} />
+                  <Text style={st.sheetEmptyText}>No connections found</Text>
+                </View>
+              ) : (
+                filteredConnections.map((c, idx) => (
+                  <React.Fragment key={c._id}>
+                    <Pressable
+                      style={({ pressed }) => [st.sheetRow, pressed && st.sheetRowPressed]}
+                      onPress={() => {
+                        setShowNewMsgSheet(false);
+                        openChat(c);
+                      }}
+                    >
+                      <Avatar uri={c.profileImageUri} name={c.fullName} size={44} />
+                      <View style={st.sheetRowText}>
+                        <Text style={st.sheetRowName} numberOfLines={1}>
+                          {c.fullName || c.username}
+                        </Text>
+                        <Text style={st.sheetRowHandle} numberOfLines={1}>
+                          @{c.username}
+                        </Text>
+                      </View>
+                      <View style={st.sheetRowArrow}>
+                        <MaterialIcons name="chat-bubble-outline" size={18} color={COLORS.accentBlue} />
+                      </View>
+                    </Pressable>
+                    {idx < filteredConnections.length - 1 && <View style={st.sheetDivider} />}
+                  </React.Fragment>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1498,10 +1859,22 @@ const st = StyleSheet.create({
     fontWeight: "500",
   },
 
-  /* ── QUICK START CONNECTIONS ── */
-  connectionsSection: {
-    paddingLeft: 20,
-    marginBottom: 10,
+  /* ── FLOATING NEW MESSAGE BUTTON ── */
+  fab: {
+    position: "absolute",
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: COLORS.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: COLORS.accent,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 10,
   },
   sectionLabel: {
     fontSize: 10,
@@ -1509,41 +1882,6 @@ const st = StyleSheet.create({
     letterSpacing: 1.8,
     color: COLORS.inkMuted,
     marginBottom: 12,
-  },
-  connectionsScroll: {
-    paddingRight: 20,
-    gap: 12,
-  },
-  connChip: {
-    alignItems: "center",
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    width: 82,
-    shadowColor: COLORS.ink,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  connChipName: {
-    marginTop: 7,
-    fontSize: 11,
-    fontWeight: "800",
-    color: COLORS.ink,
-    textAlign: "center",
-    letterSpacing: -0.2,
-  },
-
-  /* ── DIVIDER (mirrors HomeTab hrule) ── */
-  hrule: {
-    height: 1.5,
-    backgroundColor: COLORS.border,
-    marginHorizontal: 20,
-    marginVertical: 6,
   },
 
   /* ── CONV SECTION ── */
@@ -1556,6 +1894,9 @@ const st = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 14,
+  },
+  convRowPressed: {
+    backgroundColor: COLORS.paperDark,
   },
   convAvatarWrap: {
     position: "relative",
@@ -1720,6 +2061,9 @@ const st = StyleSheet.create({
   chatBody: {
     flex: 1,
   },
+  chatListArea: {
+    flex: 1,
+  },
   watermarkWrap: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
@@ -1779,7 +2123,7 @@ const st = StyleSheet.create({
   },
   bubbleList: {
     flexGrow: 1,
-    paddingHorizontal: 14,
+    paddingHorizontal: 4,
     paddingTop: 12,
     paddingBottom: 10,
   },
@@ -1798,6 +2142,28 @@ const st = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
+
+  /* ── SCROLL TO BOTTOM FAB ── */
+  scrollDownWrap: {
+    position: "absolute",
+    bottom: 12,
+    right: 16,
+    zIndex: 10,
+  },
+  scrollDownBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.accentBlue,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+
   typingBubble: {
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -1815,8 +2181,9 @@ const st = StyleSheet.create({
   },
   bubbleRow: {
     flexDirection: "row",
+    alignItems: "flex-end",
     marginBottom: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 4,
     width: "100%",
   },
   bubbleRowMine: {
@@ -1824,6 +2191,10 @@ const st = StyleSheet.create({
   },
   bubbleRowPeer: {
     justifyContent: "flex-start",
+  },
+  bubbleAvatarWrap: {
+    marginBottom: 2,
+    marginHorizontal: 4,
   },
   bubble: {
     paddingHorizontal: 14,
@@ -2011,42 +2382,113 @@ const st = StyleSheet.create({
     marginTop: 1,
   },
 
-  /* ── CLEAR CHAT UI ── */
+  /* ── CHAT SEARCH BAR ── */
+  chatSearchHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingBottom: 10,
+    backgroundColor: COLORS.paperDark,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    flexShrink: 0,
+    gap: 2,
+  },
+  chatSearchInputWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    height: 40,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  chatSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "500",
+    color: COLORS.ink,
+    padding: 0,
+  },
+  chatSearchCounter: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: COLORS.accentBlue,
+    marginHorizontal: 2,
+    minWidth: 32,
+    textAlign: "center",
+  },
+  chatSearchNavBtn: {
+    padding: 4,
+    borderRadius: 16,
+  },
+
+  /* ── CHAT MENU ── */
   chatHeaderDots: {
     padding: 8,
     marginLeft: 4,
   },
   menuOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.02)",
+    backgroundColor: "transparent",
   },
   menuContent: {
     position: "absolute",
-    right: 16,
-    backgroundColor: COLORS.cardBg,
-    borderRadius: 12,
-    padding: 6,
-    minWidth: 160,
-    elevation: 8,
+    right: 14,
+    alignItems: "flex-end",
+  },
+  menuInner: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    paddingVertical: 6,
+    minWidth: 210,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 12,
+    overflow: "hidden",
   },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingHorizontal: 14,
     gap: 12,
   },
-  menuItemText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.accent,
+  menuItemPressed: {
+    backgroundColor: COLORS.paperDark,
+  },
+  menuIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuTextCol: {
+    flex: 1,
+  },
+  menuItemTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.ink,
+    letterSpacing: -0.2,
+  },
+  menuItemSub: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: COLORS.inkMuted,
+    marginTop: 1,
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginHorizontal: 14,
+    opacity: 0.5,
   },
 
   /* ── CLEAR MODAL ── */
@@ -2105,6 +2547,7 @@ const st = StyleSheet.create({
     flex: 1,
     height: 52,
     borderRadius: 16,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2121,6 +2564,65 @@ const st = StyleSheet.create({
   },
   modalBtnTextConfirm: {
     fontSize: 16,
+    fontWeight: "800",
+    color: COLORS.white,
+  },
+  delModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  delModalBox: {
+    backgroundColor: COLORS.white,
+    borderRadius: 18,
+    padding: 20,
+    width: "100%",
+    maxWidth: 300,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  delModalTitle: {
+    fontSize: 17,
+    fontWeight: "900",
+    color: COLORS.ink,
+    marginBottom: 8,
+  },
+  delModalText: {
+    fontSize: 13,
+    color: COLORS.inkMuted,
+    lineHeight: 20,
+    marginBottom: 20,
+    fontWeight: "500",
+  },
+  delModalActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  delModalBtn: {
+    flex: 1,
+    height: 42,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  delModalCancel: {
+    backgroundColor: COLORS.paperDark,
+  },
+  delModalConfirm: {
+    backgroundColor: COLORS.accent,
+  },
+  delModalCancelText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.inkLight,
+  },
+  delModalConfirmText: {
+    fontSize: 14,
     fontWeight: "800",
     color: COLORS.white,
   },
@@ -2411,5 +2913,133 @@ const st = StyleSheet.create({
     backgroundColor: COLORS.accentBlue,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  /* ── NEW MESSAGE BOTTOM SHEET ── */
+  sheetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(30,20,10,0.45)",
+  },
+  sheetOuter: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  sheetInner: {
+    maxHeight: "85%",
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    shadowColor: "#3A8FB5",
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  sheetTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: COLORS.ink,
+    letterSpacing: -0.3,
+  },
+  sheetSub: {
+    fontSize: 13,
+    color: COLORS.inkMuted,
+    marginTop: 3,
+    fontWeight: "500",
+  },
+  sheetCloseBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: COLORS.paperDark,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetSearchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 46,
+    backgroundColor: COLORS.paperDark,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    marginBottom: 14,
+  },
+  sheetSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.ink,
+    padding: 0,
+    fontWeight: "500",
+  },
+  sheetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    gap: 14,
+    borderRadius: 12,
+  },
+  sheetRowPressed: {
+    backgroundColor: COLORS.paperDark,
+  },
+  sheetRowText: {
+    flex: 1,
+  },
+  sheetRowName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.ink,
+  },
+  sheetRowHandle: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: COLORS.inkMuted,
+    marginTop: 2,
+  },
+  sheetRowArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: COLORS.tagBlue,
+    borderWidth: 1,
+    borderColor: COLORS.accentBlue + "22",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginLeft: 62,
+  },
+  sheetEmpty: {
+    alignItems: "center",
+    paddingVertical: 40,
+    gap: 10,
+  },
+  sheetEmptyText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.inkMuted,
   },
 });
