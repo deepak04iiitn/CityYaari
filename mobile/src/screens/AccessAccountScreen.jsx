@@ -11,31 +11,33 @@ import {
   Animated,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import Svg, { Circle, Line, Rect, G } from 'react-native-svg';
+import Svg, { Circle, Line, G } from 'react-native-svg';
 import AuthBottomSheet from '../components/AuthBottomSheet';
 
 const { width } = Dimensions.get('window');
 
-// ─── Design Tokens ─────────────────────────────────────────────────────────
 const T = {
-  blueDeep:   '#0a1628',
-  blueDark:   '#0f2044',
-  blueMid:    '#1a3a6e',
-  blueMain:   '#1e4fc2',
-  blueBright: '#2563eb',
-  blueSoft:   '#3b82f6',
-  bluePale:   '#dbeafe',
-  blueIce:    '#eff6ff',
-  accent:     '#60a5fa',
-  white:      '#ffffff',
-  ink:        '#0a1628',
-  ink2:       '#334155',
-  ink3:       '#64748b',
-  surface:    '#f0f5ff',
-  surface2:   '#e2ecff',
+  cream:       '#FFFAF5',
+  creamDeep:   '#F5EDE3',
+  peach:       '#FFECD2',
+  peachSoft:   '#FFF3ED',
+  orange:      '#E8580D',
+  orangeLight: '#FF8A50',
+  orangeDark:  '#B8430A',
+  orangeGhost: '#FFF0E8',
+  brown:       '#2D1A0E',
+  brownSoft:   '#6B5E52',
+  brownMid:    '#8B7D72',
+  beige:       '#E8DDD0',
+  beigeDark:   '#D4C5B3',
+  white:       '#ffffff',
+  ink:         '#2D1A0E',
+  ink2:        '#5C4A3A',
+  ink3:        '#8B7D72',
+  surface:     '#FFF8F2',
+  surface2:    '#F0E6D8',
 };
 
-// ─── Hero Geometry ──────────────────────────────────────────────────────────
 const HeroGeometry = () => (
   <Svg
     width="100%"
@@ -44,52 +46,40 @@ const HeroGeometry = () => (
     viewBox={`0 0 ${width} 338`}
     pointerEvents="none"
   >
-    {/* Concentric circles anchored top-right */}
-    <Circle cx={width - 20} cy={-10} r={210} stroke="rgba(255,255,255,0.05)" strokeWidth={1} fill="none" />
-    <Circle cx={width - 20} cy={-10} r={145} stroke="rgba(255,255,255,0.06)" strokeWidth={1} fill="none" />
-    <Circle cx={width - 20} cy={-10} r={88}  stroke="rgba(255,255,255,0.08)" strokeWidth={1} fill="none" />
-    {/* Blue glow orb */}
-    <Circle cx={width - 20} cy={-10} r={48}  fill="rgba(37,99,235,0.15)" />
+    <Circle cx={width - 20} cy={-10} r={210} stroke="rgba(232,88,13,0.04)" strokeWidth={1} fill="none" />
+    <Circle cx={width - 20} cy={-10} r={145} stroke="rgba(232,88,13,0.06)" strokeWidth={1} fill="none" />
+    <Circle cx={width - 20} cy={-10} r={88}  stroke="rgba(232,88,13,0.08)" strokeWidth={1} fill="none" />
+    <Circle cx={width - 20} cy={-10} r={48}  fill="rgba(232,88,13,0.08)" />
 
-    {/* Vertical grid lines */}
-    <Line x1={58}  y1={0}   x2={58}  y2={230} stroke="rgba(96,165,250,0.20)" strokeWidth={1} />
-    <Line x1={98}  y1={60}  x2={98}  y2={240} stroke="rgba(96,165,250,0.12)" strokeWidth={1} />
+    <Line x1={58}  y1={0}   x2={58}  y2={230} stroke="rgba(232,88,13,0.10)" strokeWidth={1} />
+    <Line x1={98}  y1={60}  x2={98}  y2={240} stroke="rgba(232,88,13,0.07)" strokeWidth={1} />
+    <Line x1={0} y1={195} x2={230} y2={195} stroke="rgba(232,88,13,0.08)" strokeWidth={1} />
 
-    {/* Horizontal scan line */}
-    <Line x1={0} y1={195} x2={230} y2={195} stroke="rgba(96,165,250,0.16)" strokeWidth={1} />
-
-    {/* Rotating rect frames */}
     <G rotation={14} origin="67, 92">
-      <Rect x={25} y={50} width={84} height={84}
-        stroke="rgba(96,165,250,0.18)" strokeWidth={1} fill="none" />
+      <Circle cx={67} cy={92} r={42} stroke="rgba(232,88,13,0.10)" strokeWidth={1} fill="none" />
     </G>
     <G rotation={34} origin="74, 98">
-      <Rect x={52} y={76} width={44} height={44}
-        stroke="rgba(96,165,250,0.10)" strokeWidth={1} fill="none" />
+      <Circle cx={74} cy={98} r={22} stroke="rgba(232,88,13,0.06)" strokeWidth={1} fill="none" />
     </G>
 
-    {/* Accent dots */}
-    <Circle cx={57}  cy={195} r={3.5} fill={T.accent}  opacity={0.9} />
-    <Circle cx={215} cy={212} r={5}   fill={T.blueSoft} opacity={0.55} />
-    <Circle cx={98}  cy={60}  r={2.5} fill={T.accent}  opacity={0.8} />
-    <Circle cx={162} cy={142} r={2}   fill="#93c5fd"    opacity={0.6} />
+    <Circle cx={57}  cy={195} r={3.5} fill={T.orangeLight} opacity={0.7} />
+    <Circle cx={215} cy={212} r={5}   fill={T.orange} opacity={0.3} />
+    <Circle cx={98}  cy={60}  r={2.5} fill={T.orangeLight} opacity={0.6} />
+    <Circle cx={162} cy={142} r={2}   fill={T.orangeLight} opacity={0.4} />
 
-    {/* Crosshair detail */}
-    <Line x1={156} y1={135} x2={168} y2={135} stroke={T.accent} strokeWidth={1} opacity={0.5} />
-    <Line x1={162} y1={129} x2={162} y2={141} stroke={T.accent} strokeWidth={1} opacity={0.5} />
+    <Line x1={156} y1={135} x2={168} y2={135} stroke={T.orangeLight} strokeWidth={1} opacity={0.35} />
+    <Line x1={162} y1={129} x2={162} y2={141} stroke={T.orangeLight} strokeWidth={1} opacity={0.35} />
 
-    {/* Top-right connector cluster */}
-    <Circle cx={width - 48} cy={32} r={2}   fill="#93c5fd" opacity={0.7} />
-    <Circle cx={width - 33} cy={48} r={1.5} fill={T.accent} opacity={0.5} />
+    <Circle cx={width - 48} cy={32} r={2}   fill={T.orangeLight} opacity={0.5} />
+    <Circle cx={width - 33} cy={48} r={1.5} fill={T.orange} opacity={0.35} />
     <Line
       x1={width - 50} y1={34}
       x2={width - 35} y2={46}
-      stroke="rgba(96,165,250,0.30)" strokeWidth={1}
+      stroke="rgba(232,88,13,0.18)" strokeWidth={1}
     />
   </Svg>
 );
 
-// ─── Trust Row ──────────────────────────────────────────────────────────────
 const TrustRow = () => (
   <View style={styles.trustRow}>
     {['Safe & private', 'Local verified', 'Always free'].map((label) => (
@@ -101,7 +91,6 @@ const TrustRow = () => (
   </View>
 );
 
-// ─── Screen ─────────────────────────────────────────────────────────────────
 const AccessAccountScreen = () => {
   const [sheetVisible, setSheetVisible] = useState(false);
   const [initialForm, setInitialForm]   = useState('login');
@@ -135,7 +124,6 @@ const AccessAccountScreen = () => {
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* ── Hero ── */}
       <Animated.View style={[styles.hero, { opacity: heroOpacity }]}>
         <HeroGeometry />
         <SafeAreaView style={styles.safeArea}>
@@ -155,7 +143,6 @@ const AccessAccountScreen = () => {
         </SafeAreaView>
       </Animated.View>
 
-      {/* ── Card ── */}
       <Animated.View
         style={[
           styles.card,
@@ -166,8 +153,8 @@ const AccessAccountScreen = () => {
           <View style={styles.pill}>
             <Text style={styles.pillText}>50K+ members</Text>
           </View>
-          <View style={[styles.pill, styles.pillBlue]}>
-            <Text style={[styles.pillText, styles.pillBlueText]}>Trusted &amp; verified</Text>
+          <View style={[styles.pill, styles.pillWarm]}>
+            <Text style={[styles.pillText, styles.pillWarmText]}>Trusted &amp; verified</Text>
           </View>
         </View>
 
@@ -198,6 +185,13 @@ const AccessAccountScreen = () => {
         </View>
 
         <TrustRow />
+
+        <Text style={styles.terms}>
+          By continuing you agree to our{" "}
+          <Text style={styles.termsLink}>Terms</Text>
+          {" "}&amp;{" "}
+          <Text style={styles.termsLink}>Privacy Policy</Text>
+        </Text>
       </Animated.View>
 
       <AuthBottomSheet
@@ -209,18 +203,16 @@ const AccessAccountScreen = () => {
   );
 };
 
-// ─── Styles ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: T.surface,
   },
 
-  /* Hero */
   hero: {
     height: '56%',
     width: '100%',
-    backgroundColor: T.blueDeep,
+    backgroundColor: T.brown,
     overflow: 'hidden',
   },
   safeArea: {
@@ -237,13 +229,13 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: T.accent,
+    backgroundColor: T.orangeLight,
   },
   wordmark: {
     fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
     fontSize: 12,
     fontWeight: '700',
-    color: T.accent,
+    color: T.orangeLight,
     letterSpacing: 2.4,
     textTransform: 'uppercase',
   },
@@ -257,26 +249,25 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
     fontSize: 35,
     fontWeight: '700',
-    color: '#e8f0fe',
+    color: T.peach,
     lineHeight: 41,
     letterSpacing: -0.8,
   },
   heroItalic: {
     fontFamily: Platform.OS === 'ios' ? 'Georgia-Italic' : 'serif',
     fontStyle: 'italic',
-    color: T.accent,
+    color: T.orangeLight,
   },
   heroSub: {
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif-light',
     fontSize: 13,
     fontWeight: '300',
-    color: 'rgba(200,218,255,0.44)',
+    color: 'rgba(245,237,227,0.50)',
     lineHeight: 21,
     marginTop: 12,
-    marginBottom: 20
+    marginBottom: 20,
   },
 
-  /* Card */
   card: {
     position: 'absolute',
     bottom: 0,
@@ -290,14 +281,13 @@ const styles = StyleSheet.create({
     paddingTop: 26,
     paddingBottom: Platform.OS === 'ios' ? 36 : 26,
     gap: 13,
-    shadowColor: T.blueMain,
+    shadowColor: T.orange,
     shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.10,
+    shadowOpacity: 0.08,
     shadowRadius: 24,
     elevation: 16,
   },
 
-  /* Pills */
   pillRow: {
     flexDirection: 'row',
     gap: 7,
@@ -309,8 +299,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 5,
   },
-  pillBlue: {
-    backgroundColor: T.bluePale,
+  pillWarm: {
+    backgroundColor: T.orangeGhost,
   },
   pillText: {
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif-medium',
@@ -319,21 +309,20 @@ const styles = StyleSheet.create({
     color: T.ink2,
     letterSpacing: 0.15,
   },
-  pillBlueText: {
-    color: '#1e40af',
+  pillWarmText: {
+    color: T.orangeDark,
   },
 
-  /* Buttons */
   btnPrimary: {
     width: '100%',
     height: 52,
-    backgroundColor: T.blueMain,
+    backgroundColor: T.orange,
     borderRadius: 15,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    shadowColor: T.blueMain,
+    shadowColor: T.orange,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.30,
     shadowRadius: 16,
@@ -349,7 +338,7 @@ const styles = StyleSheet.create({
   btnArrow: {
     width: 22,
     height: 22,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(255,255,255,0.20)',
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
@@ -363,7 +352,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: '#c7d9f5',
+    borderColor: T.beige,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -371,11 +360,10 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif-medium',
     fontSize: 15,
     fontWeight: '500',
-    color: T.blueMain,
+    color: T.orange,
     letterSpacing: 0.1,
   },
 
-  /* Divider */
   divRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -394,7 +382,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 
-  /* Trust row */
   trustRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -411,12 +398,24 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: '#93c5fd',
+    backgroundColor: T.orangeLight,
   },
   trustText: {
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif',
     fontSize: 10,
     color: T.ink3,
+  },
+  terms: {
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif-medium',
+    fontSize: 10,
+    color: T.ink3,
+    textAlign: 'center',
+    marginTop: 14,
+  },
+  termsLink: {
+    color: T.orange,
+    fontWeight: '700',
+    letterSpacing: 0.1,
   },
 });
 

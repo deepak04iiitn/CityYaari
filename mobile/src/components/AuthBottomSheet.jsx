@@ -25,21 +25,26 @@ const { height } = Dimensions.get('window');
 const OTHER_OPTION = { id: -1, name: 'Other', isOther: true };
 
 const T = {
-  blueDeep: '#0a1628',
-  blueDark: '#0f2044',
-  blueMid: '#1a3a6e',
-  blueMain: '#1e4fc2',
-  blueBright: '#2563eb',
-  blueSoft: '#3b82f6',
-  bluePale: '#dbeafe',
-  blueIce: '#eff6ff',
-  accent: '#60a5fa',
+  cream: '#FFFAF5',
+  creamDeep: '#F5EDE3',
+  peach: '#FFECD2',
+  peachSoft: '#FFF3ED',
+  orange: '#E8580D',
+  orangeLight: '#FF8A50',
+  orangeDark: '#B8430A',
+  orangeGhost: '#FFF0E8',
+  brown: '#2D1A0E',
+  brownSoft: '#6B5E52',
+  brownMid: '#8B7D72',
+  beige: '#E8DDD0',
+  beigeDark: '#D4C5B3',
   white: '#ffffff',
-  ink: '#0a1628',
-  ink2: '#334155',
-  ink3: '#64748b',
-  surface: '#f0f5ff',
-  surface2: '#e2ecff',
+  ink: '#2D1A0E',
+  ink2: '#5C4A3A',
+  ink3: '#8B7D72',
+  surface: '#FFF8F2',
+  surface2: '#F0E6D8',
+  border: '#E8DDD0',
   error: '#b91c1c',
   errorBg: '#fef2f2',
   errorBorder: '#fecaca',
@@ -139,7 +144,7 @@ const SelectionField = ({ label, value, placeholder, disabled, onPress, loading 
         {value || placeholder}
       </Text>
       {loading ? (
-        <ActivityIndicator size="small" color={T.blueMain} />
+        <ActivityIndicator size="small" color={T.orange} />
       ) : (
         <MaterialIcons
           name="keyboard-arrow-down"
@@ -188,11 +193,11 @@ const SelectionModal = ({ visible, title, options, loading, onClose, onSelect })
                 />
               </View>
 
-              {loading ? (
-                <View style={styles.modalLoaderWrap}>
-                  <ActivityIndicator color={T.blueMain} />
-                </View>
-              ) : (
+      {loading ? (
+        <View style={styles.modalLoaderWrap}>
+          <ActivityIndicator color={T.orange} />
+        </View>
+      ) : (
                 <FlatList
                   data={filteredOptions}
                   keyExtractor={(item, index) => `${item.id}-${index}`}
@@ -660,11 +665,11 @@ const AuthBottomSheet = ({ isVisible, onClose, initialForm = 'login' }) => {
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(10,22,40,0.55)',
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(10,22,40,0.55)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
     paddingHorizontal: 22,
   },
@@ -717,14 +722,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#eef2ff',
+    borderBottomColor: T.surface2,
   },
   modalOptionText: {
     fontSize: 15,
     color: T.ink,
   },
   modalOtherText: {
-    color: T.blueMain,
+    color: T.orange,
     fontWeight: '700',
   },
   modalEmptyWrap: {
@@ -746,7 +751,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 26,
     paddingTop: 16,
     paddingBottom: Platform.OS === 'ios' ? 52 : 36,
-    shadowColor: T.blueMain,
+    shadowColor: T.orange,
     shadowOffset: { width: 0, height: -12 },
     shadowOpacity: 0.14,
     shadowRadius: 28,
@@ -796,13 +801,13 @@ const styles = StyleSheet.create({
     backgroundColor: T.surface2,
   },
   stepSegActive: {
-    backgroundColor: T.blueMain,
+    backgroundColor: T.orange,
   },
   blueTag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: T.bluePale,
+    backgroundColor: T.orangeGhost,
     borderRadius: 100,
     paddingHorizontal: 11,
     paddingVertical: 5,
@@ -813,20 +818,20 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: T.blueSoft,
+    backgroundColor: T.orangeLight,
   },
   blueTagText: {
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif-medium',
     fontSize: 10,
     fontWeight: '700',
-    color: '#1e40af',
+    color: T.orangeDark,
     letterSpacing: 0.2,
   },
   eyebrow: {
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif-medium',
     fontSize: 10,
     fontWeight: '700',
-    color: T.blueSoft,
+    color: T.orange,
     letterSpacing: 1.8,
     textTransform: 'uppercase',
     marginBottom: 5,
@@ -886,7 +891,7 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif-medium',
     fontSize: 11,
     fontWeight: '600',
-    color: T.blueSoft,
+    color: T.orange,
   },
   inputWrap: {
     flexDirection: 'row',
@@ -907,7 +912,7 @@ const styles = StyleSheet.create({
   },
   inputWrapFocused: {
     backgroundColor: T.white,
-    borderColor: T.blueMain,
+    borderColor: T.orange,
   },
   selectField: {
     height: 52,
@@ -960,8 +965,8 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   optionCardActive: {
-    backgroundColor: '#eef4ff',
-    borderColor: T.blueMain,
+    backgroundColor: T.peachSoft,
+    borderColor: T.orange,
   },
   optionIndicator: {
     width: 12,
@@ -971,8 +976,8 @@ const styles = StyleSheet.create({
     borderColor: T.ink3,
   },
   optionIndicatorActive: {
-    backgroundColor: T.blueMain,
-    borderColor: T.blueMain,
+    backgroundColor: T.orange,
+    borderColor: T.orange,
   },
   optionText: {
     flex: 1,
@@ -1009,14 +1014,14 @@ const styles = StyleSheet.create({
   submitBtn: {
     width: '100%',
     height: 52,
-    backgroundColor: T.blueMain,
+    backgroundColor: T.orange,
     borderRadius: 15,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
     marginTop: 4,
-    shadowColor: T.blueMain,
+    shadowColor: T.orange,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.28,
     shadowRadius: 14,
@@ -1055,10 +1060,10 @@ const styles = StyleSheet.create({
     color: T.ink3,
   },
   toggleLink: {
-    color: T.blueMain,
+    color: T.orange,
     fontWeight: '700',
     textDecorationLine: 'underline',
-    textDecorationColor: T.accent,
+    textDecorationColor: T.orange,
     textDecorationStyle: 'solid',
   },
 });

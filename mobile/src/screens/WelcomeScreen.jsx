@@ -9,82 +9,34 @@ import {
   View,
   Dimensions,
   Animated,
-  ScrollView,
 } from "react-native";
 import { useEffect, useRef } from "react";
 
 const { width, height } = Dimensions.get("window");
 
-
-/* ─── Floating badge / pill chip ─── */
-function FloatingChip({ icon, label, subLabel, position, colorScheme, rotate = "0deg" }) {
-  const slideY = useRef(new Animated.Value(12)).current;
-  const fade = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.sequence([
-      Animated.delay(colorScheme === "warm" ? 600 : 900),
-      Animated.parallel([
-        Animated.spring(slideY, { toValue: 0, tension: 55, friction: 10, useNativeDriver: true }),
-        Animated.timing(fade, { toValue: 1, duration: 500, useNativeDriver: true }),
-      ]),
-    ]).start();
-
-    /* gentle bob */
-    const bob = Animated.loop(
-      Animated.sequence([
-        Animated.timing(slideY, { toValue: -5, duration: 2200, useNativeDriver: true }),
-        Animated.timing(slideY, { toValue: 5, duration: 2200, useNativeDriver: true }),
-      ])
-    );
-    setTimeout(() => bob.start(), 1400);
-    return () => bob.stop();
-  }, []);
-
-  const isWarm = colorScheme === "warm";
-  return (
-    <Animated.View
-      style={[
-        styles.chip,
-        position,
-        {
-          opacity: fade,
-          transform: [{ translateY: slideY }, { rotate }],
-          backgroundColor: isWarm ? "#FFF3E8" : "#EEF4FF",
-          borderColor: isWarm ? "rgba(249,115,22,0.22)" : "rgba(37,99,235,0.22)",
-        },
-      ]}
-    >
-      <View
-        style={[
-          styles.chipIcon,
-          { backgroundColor: isWarm ? "#FDE8D4" : "#DBEAFE" },
-        ]}
-      >
-        <MaterialIcons name={icon} size={14} color={isWarm ? "#C2440C" : "#1D4ED8"} />
-      </View>
-      <View>
-        <Text style={[styles.chipLabel, { color: isWarm ? "#92350A" : "#1E40AF" }]}>
-          {label}
-        </Text>
-        {subLabel ? (
-          <Text style={[styles.chipSub, { color: isWarm ? "#C2440C" : "#3B82F6" }]}>
-            {subLabel}
-          </Text>
-        ) : null}
-      </View>
-    </Animated.View>
-  );
-}
+const P = {
+  cream:       "#FFFAF5",
+  creamDeep:   "#F5EDE3",
+  peach:       "#FFECD2",
+  peachSoft:   "#FFF3ED",
+  orange:      "#E8580D",
+  orangeLight: "#FF8A50",
+  orangeDark:  "#B8430A",
+  orangeGhost: "#FFF0E8",
+  brown:       "#2D1A0E",
+  brownSoft:   "#6B5E52",
+  brownMid:    "#8B7D72",
+  beige:       "#E8DDD0",
+  beigeDark:   "#D4C5B3",
+  white:       "#FFFFFF",
+};
 
 export default function WelcomeScreen({ navigation }) {
-  /* master entrance */
   const heroFade = useRef(new Animated.Value(0)).current;
   const heroScale = useRef(new Animated.Value(1.06)).current;
   const sheetY = useRef(new Animated.Value(80)).current;
   const sheetFade = useRef(new Animated.Value(0)).current;
 
-  /* staggered inner elements */
   const logoAnim = useRef(new Animated.Value(0)).current;
   const headlineAnim = useRef(new Animated.Value(0)).current;
   const proofAnim = useRef(new Animated.Value(0)).current;
@@ -102,7 +54,6 @@ export default function WelcomeScreen({ navigation }) {
       ]),
     ]).start();
 
-    /* stagger inner */
     const stagger = Animated.stagger(90, [
       Animated.spring(logoAnim, { toValue: 1, tension: 60, friction: 12, useNativeDriver: true }),
       Animated.spring(headlineAnim, { toValue: 1, tension: 60, friction: 12, useNativeDriver: true }),
@@ -119,9 +70,9 @@ export default function WelcomeScreen({ navigation }) {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
 
-      {/* ─── HERO: full-bleed illustration ─── */}
+      {/* ─── HERO ─── */}
       <Animated.View
         style={[styles.hero, { opacity: heroFade, transform: [{ scale: heroScale }] }]}
       >
@@ -131,29 +82,11 @@ export default function WelcomeScreen({ navigation }) {
           resizeMode="cover"
         />
 
-        {/* deep gradient scrim so bottom sheet bleeds in nicely */}
+        {/* Gradient scrim for smooth blend into panel */}
         <LinearGradient
-          colors={["rgba(10,14,26,0)", "rgba(10,14,26,0.18)", "rgba(10,14,26,0.72)"]}
-          style={styles.scrim}
+          colors={["transparent", "rgba(255,250,245,0.5)", P.cream]}
+          style={styles.heroScrim}
           pointerEvents="none"
-        />
-
-        {/* Floating chips */}
-        <FloatingChip
-          icon="location-on"
-          label="From Jaipur"
-          subLabel="Rajasthan"
-          colorScheme="warm"
-          position={{ position: "absolute", top: height * 0.14, left: 18 }}
-          rotate="-2deg"
-        />
-        <FloatingChip
-          icon="flight-land"
-          label="Now in Bengaluru"
-          subLabel="Karnataka"
-          colorScheme="cool"
-          position={{ position: "absolute", bottom: height * 0.18, right: 18 }}
-          rotate="2deg"
         />
       </Animated.View>
 
@@ -161,10 +94,9 @@ export default function WelcomeScreen({ navigation }) {
       <Animated.View
         style={[styles.panel, { opacity: sheetFade, transform: [{ translateY: sheetY }] }]}
       >
-        {/* Drag handle */}
         <View style={styles.handle} />
 
-        {/* ── LOGO ── */}
+        {/* Logo */}
         <Animated.View style={[styles.logoWrap, makeSlide(logoAnim)]}>
           <Image
             source={require("../../assets/Logo.png")}
@@ -173,28 +105,33 @@ export default function WelcomeScreen({ navigation }) {
           />
         </Animated.View>
 
-        
-
-        {/* ── HEADLINE ── */}
+        {/* Headline */}
         <Animated.View style={[styles.headlineWrap, makeSlide(headlineAnim)]}>
-          <View style={styles.eyebrowRow}>
-            <View style={styles.eyebrowDash} />
-            <Text style={styles.eyebrow}>DISCOVER  ·  CONNECT  ·  BELONG</Text>
-            <View style={styles.eyebrowDash} />
+          <View style={styles.badgeRow}>
+            <LinearGradient
+              colors={["#FFF0E8", "#FFE0CC"]}
+              style={styles.badge}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <MaterialIcons name="public" size={12} color={P.orange} />
+              <Text style={styles.badgeText}>WORLD'S 1ST HOMETOWN NETWORK</Text>
+            </LinearGradient>
           </View>
+
           <Text style={styles.headline}>
-            Find Your{"\n"}
-            <Text style={styles.headlineAccent}>People</Text>
-            {" "}Everywhere
+            Your{" "}
+            <Text style={styles.headlineAccent}>Hometown</Text>
+            ,{"\n"}Everywhere
           </Text>
           <Text style={styles.subText}>
-            Your hometown, in every city. Connect with familiar faces wherever life takes you.
+            Find people from your hometown in any city.{"\n"}
+            Connect with familiar faces, make it feel like home.
           </Text>
         </Animated.View>
 
-        {/* ── SOCIAL PROOF ── */}
+        {/* Social proof */}
         <Animated.View style={[styles.proofCard, makeSlide(proofAnim)]}>
-          {/* Avatar stack */}
           <View style={styles.avatarRow}>
             {[
               "https://lh3.googleusercontent.com/aida-public/AB6AXuCs5zGXiZ4HhE0jhZ2bUvLtSzskWgRU4t5b3KCVQOsGEiYhGR2Bk67Z-iphsos429xSn0RcRgx_iLmUr8Z5bZVgQ72g5fOuK1jVA2ZaB3uiiInV6W4jgr-DBVKFs62ee3c4dc09hZdnSePxlK75DmZzr4rcCILEhtycrsm3qc9hEgzXujGGhIAr1rHtACXiXFhcVOkOCwxc8FIrreBnvCtIaRWr6fNTYkJM2H3FeAsQZ3JPfvkk_eVc-8f9fo3XT9b6-fp3bQ16OzQ",
@@ -212,7 +149,6 @@ export default function WelcomeScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Stats */}
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <Text style={styles.statNum}>10K+</Text>
@@ -231,26 +167,25 @@ export default function WelcomeScreen({ navigation }) {
           </View>
         </Animated.View>
 
-        {/* ── CTA ── */}
+        {/* CTA */}
         <Animated.View style={makeSlide(ctaAnim)}>
           <Pressable
             style={({ pressed }) => [styles.ctaBtn, pressed && { transform: [{ scale: 0.975 }] }]}
             onPress={() => navigation.navigate("Onboarding")}
           >
             <LinearGradient
-              colors={["#3B82F6", "#2563EB", "#1D4ED8"]}
+              colors={[P.orangeLight, P.orange, P.orangeDark]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.ctaGrad}
             >
               <Text style={styles.ctaText}>Get Started</Text>
               <View style={styles.ctaCircle}>
-                <MaterialIcons name="arrow-forward-ios" size={15} color="#2563EB" />
+                <MaterialIcons name="arrow-forward-ios" size={15} color={P.orange} />
               </View>
             </LinearGradient>
           </Pressable>
 
-          {/* Terms */}
           <Text style={styles.terms}>
             By continuing you agree to our{" "}
             <Text style={styles.termsLink}>Terms</Text>
@@ -269,7 +204,7 @@ const PANEL_RADIUS = 36;
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#0A0E1A",
+    backgroundColor: P.cream,
   },
 
   /* ── Hero ── */
@@ -278,79 +213,19 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: height * 0.56,
+    height: height * 0.54,
     overflow: "hidden",
   },
   illustration: {
     width: "100%",
     height: "100%",
   },
-  scrim: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  topBar: {
+  heroScrim: {
     position: "absolute",
-    top: 52,
+    bottom: 0,
     left: 0,
     right: 0,
-    alignItems: "center",
-  },
-  topBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 99,
-  },
-  topBadgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#4ADE80",
-  },
-  topBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "rgba(255,255,255,0.9)",
-    letterSpacing: 0.6,
-  },
-
-  /* ── Chips ── */
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 16,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
-  chipIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  chipLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-  },
-  chipSub: {
-    fontSize: 10,
-    fontWeight: "500",
-    marginTop: 1,
-    opacity: 0.8,
+    height: 100,
   },
 
   /* ── Panel ── */
@@ -359,83 +234,80 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    top: height * 0.46,           /* overlaps hero slightly */
-    backgroundColor: "#FFFFFF",
+    top: height * 0.44,
+    backgroundColor: P.white,
     borderTopLeftRadius: PANEL_RADIUS,
     borderTopRightRadius: PANEL_RADIUS,
     paddingHorizontal: 26,
     paddingBottom: 28,
     paddingTop: 10,
-    shadowColor: "#0A0E1A",
-    shadowOpacity: 0.22,
-    shadowRadius: 32,
-    shadowOffset: { width: 0, height: -10 },
-    elevation: 20,
+    shadowColor: P.orange,
+    shadowOpacity: 0.10,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: -8 },
+    elevation: 16,
   },
   handle: {
     width: 38,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#DDE3EE",
+    backgroundColor: P.beige,
     alignSelf: "center",
-    marginBottom: 20,
+    marginBottom: 16,
   },
 
   /* ── Logo ── */
   logoWrap: {
     alignItems: "center",
-    marginBottom: 14,
+    marginBottom: 12,
   },
   logo: {
     width: 200,
     height: 40,
   },
 
-  /* Divider */
-  divider: {
-    height: 1,
-    backgroundColor: "#EEF2F8",
-    marginBottom: 16,
-    marginHorizontal: -4,
-  },
-
   /* ── Headline ── */
   headlineWrap: {
-    marginBottom: 16,
+    marginBottom: 14,
   },
-  eyebrowRow: {
+  badgeRow: {
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  badge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 10,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 99,
+    borderWidth: 1,
+    borderColor: "rgba(232,88,13,0.15)",
   },
-  eyebrowDash: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#E5EDFF",
-  },
-  eyebrow: {
+  badgeText: {
     fontSize: 9,
     fontWeight: "800",
-    color: "#F97316",
-    letterSpacing: 1.8,
+    color: P.orange,
+    letterSpacing: 1.4,
   },
   headline: {
     fontSize: 32,
     fontWeight: "800",
-    color: "#0C1222",
+    color: P.brown,
     lineHeight: 38,
     letterSpacing: -0.8,
+    textAlign: "center",
     marginBottom: 8,
   },
   headlineAccent: {
-    color: "#2563EB",
+    color: P.orange,
   },
   subText: {
     fontSize: 13,
     lineHeight: 20,
-    color: "#6B7280",
+    color: P.brownSoft,
     fontWeight: "400",
+    textAlign: "center",
   },
 
   /* ── Proof card ── */
@@ -443,9 +315,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#F6F8FF",
+    backgroundColor: P.peachSoft,
     borderWidth: 1,
-    borderColor: "#E0E9FF",
+    borderColor: "rgba(232,88,13,0.10)",
     borderRadius: 20,
     paddingVertical: 14,
     paddingHorizontal: 16,
@@ -461,23 +333,23 @@ const styles = StyleSheet.create({
     height: 33,
     borderRadius: 16.5,
     borderWidth: 2.5,
-    borderColor: "#FFFFFF",
+    borderColor: P.white,
   },
   avatarMore: {
     width: 33,
     height: 33,
     borderRadius: 16.5,
-    backgroundColor: "#DBEAFE",
+    backgroundColor: "#FFE0CC",
     alignItems: "center",
     justifyContent: "center",
     marginLeft: -11,
     borderWidth: 2.5,
-    borderColor: "#FFFFFF",
+    borderColor: P.white,
   },
   avatarMoreText: {
     fontSize: 9,
     fontWeight: "800",
-    color: "#1D4ED8",
+    color: P.orangeDark,
   },
   statsRow: {
     flex: 1,
@@ -492,19 +364,19 @@ const styles = StyleSheet.create({
   statNum: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#111827",
+    color: P.brown,
     letterSpacing: -0.3,
   },
   statLabel: {
     fontSize: 10,
-    color: "#9CA3AF",
+    color: P.brownMid,
     fontWeight: "500",
     marginTop: 1,
   },
   statSep: {
     width: 1,
     height: 24,
-    backgroundColor: "#DDE6F5",
+    backgroundColor: P.beige,
   },
 
   /* ── CTA ── */
@@ -512,11 +384,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: "hidden",
     marginBottom: 14,
-    shadowColor: "#2563EB",
-    shadowOpacity: 0.42,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 12,
+    shadowColor: P.orange,
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
   },
   ctaGrad: {
     height: 60,
@@ -527,7 +399,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   ctaText: {
-    color: "#FFFFFF",
+    color: P.white,
     fontSize: 17,
     fontWeight: "800",
     letterSpacing: 0.3,
@@ -536,7 +408,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: P.white,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -545,11 +417,11 @@ const styles = StyleSheet.create({
   terms: {
     textAlign: "center",
     fontSize: 11,
-    color: "#A1AABF",
+    color: P.brownMid,
     lineHeight: 17,
   },
   termsLink: {
-    color: "#2563EB",
+    color: P.orange,
     fontWeight: "600",
   },
 });
