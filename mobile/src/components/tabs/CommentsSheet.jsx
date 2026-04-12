@@ -30,34 +30,34 @@ import { useSnackbar } from "../../store/SnackbarContext";
 // ─── TOKENS ──────────────────────────────────────────────────────────────────
 const T = {
   // Surfaces
-  bg0: "#080a0d",       // deepest backdrop overlay base
-  bg1: "#0f1117",       // sheet floor
-  bg2: "#161b24",       // card / input surface
-  bg3: "#1e2535",       // elevated element
-  bg4: "#252d3d",       // hover state
+  bg0: "rgba(0,0,0,0.6)",       // deepest backdrop overlay base
+  bg1: "#FFFFFF",       // sheet floor
+  bg2: "#FFFAF5",       // card / input surface
+  bg3: "#FFF3ED",       // elevated element
+  bg4: "#FFECD2",       // hover state
   // Borders
-  b1:  "#1d2535",       // hairline
-  b2:  "#263047",       // light border
-  b3:  "#2e3a52",       // emphasis border
+  b1:  "#E8DDD0",       // hairline
+  b2:  "#D4C5B3",       // light border
+  b3:  "#E8DDD0",       // emphasis border
   // Text
-  t1:  "#eef0f4",       // primary
-  t2:  "#8b95a8",       // secondary
-  t3:  "#4d5769",       // muted/placeholder
+  t1:  "#2D1A0E",       // primary
+  t2:  "#6B5E52",       // secondary
+  t3:  "#8B7D72",       // muted/placeholder
   // Accents — no gradients, pure flat
-  red:   "#f03e1b",
-  redBg: "#1a0b07",
-  redBd: "#3d1208",
-  blu:   "#3b82f6",
-  bluBg: "#07111f",
-  bluBd: "#0e2447",
+  red:   "#D0342C",
+  redBg: "#FDEAEA",
+  redBd: "#F9CACA",
+  blu:   "#E8580D",     // Replace blue with brand orange
+  bluBg: "#FFF0E8",
+  bluBd: "#FFECD2",
   tel:   "#14b8a6",
-  telBg: "#051210",
-  telBd: "#0d3530",
+  telBg: "#E6FAF8",
+  telBd: "#CCF4F0",
   gld:   "#f59e0b",
-  gldBg: "#160d01",
-  gldBd: "#3d2802",
+  gldBg: "#FEF3C7",
+  gldBd: "#FDE68A",
   // Handle
-  hdl: "#1f2736",
+  hdl: "#D4C5B3",
 };
 
 // Avatar hues keyed by first char code

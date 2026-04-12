@@ -1,7 +1,8 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenShell } from "./TabShared";
 import {
   respondToConnectionRequest,
@@ -70,10 +71,12 @@ function NotificationAvatar({ uri, name }) {
 
 export default function NotificationsTab({ navigation }) {
   const { showSnackbar } = useSnackbar();
+  const insets = useSafeAreaInsets();
   const [notifications, setNotifications] = useState([]);
   const [busyId, setBusyId] = useState("");
   const [markingAllRead, setMarkingAllRead] = useState(false);
   const [activeFilter, setActiveFilter] = useState("all");
+  const fabScale = useRef(new Animated.Value(1)).current;
 
   const toRelativeTime = (dateString) => {
     if (!dateString) return "Just now";
@@ -133,7 +136,19 @@ export default function NotificationsTab({ navigation }) {
     return notifications.filter((n) => filter.types.includes(n.type));
   }, [activeFilter, notifications]);
 
+  const hasUnread = notifications.some((n) => !n.isRead);
+
+  const handleFabPress = () => {
+    if (!hasUnread || markingAllRead) return;
+    Animated.sequence([
+      Animated.timing(fabScale, { toValue: 0.85, duration: 100, useNativeDriver: true }),
+      Animated.spring(fabScale, { toValue: 1, tension: 300, friction: 10, useNativeDriver: true }),
+    ]).start();
+    onMarkAllRead();
+  };
+
   return (
+    <View style={s.rootContainer}>
     <ScreenShell
       navigation={navigation}
       routeName="Notifications"
@@ -141,7 +156,7 @@ export default function NotificationsTab({ navigation }) {
       background={C.bg}
       contentContainerStyle={s.screenContent}
       notificationCount={notifications.filter((n) => !n.isRead).length}
-      stickyHeaderIndices={[2]}
+      stickyHeaderIndices={[1]}
     >
       <View style={s.masthead}>
         <Text style={s.heroTitle}>Notifications.</Text>
@@ -168,23 +183,6 @@ export default function NotificationsTab({ navigation }) {
           );
         })}
       </ScrollView>
-
-      <View style={s.actionBar}>
-        <Text style={s.unreadText}>
-          {notifications.filter((n) => !n.isRead).length} unread
-        </Text>
-        <Pressable
-          onPress={onMarkAllRead}
-          disabled={markingAllRead || !notifications.some((n) => !n.isRead)}
-          style={[
-            s.markReadBtn,
-            (markingAllRead || !notifications.some((n) => !n.isRead)) && { opacity: 0.5 },
-          ]}
-        >
-          <MaterialIcons name="done-all" size={14} color={C.blue} />
-          <Text style={s.markReadText}>{markingAllRead ? "..." : "Mark all read"}</Text>
-        </Pressable>
-      </View>
 
       <View style={s.feed}>
         {filteredNotifications.length === 0 ? (
@@ -235,15 +233,60 @@ export default function NotificationsTab({ navigation }) {
         )}
       </View>
     </ScreenShell>
+
+    {hasUnread && (
+      <Animated.View
+        style={[
+          s.fab,
+          { bottom: 100 + insets.bottom, transform: [{ scale: fabScale }] },
+        ]}
+      >
+        <Pressable
+          onPress={handleFabPress}
+          disabled={markingAllRead}
+          style={({ pressed }) => [
+            s.fabInner,
+            pressed && { opacity: 0.85 },
+            markingAllRead && { opacity: 0.6 },
+          ]}
+        >
+          <MaterialIcons name="done-all" size={22} color={C.white} />
+        </Pressable>
+      </Animated.View>
+    )}
+    </View>
   );
 }
 
 const s = StyleSheet.create({
+  rootContainer: {
+    flex: 1,
+    backgroundColor: C.bg,
+  },
   screenContent: {
     paddingHorizontal: 0,
     paddingBottom: 120,
     backgroundColor: C.bg,
     gap: 14,
+  },
+  fab: {
+    position: "absolute",
+    right: 18,
+    zIndex: 50,
+    elevation: 12,
+  },
+  fabInner: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: C.blue,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: C.blue,
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 12,
   },
   masthead: {
     paddingHorizontal: 20,
@@ -264,52 +307,11 @@ const s = StyleSheet.create({
     color: C.soft,
     fontWeight: "600",
   },
-  markReadBtn: {
-    height: 34,
-    borderRadius: 999,
-    backgroundColor: C.bluePale,
-    borderWidth: 1,
-    borderColor: C.blueLight,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 6,
-    paddingHorizontal: 12,
-  },
-  markReadText: {
-    fontSize: 10,
-    fontWeight: "900",
-    letterSpacing: 0.6,
-    color: C.blue,
-    textTransform: "uppercase",
-  },
   filterRow: {
     paddingHorizontal: 14,
     paddingTop: 10,
     paddingBottom: 8,
     gap: 8,
-  },
-  actionBar: {
-    marginHorizontal: 14,
-    marginBottom: 10,
-    backgroundColor: C.bg,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    zIndex: 5,
-    elevation: 5,
-  },
-  unreadText: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: C.soft,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
   },
   filterChip: {
     height: 34,

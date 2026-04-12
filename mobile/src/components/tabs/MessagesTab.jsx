@@ -2718,7 +2718,7 @@ export default function MessagesTab({ navigation, route }) {
         <Pressable
           style={({ pressed }) => [
             st.fab,
-            { bottom: insets.bottom + 80 },
+            { bottom: insets.bottom + 95 },
             pressed && { transform: [{ scale: 0.92 }] },
           ]}
           onPress={() => { setShowNewMsgSheet(true); setNewMsgSearch(""); }}

@@ -15,26 +15,26 @@ import { MaterialIcons } from "@expo/vector-icons";
 
 // ─── TOKENS (Shared with CommentsSheet) ──────────────────────────────────────
 const T = {
-  bg0: "#080a0d",
-  bg1: "#0f1117",
-  bg2: "#161b24",
-  bg3: "#1e2535",
-  b1:  "#1d2535",
-  b2:  "#263047",
-  b3:  "#2e3a52",
-  t1:  "#eef0f4",
-  t2:  "#8b95a8",
-  t3:  "#4d5769",
-  red:   "#f03e1b",
-  redBg: "#1a0b07",
-  redBd: "#3d1208",
-  blu:   "#3b82f6",
-  bluBg: "#07111f",
-  bluBd: "#0e2447",
+  bg0: "rgba(0,0,0,0.6)",
+  bg1: "#FFFFFF",
+  bg2: "#FFFAF5",
+  bg3: "#FFF3ED",
+  b1:  "#E8DDD0",
+  b2:  "#D4C5B3",
+  b3:  "#E8DDD0",
+  t1:  "#2D1A0E",
+  t2:  "#6B5E52",
+  t3:  "#8B7D72",
+  red:   "#D0342C",
+  redBg: "#FDEAEA",
+  redBd: "#F9CACA",
+  blu:   "#E8580D",
+  bluBg: "#FFF0E8",
+  bluBd: "#FFECD2",
   gld:   "#f59e0b",
-  gldBg: "#160d01",
-  gldBd: "#3d2802",
-  hdl: "#1f2736",
+  gldBg: "#FEF3C7",
+  gldBd: "#FDE68A",
+  hdl: "#D4C5B3",
 };
 
 // ─── HOOKS ───────────────────────────────────────────────────────────────────
@@ -155,6 +155,46 @@ export default function FilterModal({
           </View>
 
           <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+            {/* Location Section */}
+            <Section title="Location">
+              <View style={styles.inputGroup}>
+                <View style={styles.inputBox}>
+                  <MaterialIcons name="home" size={16} color={T.t3} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Hometown City"
+                    placeholderTextColor={T.t3}
+                    value={hometown}
+                    onChangeText={setHometown}
+                  />
+                </View>
+                <View style={styles.inputBox}>
+                  <MaterialIcons name="location-on" size={16} color={T.t3} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Current City"
+                    placeholderTextColor={T.t3}
+                    value={location}
+                    onChangeText={setLocation}
+                  />
+                </View>
+              </View>
+            </Section>
+
+            {/* Gender Section */}
+            <Section title="Gender">
+              <View style={styles.chipGrid}>
+                {["Male", "Female", "Other"].map((g) => (
+                  <FilterChip 
+                    key={g} 
+                    label={g} 
+                    active={gender === g} 
+                    onPress={() => setGender(prev => prev === g ? null : g)} 
+                  />
+                ))}
+              </View>
+            </Section>
+
             {/* Sort Section */}
             <Section title="Sort By">
               <View style={styles.chipGrid}>
@@ -192,63 +232,6 @@ export default function FilterModal({
                     onPress={() => setCategory(prev => prev === cat ? null : cat)} 
                   />
                 ))}
-              </View>
-            </Section>
-
-            {/* Media Section */}
-            <Section title="Media">
-              <View style={styles.chipGrid}>
-                <FilterChip 
-                  label="With Image" 
-                  icon="image" 
-                  active={hasImage === "true"} 
-                  onPress={() => setHasImage(prev => prev === "true" ? null : "true")} 
-                />
-                <FilterChip 
-                  label="Text Only" 
-                  icon="notes" 
-                  active={hasImage === "false"} 
-                  onPress={() => setHasImage(prev => prev === "false" ? null : "false")} 
-                />
-              </View>
-            </Section>
-
-            {/* Author Section */}
-            <Section title="Author Attributes">
-              <Text style={styles.subTitle}>Gender</Text>
-              <View style={[styles.chipGrid, { marginBottom: 16 }]}>
-                {["Male", "Female", "Other"].map((g) => (
-                  <FilterChip 
-                    key={g} 
-                    label={g} 
-                    active={gender === g} 
-                    onPress={() => setGender(prev => prev === g ? null : g)} 
-                  />
-                ))}
-              </View>
-
-              <Text style={styles.subTitle}>Location</Text>
-              <View style={styles.inputGroup}>
-                <View style={styles.inputBox}>
-                  <MaterialIcons name="home" size={16} color={T.t3} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Hometown City"
-                    placeholderTextColor={T.t3}
-                    value={hometown}
-                    onChangeText={setHometown}
-                  />
-                </View>
-                <View style={styles.inputBox}>
-                  <MaterialIcons name="location-on" size={16} color={T.t3} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Current City"
-                    placeholderTextColor={T.t3}
-                    value={location}
-                    onChangeText={setLocation}
-                  />
-                </View>
               </View>
             </Section>
 

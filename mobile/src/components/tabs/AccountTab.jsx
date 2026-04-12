@@ -844,12 +844,6 @@ export default function AccountTab({ navigation }) {
       {/* ── Quick Actions ─────────────────────────────────────────────────── */}
       <SectionCard title="Account Actions">
         <ActionRow
-          icon="photo-camera"
-          label="Update Profile Photo"
-          sublabel="JPG or PNG recommended"
-          onPress={pickPhoto}
-        />
-        <ActionRow
           icon="edit"
           label="Edit Profile Details"
           sublabel="Update your existing information"

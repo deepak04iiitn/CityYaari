@@ -7,14 +7,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 const Logo = require("../../assets/Logo.png");
 
 const C = {
-  blue: "#004ac6",
-  blueLight: "#eef2ff",
-  ink: "#0a0a0a",
-  inkSoft: "#888888",
+  orange: "#E8580D",
+  orangeLight: "#FF8A50",
+  orangeGhost: "#FFF0E8",
+  peachSoft: "#FFF3ED",
+  ink: "#2D1A0E",
+  inkSoft: "#6B5E52",
   white: "#ffffff",
-  border: "#e0dbd4",
-  surface: "#f8f6f2",
-  accent: "#e8380d",
+  border: "#E8DDD0",
+  surface: "#FFFAF5",
+  accent: "#f03e1b",
 };
 
 export default function AppTopHeader({
@@ -60,10 +62,10 @@ export default function AppTopHeader({
 
         <Pressable onPress={onNotificationPress} style={styles.notificationButton}>
           <LinearGradient
-            colors={transparent ? ["rgba(255,255,255,0.2)", "rgba(255,255,255,0.1)"] : ["#f3f6ff", "#eef2ff"]}
+            colors={transparent ? ["rgba(255,255,255,0.2)", "rgba(255,255,255,0.1)"] : [C.peachSoft, C.orangeGhost]}
             style={[styles.notificationInner, transparent && styles.notificationInnerTransparent]}
           >
-            <MaterialIcons name="notifications-none" size={22} color={C.blue} />
+            <MaterialIcons name="notifications-none" size={22} color={C.orange} />
             {notificationCount > 0 ? (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{notificationCount > 9 ? "9+" : notificationCount}</Text>
